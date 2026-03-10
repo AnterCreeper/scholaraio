@@ -30,9 +30,9 @@ _SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS papers USING fts5(
     paper_id       UNINDEXED,
     title,
-    authors        UNINDEXED,
-    year           UNINDEXED,
-    journal        UNINDEXED,
+    authors,
+    year,
+    journal,
     abstract,
     conclusion,
     doi            UNINDEXED,

@@ -553,11 +553,37 @@ def visualize_topics_2d(model: "BERTopic") -> str:
         else:
             hover_labels.append(d[:60])
 
+    # Build short topic labels: "Topic N: kw1, kw2, kw3"
+    topic_info = model.get_topic_info()
+    custom_labels = {}
+    for _, row in topic_info.iterrows():
+        tid = row["Topic"]
+        # get top 3 keywords from the topic representation
+        top_words = model.get_topic(tid)
+        if top_words and isinstance(top_words, list):
+            kw = ", ".join(w for w, _ in top_words[:3])
+        else:
+            kw = ""
+        custom_labels[tid] = f"Topic {tid}: {kw}" if kw else f"Topic {tid}"
+    model.set_topic_labels(custom_labels)
+
     fig = model.visualize_documents(
         docs=hover_labels,
         reduced_embeddings=reduced,
         hide_document_hover=False,
+        custom_labels=True,
     )
+
+    # Shorten on-plot annotations to just "Topic N", keep legend full
+    for ann in fig.layout.annotations:
+        if ann.text and ann.text.startswith("Topic "):
+            # Extract "Topic N" from "Topic N: kw1, kw2, ..."
+            short = ann.text.split(":")[0]
+            ann.text = f"<b>{short}</b>"
+
+    # Restore original labels so other visualizations are unaffected
+    model.custom_labels_ = None
+
     return fig.to_html(include_plotlyjs="cdn")
 
 
