@@ -104,7 +104,9 @@ def audit_papers(papers_dir: Path) -> list[Issue]:
 
 def _check_missing(issues: list[Issue], pid: str, data: dict) -> None:
     """Check for missing critical fields."""
-    if not data.get("doi"):
+    from scholaraio.ingest.metadata._doc_extract import DOCUMENT_TYPES
+    paper_type = data.get("paper_type", "")
+    if not data.get("doi") and paper_type not in DOCUMENT_TYPES:
         issues.append(Issue(pid, "warning", "missing_doi", "缺少 DOI"))
     if not data.get("abstract"):
         issues.append(Issue(pid, "warning", "missing_abstract", "缺少摘要"))

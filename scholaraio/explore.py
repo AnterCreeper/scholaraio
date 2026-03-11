@@ -1,15 +1,17 @@
 """
-explore.py — 期刊全量探索
-==========================
+explore.py — 学术探索
+======================
 
-从 OpenAlex 批量拉取期刊论文（title + abstract），本地嵌入 + FAISS
-语义搜索。主题建模、可视化、查询复用 ``topics.py``（通过 ``papers_map``
+从 OpenAlex 批量拉取论文（支持 ISSN / concept / author / institution /
+keyword 等多维度 filter），本地嵌入 + FAISS 语义搜索 + FTS5 关键词检索 +
+RRF 融合检索。主题建模、可视化、查询复用 ``topics.py``（通过 ``papers_map``
 参数）。数据存储在 ``data/explore/<name>/``，与主库完全隔离。
 
 用法::
 
-    from scholaraio.explore import fetch_journal, build_explore_vectors, build_explore_topics
-    fetch_journal("jfm", issn="0022-1120")
+    from scholaraio.explore import fetch_explore, build_explore_vectors, build_explore_topics
+    fetch_explore("jfm", issn="0022-1120")
+    fetch_explore("turbulence", concept="C62520636", year_range="2020-2025")
     build_explore_vectors("jfm")
     build_explore_topics("jfm")
 """
@@ -86,21 +88,72 @@ def _reconstruct_abstract(inverted_index: dict | None) -> str:
     return " ".join(w for _, w in word_positions)
 
 
-def _fetch_page(issn: str, page: int, year_range: str | None = None,
-                cursor: str = "*") -> tuple[list[dict], str | None]:
-    """Fetch one page of results from OpenAlex."""
-    filt = f"primary_location.source.issn:{issn}"
-    if year_range:
-        filt += f",publication_year:{year_range}"
+def _build_filter(
+    *,
+    issn: str | None = None,
+    concept: str | None = None,
+    topic: str | None = None,
+    author: str | None = None,
+    institution: str | None = None,
+    source_type: str | None = None,
+    year_range: str | None = None,
+    min_citations: int | None = None,
+    oa_type: str | None = None,
+) -> tuple[str, dict]:
+    """Build an OpenAlex filter string and extra query params.
 
-    params = {
-        "filter": filt,
+    Returns:
+        (filter_string, extra_params) — extra_params may contain ``search``.
+    """
+    parts: list[str] = []
+    extra: dict[str, str] = {}
+
+    if issn:
+        parts.append(f"primary_location.source.issn:{issn}")
+    if concept:
+        parts.append(f"concepts.id:{concept}")
+    if topic:
+        parts.append(f"topics.id:{topic}")
+    if author:
+        parts.append(f"authorships.author.id:{author}")
+    if institution:
+        parts.append(f"authorships.institutions.id:{institution}")
+    if source_type:
+        parts.append(f"primary_location.source.type:{source_type}")
+    if year_range:
+        parts.append(f"publication_year:{year_range}")
+    if min_citations is not None:
+        parts.append(f"cited_by_count:>{min_citations}")
+    if oa_type:
+        parts.append(f"type:{oa_type}")
+
+    return ",".join(parts), extra
+
+
+def _fetch_page(filt: str, extra_params: dict | None = None, *,
+                cursor: str = "*", keyword: str | None = None,
+                ) -> tuple[list[dict], str | None]:
+    """Fetch one page of results from OpenAlex.
+
+    Args:
+        filt: Pre-built OpenAlex filter string.
+        extra_params: Additional query params (e.g. search).
+        cursor: Cursor for pagination.
+        keyword: Free-text search keyword (OpenAlex ``search`` param).
+    """
+    params: dict[str, str | int] = {
         "per_page": _PER_PAGE,
         "cursor": cursor,
         "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,"
                   "primary_location,cited_by_count,type",
         "sort": "publication_year:asc",
     }
+    if filt:
+        params["filter"] = filt
+    if keyword:
+        params["search"] = keyword
+    if extra_params:
+        params.update(extra_params)
     # Retry with exponential backoff for transient errors
     last_exc: Exception | None = None
     for attempt in range(3):
@@ -158,6 +211,138 @@ def _fetch_page(issn: str, page: int, year_range: str | None = None,
     return papers, next_cursor
 
 
+def fetch_explore(
+    name: str,
+    *,
+    issn: str | None = None,
+    concept: str | None = None,
+    topic: str | None = None,
+    author: str | None = None,
+    institution: str | None = None,
+    keyword: str | None = None,
+    source_type: str | None = None,
+    year_range: str | None = None,
+    min_citations: int | None = None,
+    oa_type: str | None = None,
+    incremental: bool = False,
+    cfg: Config | None = None,
+) -> int:
+    """从 OpenAlex 批量拉取论文（支持多维度 filter）。
+
+    使用 cursor-based 分页遍历符合条件的所有论文，
+    提取 title、abstract、authors 等字段，写入 JSONL 文件。
+
+    Args:
+        name: 探索库名称（如 ``"jfm"``），用作目录名。
+        issn: 期刊 ISSN 过滤（如 ``"0022-1120"``）。
+        concept: OpenAlex concept ID（如 ``"C62520636"`` = Turbulence）。
+        topic: OpenAlex topic ID。
+        author: OpenAlex author ID。
+        institution: OpenAlex institution ID。
+        keyword: 标题/摘要关键词搜索。
+        source_type: 来源类型过滤（journal / conference / repository）。
+        year_range: 年份过滤（如 ``"2020-2025"``）。
+        min_citations: 最小引用量过滤。
+        oa_type: OpenAlex work type 过滤（article / review 等）。
+        incremental: 为 ``True`` 时追加到现有 JSONL，基于 DOI 去重。
+        cfg: 可选的全局配置。
+
+    Returns:
+        本次新拉取的论文数量。
+    """
+    out_dir = _explore_dir(name, cfg)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    papers_file = _papers_path(name, cfg)
+    meta_file = _meta_path(name, cfg)
+
+    filt, extra_params = _build_filter(
+        issn=issn, concept=concept, topic=topic, author=author,
+        institution=institution, source_type=source_type,
+        year_range=year_range, min_citations=min_citations,
+        oa_type=oa_type,
+    )
+    if not filt and not keyword:
+        raise ValueError("至少需要一个过滤条件（issn / concept / author / keyword 等）")
+
+    # Incremental mode: load existing DOIs to skip duplicates
+    existing_dois: set[str] = set()
+    if incremental and papers_file.exists():
+        for p in iter_papers(name, cfg):
+            doi = p.get("doi", "")
+            if doi:
+                existing_dois.add(doi.lower())
+        _log.info("incremental mode: %d existing papers loaded", len(existing_dois))
+
+    from scholaraio.metrics import timer
+
+    total = 0
+    cursor: str | None = "*"
+
+    with timer("explore.fetch", "api") as t:
+        if incremental and papers_file.exists():
+            f_handle = open(papers_file, "a", encoding="utf-8")
+        else:
+            tmp_file = papers_file.with_suffix(".jsonl.tmp")
+            f_handle = open(tmp_file, "w", encoding="utf-8")
+
+        try:
+            page = 0
+            while cursor:
+                page += 1
+                papers, cursor = _fetch_page(
+                    filt, extra_params, cursor=cursor, keyword=keyword,
+                )
+                if not papers:
+                    break
+                for p in papers:
+                    # Skip duplicates in incremental mode
+                    if incremental and p.get("doi", "").lower() in existing_dois:
+                        continue
+                    f_handle.write(json.dumps(p, ensure_ascii=False) + "\n")
+                    total += 1
+                    if incremental and p.get("doi"):
+                        existing_dois.add(p["doi"].lower())
+                _log.info("page %d: +%d papers (total %d, %.0fs)",
+                          page, len(papers), total, t.elapsed)
+        finally:
+            f_handle.close()
+
+        if not incremental or not papers_file.exists():
+            tmp_file.replace(papers_file)  # type: ignore[possibly-undefined]
+
+    # Build query record for meta.json
+    query_params: dict[str, str | int | None] = {}
+    for key, val in [("issn", issn), ("concept", concept), ("topic", topic),
+                     ("author", author), ("institution", institution),
+                     ("keyword", keyword), ("source_type", source_type),
+                     ("year_range", year_range), ("min_citations", min_citations),
+                     ("oa_type", oa_type)]:
+        if val is not None:
+            query_params[key] = val
+
+    # Update count: for incremental mode, add to existing count
+    total_count = total
+    if incremental and meta_file.exists():
+        old_meta = json.loads(meta_file.read_text("utf-8"))
+        total_count = old_meta.get("count", 0) + total
+
+    meta = {
+        "name": name,
+        "source": "openalex",
+        "query": query_params,
+        # Keep "issn" at top level for backward compatibility
+        "issn": issn or "",
+        "year_range": year_range,
+        "count": total_count,
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "elapsed_seconds": round(t.elapsed, 1),
+    }
+    meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+    ui(f"Done: {total} {'new ' if incremental else ''}papers, {t.elapsed:.0f}s -> {papers_file}")
+    return total
+
+
 def fetch_journal(
     name: str,
     issn: str,
@@ -165,58 +350,11 @@ def fetch_journal(
     year_range: str | None = None,
     cfg: Config | None = None,
 ) -> int:
-    """从 OpenAlex 批量拉取期刊全量论文。
+    """从 OpenAlex 拉取期刊全量论文（向后兼容别名）。
 
-    使用 cursor-based 分页遍历指定 ISSN 的所有论文，
-    提取 title、abstract、authors 等字段，写入 JSONL 文件。
-
-    Args:
-        name: 探索库名称（如 ``"jfm"``），用作目录名。
-        issn: 期刊 ISSN（如 ``"0022-1120"``）。
-        year_range: 年份过滤（如 ``"2020-2025"``），为 ``None`` 时拉取全量。
-        cfg: 可选的全局配置。
-
-    Returns:
-        拉取的论文总数。
+    等价于 ``fetch_explore(name, issn=issn, year_range=year_range, cfg=cfg)``。
     """
-    out_dir = _explore_dir(name, cfg)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    papers_file = _papers_path(name, cfg)
-    meta_file = _meta_path(name, cfg)
-
-    from scholaraio.metrics import timer
-
-    total = 0
-    cursor = "*"
-
-    with timer("explore.fetch", "api") as t:
-        tmp_file = papers_file.with_suffix(".jsonl.tmp")
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            page = 0
-            while cursor:
-                page += 1
-                papers, cursor = _fetch_page(issn, page, year_range, cursor)
-                if not papers:
-                    break
-                for p in papers:
-                    f.write(json.dumps(p, ensure_ascii=False) + "\n")
-                total += len(papers)
-                _log.info("page %d: +%d papers (total %d, %.0fs)", page, len(papers), total, t.elapsed)
-        tmp_file.replace(papers_file)
-
-    meta = {
-        "name": name,
-        "source": "openalex",
-        "issn": issn,
-        "year_range": year_range,
-        "count": total,
-        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "elapsed_seconds": round(t.elapsed, 1),
-    }
-    meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
-                         encoding="utf-8")
-    ui(f"Done: {total} papers, {t.elapsed:.0f}s -> {papers_file}")
-    return total
+    return fetch_explore(name, issn=issn, year_range=year_range, cfg=cfg)
 
 
 # ============================================================================
@@ -330,6 +468,9 @@ def build_explore_vectors(name: str, *, rebuild: bool = False, cfg: Config | Non
             explore_dir / "faiss_ids.json",
             all_new_ids, all_new_vecs,
         )
+
+    # Also build FTS5 index (cheap, ensures keyword search is available)
+    build_explore_fts(name, cfg=cfg)
 
     return len(to_embed)
 
@@ -469,5 +610,196 @@ def explore_vsearch(name: str, query: str, *, top_k: int = 10,
         p = paper_map.get(pid, {})
         results.append({**p, "score": score})
     return results
+
+
+# ============================================================================
+#  FTS5 keyword search for explore silos
+# ============================================================================
+
+_FTS_SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS papers_fts USING fts5(
+    paper_id   UNINDEXED,
+    title,
+    authors,
+    abstract,
+    year       UNINDEXED,
+    tokenize='unicode61'
+);
+"""
+
+
+def _ensure_fts(db_path: Path) -> None:
+    """Create FTS5 table in explore.db if it doesn't exist."""
+    conn = sqlite3.connect(db_path)
+    conn.executescript(_FTS_SCHEMA)
+    conn.close()
+
+
+def build_explore_fts(name: str, *, rebuild: bool = False,
+                      cfg: Config | None = None) -> int:
+    """为探索库构建 FTS5 全文索引。
+
+    Args:
+        name: 探索库名称。
+        rebuild: 为 ``True`` 时清空重建。
+        cfg: 可选的全局配置。
+
+    Returns:
+        索引的论文数量。
+    """
+    db = _db_path(name, cfg)
+    _ensure_fts(db)
+    conn = sqlite3.connect(db)
+    try:
+        if rebuild:
+            conn.execute("DELETE FROM papers_fts")
+            conn.commit()
+
+        existing = {row[0] for row in
+                    conn.execute("SELECT paper_id FROM papers_fts").fetchall()}
+
+        count = 0
+        for p in iter_papers(name, cfg):
+            pid = p.get("doi") or p.get("openalex_id", "")
+            if not pid or pid in existing:
+                continue
+            title = (p.get("title") or "").strip()
+            abstract = (p.get("abstract") or "").strip()
+            if not title:
+                continue
+            authors = ", ".join(p.get("authors") or [])
+            year = str(p.get("year") or "")
+            conn.execute(
+                "INSERT INTO papers_fts (paper_id, title, authors, abstract, year) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pid, title, authors, abstract, year),
+            )
+            count += 1
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    _log.info("FTS5 index: %d papers indexed for %s", count, name)
+    return count
+
+
+def explore_search(name: str, query: str, *, top_k: int = 20,
+                   cfg: Config | None = None) -> list[dict]:
+    """在探索库中进行 FTS5 关键词搜索。
+
+    Args:
+        name: 探索库名称。
+        query: 查询文本。
+        top_k: 返回条数。
+        cfg: 可选的全局配置。
+
+    Returns:
+        论文列表，按 BM25 排名。
+    """
+    db = _db_path(name, cfg)
+    if not db.exists():
+        return []
+
+    _ensure_fts(db)
+
+    # Auto-build if FTS table is empty
+    conn = sqlite3.connect(db)
+    try:
+        fts_count = conn.execute("SELECT COUNT(*) FROM papers_fts").fetchone()[0]
+    finally:
+        conn.close()
+
+    if fts_count == 0:
+        build_explore_fts(name, cfg=cfg)
+
+    conn = sqlite3.connect(db)
+    try:
+        rows = conn.execute(
+            "SELECT paper_id, rank FROM papers_fts WHERE papers_fts MATCH ? "
+            "ORDER BY rank LIMIT ?",
+            (query, top_k),
+        ).fetchall()
+    except Exception:
+        # FTS query syntax error — try quoting
+        safe_query = '"' + query.replace('"', '') + '"'
+        try:
+            rows = conn.execute(
+                "SELECT paper_id, rank FROM papers_fts WHERE papers_fts MATCH ? "
+                "ORDER BY rank LIMIT ?",
+                (safe_query, top_k),
+            ).fetchall()
+        except Exception:
+            rows = []
+    finally:
+        conn.close()
+
+    if not rows:
+        return []
+
+    paper_map = build_papers_map(name, cfg)
+    results = []
+    for pid, rank in rows:
+        p = paper_map.get(pid, {})
+        results.append({**p, "score": -rank, "match": "fts"})
+    return results
+
+
+def explore_unified_search(name: str, query: str, *, top_k: int = 20,
+                           cfg: Config | None = None) -> list[dict]:
+    """探索库融合检索：FTS5 关键词 + FAISS 语义，RRF 合并排序。
+
+    Args:
+        name: 探索库名称。
+        query: 查询文本。
+        top_k: 返回条数。
+        cfg: 可选的全局配置。
+
+    Returns:
+        论文列表，按 RRF 综合得分降序。
+    """
+    fts_results = explore_search(name, query, top_k=top_k, cfg=cfg)
+
+    vec_results: list[dict] = []
+    try:
+        vec_results = explore_vsearch(name, query, top_k=top_k, cfg=cfg)
+    except (FileNotFoundError, ImportError):
+        pass
+
+    # RRF merge (k=60, same as main library)
+    rrf_k = 60
+    merged: dict[str, dict] = {}
+
+    for rank, r in enumerate(fts_results):
+        pid = r.get("doi") or r.get("openalex_id", "")
+        if not pid:
+            continue
+        merged[pid] = {**r, "score": 1.0 / (rrf_k + rank + 1), "match": "fts"}
+
+    for rank, r in enumerate(vec_results):
+        pid = r.get("doi") or r.get("openalex_id", "")
+        if not pid:
+            continue
+        rrf_score = 1.0 / (rrf_k + rank + 1)
+        if pid in merged:
+            merged[pid]["score"] += rrf_score
+            merged[pid]["match"] = "both"
+        else:
+            merged[pid] = {**r, "score": rrf_score, "match": "vec"}
+
+    results = sorted(merged.values(), key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
+
+
+def list_explore_libs(cfg: Config | None = None) -> list[str]:
+    """列出所有探索库名称。"""
+    if cfg is not None:
+        root = cfg._root / "data" / "explore"
+    else:
+        root = _DEFAULT_EXPLORE_DIR
+    if not root.exists():
+        return []
+    return sorted(d.name for d in root.iterdir()
+                  if d.is_dir() and (d / "papers.jsonl").exists())
 
 

@@ -47,6 +47,14 @@ def _type_to_bibtex(paper_type: str) -> str:
         "thesis": "phdthesis",
         "dissertation": "phdthesis",
         "preprint": "misc",
+        "document": "misc",
+        "technical-report": "techreport",
+        "manual": "manual",
+        "lecture-notes": "misc",
+        "standard": "misc",
+        "white-paper": "misc",
+        "presentation": "misc",
+        "meeting-notes": "misc",
     }
     return mapping.get(paper_type or "", "article")
 

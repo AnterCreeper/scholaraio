@@ -143,6 +143,8 @@ class IngestConfig:
             - ``"verify"``：正则成功后仍由 LLM 校验/修正，失败时 LLM 直接提取。
 
         contact_email: Crossref polite pool 联系邮箱（User-Agent），建议放 config.local.yaml。
+        chunk_page_limit: 超长 PDF 自动切分的页数阈值。超过此值的 PDF 在 MinerU
+            转换前自动拆分为多个短 PDF，转换后合并为单个 Markdown。
     """
     extractor: str = "robust"                 # regex | auto | llm | robust
     mineru_endpoint: str = "http://localhost:8000"
@@ -150,6 +152,7 @@ class IngestConfig:
     mineru_api_key: str = ""
     abstract_llm_mode: str = "verify"        # off | fallback | verify
     contact_email: str = ""
+    chunk_page_limit: int = 100              # auto-split PDFs exceeding this page count
 
 
 @dataclass
@@ -222,6 +225,7 @@ class Config:
         for d in (
             self.papers_dir,
             self._root / "data" / "inbox",
+            self._root / "data" / "inbox-doc",
             self._root / "data" / "pending",
             self._root / "workspace",
             self.log_file.parent,

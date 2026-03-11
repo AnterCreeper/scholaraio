@@ -854,9 +854,36 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
     action = args.explore_action
 
     if action == "fetch":
-        name = args.name or args.issn.replace("-", "")
-        from scholaraio.explore import fetch_journal
-        total = fetch_journal(name, args.issn, year_range=args.year_range, cfg=cfg)
+        # Determine name: explicit --name, or derive from filters
+        name = args.name
+        if not name:
+            if args.issn:
+                name = args.issn.replace("-", "")
+            elif args.concept:
+                name = f"concept-{args.concept}"
+            elif args.author:
+                name = f"author-{args.author}"
+            elif args.keyword:
+                name = args.keyword.replace(" ", "-")[:30]
+            else:
+                ui("请提供 --name 或至少一个过滤条件")
+                return
+        from scholaraio.explore import fetch_explore
+        total = fetch_explore(
+            name,
+            issn=getattr(args, "issn", None),
+            concept=getattr(args, "concept", None),
+            topic=getattr(args, "topic_id", None),
+            author=getattr(args, "author", None),
+            institution=getattr(args, "institution", None),
+            keyword=getattr(args, "keyword", None),
+            source_type=getattr(args, "source_type", None),
+            year_range=getattr(args, "year_range", None),
+            min_citations=getattr(args, "min_citations", None),
+            oa_type=getattr(args, "oa_type", None),
+            incremental=getattr(args, "incremental", False),
+            cfg=cfg,
+        )
         ui(f"\nFetched {total} papers")
 
     elif action == "embed":
@@ -938,11 +965,23 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
 
     elif action == "search":
         query = " ".join(args.query)
-        try:
-            from scholaraio.explore import explore_vsearch
-        except ImportError as e:
-            _check_import_error(e)
-        results = explore_vsearch(args.name, query, top_k=_resolve_top(args, 10), cfg=cfg)
+        mode = getattr(args, "mode", "semantic") or "semantic"
+        top_k = _resolve_top(args, 10)
+        if mode == "keyword":
+            from scholaraio.explore import explore_search
+            results = explore_search(args.name, query, top_k=top_k, cfg=cfg)
+        elif mode == "unified":
+            try:
+                from scholaraio.explore import explore_unified_search
+            except ImportError as e:
+                _check_import_error(e)
+            results = explore_unified_search(args.name, query, top_k=top_k, cfg=cfg)
+        else:
+            try:
+                from scholaraio.explore import explore_vsearch
+            except ImportError as e:
+                _check_import_error(e)
+            results = explore_vsearch(args.name, query, top_k=top_k, cfg=cfg)
         if not results:
             ui("No results found.")
             return
@@ -981,8 +1020,16 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                 meta_file = d / "meta.json"
                 if meta_file.exists():
                     meta = _json.loads(meta_file.read_text("utf-8"))
+                    # Show query info (backward compatible with old ISSN-only format)
+                    query = meta.get("query", {})
+                    if query:
+                        qinfo = ", ".join(f"{k}={v}" for k, v in query.items())
+                    elif meta.get("issn"):
+                        qinfo = f"ISSN {meta['issn']}"
+                    else:
+                        qinfo = "?"
                     ui(f"  {d.name}: {meta.get('count', '?')} papers "
-                          f"(ISSN {meta.get('issn', '?')}, "
+                          f"({qinfo}, "
                           f"fetched {meta.get('fetched_at', '?')})")
             return
         from scholaraio.explore import count_papers
@@ -1895,10 +1942,19 @@ def main() -> None:
     p_explore.set_defaults(func=cmd_explore)
     p_explore_sub = p_explore.add_subparsers(dest="explore_action", required=True)
 
-    p_ef = p_explore_sub.add_parser("fetch", help="从 OpenAlex 拉取期刊全量论文")
-    p_ef.add_argument("--issn", required=True, help="期刊 ISSN（如 0022-1120）")
-    p_ef.add_argument("--name", help="探索库名称（默认用 ISSN 去掉横线）")
+    p_ef = p_explore_sub.add_parser("fetch", help="从 OpenAlex 拉取论文（多维度 filter）")
+    p_ef.add_argument("--issn", default=None, help="期刊 ISSN（如 0022-1120）")
+    p_ef.add_argument("--concept", default=None, help="OpenAlex concept ID（如 C62520636）")
+    p_ef.add_argument("--topic-id", default=None, help="OpenAlex topic ID")
+    p_ef.add_argument("--author", default=None, help="OpenAlex author ID")
+    p_ef.add_argument("--institution", default=None, help="OpenAlex institution ID")
+    p_ef.add_argument("--keyword", default=None, help="标题/摘要关键词搜索")
+    p_ef.add_argument("--source-type", default=None, help="来源类型（journal/conference/repository）")
+    p_ef.add_argument("--oa-type", default=None, help="论文类型（article/review 等）")
+    p_ef.add_argument("--min-citations", type=int, default=None, help="最小引用量")
+    p_ef.add_argument("--name", help="探索库名称（默认从 filter 推导）")
     p_ef.add_argument("--year-range", help="年份过滤（如 2020-2025）")
+    p_ef.add_argument("--incremental", action="store_true", help="增量更新（追加新论文）")
 
     p_ee = p_explore_sub.add_parser("embed", help="为探索库生成语义向量")
     p_ee.add_argument("--name", required=True, help="探索库名称")
@@ -1915,10 +1971,12 @@ def main() -> None:
     p_et.add_argument("--nr-topics", type=int, default=None,
                        help="目标主题数（默认自然聚类）")
 
-    p_es = p_explore_sub.add_parser("search", help="探索库语义搜索")
+    p_es = p_explore_sub.add_parser("search", help="探索库搜索（语义/关键词/融合）")
     p_es.add_argument("--name", required=True, help="探索库名称")
     p_es.add_argument("query", nargs="+", help="查询文本")
     p_es.add_argument("--top", type=int, default=None, help="返回条数")
+    p_es.add_argument("--mode", choices=["semantic", "keyword", "unified"],
+                       default="semantic", help="搜索模式（默认 semantic）")
 
     p_ev = p_explore_sub.add_parser("viz", help="生成全部可视化（HTML）")
     p_ev.add_argument("--name", required=True, help="探索库名称")

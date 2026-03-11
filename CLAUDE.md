@@ -134,6 +134,23 @@ data/inbox-thesis/
 注：普通 inbox 中无 DOI 的论文会由 LLM 自动判断是否为 thesis——是则标记入库，否则转 pending。
 thesis inbox 跳过此判断，直接标记入库。
 
+### data/inbox-doc/ 目录
+
+```
+data/inbox-doc/
+├── report.pdf    # 非论文文档 PDF（技术报告、标准、讲义等）
+└── notes.md      # 或直接放 .md
+```
+
+非论文文档入库流程：
+- 跳过 DOI 去重和 API 查询
+- LLM 自动生成标题和摘要（确保检索可用）
+- 无 LLM 时降级：第一个 markdown 标题或文件名 → 标题，前 500 词 → 摘要
+- paper_type 标记为 `document`（或 `technical-report` / `lecture-notes` 等具体类型）
+- 审计规则对 document 类型不报 missing_doi 警告
+
+超长 PDF（默认 >100 页）自动切分为多个短 PDF 分段解析后合并。
+
 ### data/pending/ 目录
 
 ```

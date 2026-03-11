@@ -107,6 +107,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
 
     md-only 入库项（无 PDF）自动跳过。已有同名 ``.md`` 时也跳过。
     本地 MinerU 不可达时自动 fallback 到云 API（需配置 ``mineru_api_key``）。
+    超长 PDF（超过 ``chunk_page_limit`` 页）自动切分后逐段转换再合并。
 
     Args:
         ctx: Inbox 上下文，转换后 ``ctx.md_path`` 指向生成的 ``.md``。
@@ -114,7 +115,10 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
     Returns:
         ``StepResult.OK`` 成功, ``StepResult.FAIL`` 失败。
     """
-    from scholaraio.ingest.mineru import ConvertOptions, check_server, convert_pdf
+    from scholaraio.ingest.mineru import (
+        ConvertOptions, check_server, convert_pdf,
+        _get_pdf_page_count, _convert_long_pdf, _convert_long_pdf_cloud,
+    )
 
     # md-only entry (no PDF): skip MinerU entirely
     if ctx.pdf_path is None:
@@ -143,9 +147,20 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
         output_dir=ctx.inbox_dir,
     )
 
+    chunk_limit = getattr(ctx.cfg.ingest, "chunk_page_limit", 100)
+    page_count = _get_pdf_page_count(pdf_path)
+    is_long = page_count > chunk_limit
+
+    if is_long:
+        ui(f"Long PDF detected ({page_count} pages > {chunk_limit} limit), splitting...")
+
     # Try local MinerU first, fallback to cloud API
     if check_server(ctx.cfg.ingest.mineru_endpoint):
-        result = convert_pdf(pdf_path, mineru_opts)
+        if is_long:
+            result = _convert_long_pdf(pdf_path, mineru_opts,
+                                       chunk_size=chunk_limit)
+        else:
+            result = convert_pdf(pdf_path, mineru_opts)
     else:
         api_key = ctx.cfg.resolved_mineru_api_key()
         if not api_key:
@@ -154,11 +169,19 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
             return StepResult.FAIL
         from scholaraio.ingest.mineru import convert_pdf_cloud
         _log.debug("local MinerU unreachable, using cloud API")
-        result = convert_pdf_cloud(
-            pdf_path, mineru_opts,
-            api_key=api_key,
-            cloud_url=ctx.cfg.ingest.mineru_cloud_url,
-        )
+        if is_long:
+            result = _convert_long_pdf_cloud(
+                pdf_path, mineru_opts,
+                api_key=api_key,
+                cloud_url=ctx.cfg.ingest.mineru_cloud_url,
+                chunk_size=chunk_limit,
+            )
+        else:
+            result = convert_pdf_cloud(
+                pdf_path, mineru_opts,
+                api_key=api_key,
+                cloud_url=ctx.cfg.ingest.mineru_cloud_url,
+            )
 
     if not result.success:
         _log.error("MinerU failed: %s", result.error)
@@ -166,6 +189,48 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
         return StepResult.FAIL
 
     ctx.md_path = result.md_path or md_path
+    return StepResult.OK
+
+
+def step_extract_doc(ctx: InboxCtx) -> StepResult:
+    """从非论文文档提取/生成元数据（LLM 生成标题和摘要）。
+
+    对于缺少标题/摘要的普通文档，使用 LLM 从全文生成，确保检索可用。
+
+    Args:
+        ctx: Inbox 上下文，需要 ``ctx.md_path`` 已设置。
+
+    Returns:
+        ``StepResult.OK`` 成功, ``StepResult.FAIL`` 失败。
+    """
+    if ctx.opts.get("dry_run"):
+        _log.debug("would extract document metadata from: %s",
+                   ctx.md_path.name if ctx.md_path else "?")
+        return StepResult.OK
+
+    if not ctx.md_path or not ctx.md_path.exists():
+        _log.error("extract_doc failed: no .md file")
+        ctx.status = "failed"
+        return StepResult.FAIL
+
+    from scholaraio.ingest.metadata._doc_extract import extract_document_metadata
+
+    try:
+        meta = extract_document_metadata(ctx.md_path, ctx.cfg)
+    except Exception as e:
+        _log.error("document extraction failed: %s", e)
+        ctx.status = "failed"
+        return StepResult.FAIL
+
+    if not (meta.title or "").strip():
+        _log.error("cannot determine document title")
+        ctx.status = "failed"
+        return StepResult.FAIL
+
+    meta.paper_type = meta.paper_type or "document"
+    ctx.meta = meta
+    ui(f"Title: {meta.title[:80]}")
+    ui(f"Type: {meta.paper_type} | Author: {meta.first_author or '?'} | Year: {meta.year or '?'}")
     return StepResult.OK
 
 
@@ -183,7 +248,8 @@ def step_extract(ctx: InboxCtx) -> StepResult:
     from scholaraio.ingest.extractor import get_extractor
 
     if ctx.opts.get("dry_run"):
-        _log.debug("would extract metadata from: %s", ctx.md_path.name if ctx.md_path else "?")
+        _log.debug("would extract metadata from: %s",
+                   ctx.md_path.name if ctx.md_path else "?")
         return StepResult.OK
 
     if not ctx.md_path or not ctx.md_path.exists():
@@ -543,16 +609,20 @@ def step_refetch(json_path: Path, cfg: Config, opts: dict) -> StepResult:
 
 
 STEPS: dict[str, StepDef] = {
-    "mineru":  StepDef(fn=step_mineru,  scope="inbox",  desc="PDF → Markdown（MinerU）"),
-    "extract": StepDef(fn=step_extract, scope="inbox",  desc="Markdown → 元数据提取"),
-    "dedup":   StepDef(fn=step_dedup,   scope="inbox",  desc="API 查询 + DOI 去重"),
-    "ingest":  StepDef(fn=step_ingest,  scope="inbox",  desc="写入 data/papers/"),
-    "toc":     StepDef(fn=step_toc,     scope="papers", desc="LLM 提取 TOC 写入 JSON"),
-    "l3":      StepDef(fn=step_l3,      scope="papers", desc="LLM 提取结论写入 JSON"),
-    "refetch": StepDef(fn=step_refetch, scope="papers", desc="重新查询 API 补全引用量等字段"),
-    "embed":   StepDef(fn=step_embed,   scope="global", desc="生成语义向量写入 index.db"),
-    "index":   StepDef(fn=step_index,   scope="global", desc="更新 SQLite FTS5 索引"),
+    "mineru":      StepDef(fn=step_mineru,       scope="inbox",  desc="PDF → Markdown（MinerU）"),
+    "extract":     StepDef(fn=step_extract,       scope="inbox",  desc="Markdown → 元数据提取"),
+    "extract_doc": StepDef(fn=step_extract_doc,   scope="inbox",  desc="文档 → LLM 元数据提取"),
+    "dedup":       StepDef(fn=step_dedup,         scope="inbox",  desc="API 查询 + DOI 去重"),
+    "ingest":      StepDef(fn=step_ingest,        scope="inbox",  desc="写入 data/papers/"),
+    "toc":         StepDef(fn=step_toc,           scope="papers", desc="LLM 提取 TOC 写入 JSON"),
+    "l3":          StepDef(fn=step_l3,            scope="papers", desc="LLM 提取结论写入 JSON"),
+    "refetch":     StepDef(fn=step_refetch,       scope="papers", desc="重新查询 API 补全引用量等字段"),
+    "embed":       StepDef(fn=step_embed,         scope="global", desc="生成语义向量写入 index.db"),
+    "index":       StepDef(fn=step_index,         scope="global", desc="更新 SQLite FTS5 索引"),
 }
+
+# Document inbox uses a different step sequence (no DOI dedup)
+_DOC_INBOX_STEPS = ["mineru", "extract_doc", "ingest"]
 
 PRESETS: dict[str, list[str]] = {
     "full":    ["mineru", "extract", "dedup", "ingest", "toc", "l3", "embed", "index"],
@@ -632,11 +702,22 @@ def _process_inbox(
 
     # ---- Batch MinerU preflight (cloud only) ----
     mineru_time = 0.0
+    long_pdf_stems: set[str] = set()  # stems of long PDFs excluded from batch
     if use_cloud_batch and needs_mineru and not dry_run:
-        pdfs_to_convert = [
-            e["pdf"] for e in entries.values()
-            if e["pdf"] and not (inbox_dir / (e["pdf"].stem + ".md")).exists()
-        ]
+        from scholaraio.ingest.mineru import _get_pdf_page_count
+        chunk_limit = getattr(cfg.ingest, "chunk_page_limit", 100)
+        pdfs_to_convert = []
+        for e in entries.values():
+            pdf = e["pdf"]
+            if not pdf or (inbox_dir / (pdf.stem + ".md")).exists():
+                continue
+            # Exclude long PDFs from batch — they need chunk-based handling
+            pc = _get_pdf_page_count(pdf)
+            if pc > chunk_limit:
+                long_pdf_stems.add(pdf.stem)
+                _log.info("long PDF excluded from batch (%d pages): %s", pc, pdf.name)
+                continue
+            pdfs_to_convert.append(pdf)
         if pdfs_to_convert:
             from scholaraio.ingest.mineru import ConvertOptions, convert_pdfs_cloud_batch
             mineru_opts = ConvertOptions(output_dir=inbox_dir)
@@ -665,8 +746,10 @@ def _process_inbox(
 
     # ---- Per-file pipeline (remaining steps, or all steps if local MinerU) ----
     # If batch MinerU was used, skip mineru step per-file (md already exists)
+    # BUT keep mineru for long PDFs that were excluded from batch
     per_file_steps = inbox_steps
-    if use_cloud_batch and "mineru" in per_file_steps:
+    batch_skip_mineru = use_cloud_batch and "mineru" in per_file_steps
+    if batch_skip_mineru and not long_pdf_stems:
         per_file_steps = [s for s in per_file_steps if s != "mineru"]
 
     has_api = "dedup" in per_file_steps and not dry_run and not opts.get("no_api") and not is_thesis
@@ -680,6 +763,14 @@ def _process_inbox(
     for idx, (stem, paths) in enumerate(sorted_entries):
         file_label = paths["pdf"].name if paths["pdf"] else paths["md"].name
         ui(f"\n{label_prefix}[{idx+1}/{len(sorted_entries)}] {'PDF' if paths['pdf'] else 'MD'}: {file_label}")
+
+        # For long PDFs excluded from batch, keep mineru step
+        file_steps = per_file_steps
+        if batch_skip_mineru and long_pdf_stems and stem in long_pdf_stems:
+            file_steps = inbox_steps  # full steps including mineru
+        elif batch_skip_mineru and long_pdf_stems and stem not in long_pdf_stems:
+            file_steps = [s for s in per_file_steps if s != "mineru"]
+
         ctx = InboxCtx(
             pdf_path=paths["pdf"],
             inbox_dir=inbox_dir,
@@ -691,7 +782,7 @@ def _process_inbox(
             md_path=paths["md"],
             is_thesis=is_thesis,
         )
-        for step_name in per_file_steps:
+        for step_name in file_steps:
             with timer(f"pipeline.inbox.{step_name}", "step") as t:
                 result = STEPS[step_name].fn(ctx)
             step_times[step_name] = step_times.get(step_name, 0) + t.elapsed
@@ -787,6 +878,17 @@ def run_pipeline(
                 thesis_inbox, papers_dir, pending_dir, existing_dois,
                 inbox_steps, cfg, opts, dry_run, ingested_jsons,
                 is_thesis=True,
+            )
+
+        # Process document inbox (data/inbox-doc/)
+        doc_inbox = cfg._root / "data" / "inbox-doc"
+        if doc_inbox.exists():
+            # Documents use extract_doc + ingest (skip dedup/API queries)
+            doc_steps = [s for s in _DOC_INBOX_STEPS if s in STEPS]
+            _process_inbox(
+                doc_inbox, papers_dir, pending_dir, existing_dois,
+                doc_steps, cfg, opts, dry_run, ingested_jsons,
+                is_thesis=False,
             )
 
     # ---- Papers scope ----

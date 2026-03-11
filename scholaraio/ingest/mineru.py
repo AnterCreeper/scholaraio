@@ -79,6 +79,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from dataclasses import dataclass, field
@@ -892,6 +893,252 @@ def _find_pdfs(dirpath: Path, recursive: bool = False) -> list[Path]:
     """Find all PDF files in a directory."""
     pattern = "**/*.pdf" if recursive else "*.pdf"
     return sorted(dirpath.glob(pattern))
+
+
+# ============================================================================
+#  Long PDF splitting & merging
+# ============================================================================
+
+DEFAULT_CHUNK_PAGES = 100
+
+
+def _get_pdf_page_count(pdf_path: Path) -> int:
+    """Get the number of pages in a PDF.
+
+    Tries pymupdf first, falls back to pikepdf.
+
+    Returns:
+        Page count, or -1 if unable to determine.
+    """
+    try:
+        import pymupdf
+        with pymupdf.open(pdf_path) as doc:
+            return len(doc)
+    except ImportError:
+        pass
+    try:
+        import pikepdf
+        with pikepdf.open(pdf_path) as pdf:
+            return len(pdf.pages)
+    except ImportError:
+        pass
+    _log.warning("cannot detect page count (install pymupdf or pikepdf): %s",
+                 pdf_path.name)
+    return -1
+
+
+def _split_pdf(pdf_path: Path, chunk_size: int = DEFAULT_CHUNK_PAGES,
+               output_dir: Path | None = None) -> list[Path]:
+    """Split a long PDF into multiple smaller PDFs.
+
+    Args:
+        pdf_path: Original PDF file path.
+        chunk_size: Maximum pages per chunk.
+        output_dir: Where to write chunks (default: ``.{stem}_chunks/``
+            next to the PDF).
+
+    Returns:
+        List of chunk PDF paths in page order.
+        If total pages <= chunk_size, returns ``[pdf_path]`` unchanged.
+    """
+    import pymupdf
+
+    page_count = _get_pdf_page_count(pdf_path)
+    if page_count <= chunk_size:
+        return [pdf_path]
+
+    if output_dir is None:
+        output_dir = pdf_path.parent / f".{pdf_path.stem}_chunks"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    chunks: list[Path] = []
+    with pymupdf.open(pdf_path) as src_doc:
+        for start in range(0, page_count, chunk_size):
+            end = min(start + chunk_size, page_count)  # exclusive
+            chunk_name = f"{pdf_path.stem}_p{start:04d}-{end - 1:04d}.pdf"
+            chunk_path = output_dir / chunk_name
+
+            if chunk_path.exists():
+                # Idempotent: reuse existing chunk
+                chunks.append(chunk_path)
+                continue
+
+            chunk_doc = pymupdf.open()
+            chunk_doc.insert_pdf(src_doc, from_page=start, to_page=end - 1)
+            chunk_doc.save(str(chunk_path))
+            chunk_doc.close()
+            chunks.append(chunk_path)
+
+    _log.info("split %s (%d pages) into %d chunks of ≤%d pages",
+              pdf_path.name, page_count, len(chunks), chunk_size)
+    return chunks
+
+
+def _merge_chunk_results(
+    chunk_results: list[ConvertResult],
+    original_pdf: Path,
+    output_dir: Path,
+) -> ConvertResult:
+    """Merge multiple chunk ConvertResults into a single result.
+
+    Handles:
+    - Markdown text concatenation
+    - Image file deduplication/renaming (``c{idx}_{name}`` prefix)
+    - Error aggregation for partial failures
+
+    Args:
+        chunk_results: Ordered ConvertResult list (one per chunk).
+        original_pdf: The original unsplit PDF path.
+        output_dir: Final output directory for merged result.
+
+    Returns:
+        Merged ConvertResult.
+    """
+    merged = ConvertResult(pdf_path=original_pdf)
+    final_md_path = output_dir / (original_pdf.stem + ".md")
+    final_images_dir = output_dir / "images"
+
+    md_parts: list[str] = []
+    errors: list[str] = []
+    total_elapsed = 0.0
+
+    for idx, cr in enumerate(chunk_results):
+        total_elapsed += cr.elapsed_seconds
+
+        if not cr.success:
+            errors.append(f"chunk {idx}: {cr.error}")
+            continue
+
+        if not cr.md_path or not cr.md_path.exists():
+            errors.append(f"chunk {idx}: md file not found")
+            continue
+
+        chunk_md = cr.md_path.read_text(encoding="utf-8", errors="replace")
+
+        # Find chunk's images directory
+        chunk_images_dir = None
+        for candidate in [
+            cr.md_path.parent / "images",
+            cr.md_path.parent / f"{cr.md_path.stem}_mineru_images",
+            cr.md_path.parent / f"{cr.md_path.stem}_images",
+        ]:
+            if candidate.is_dir():
+                chunk_images_dir = candidate
+                break
+
+        if chunk_images_dir and any(chunk_images_dir.iterdir()):
+            final_images_dir.mkdir(parents=True, exist_ok=True)
+            for img_file in sorted(chunk_images_dir.iterdir()):
+                if not img_file.is_file():
+                    continue
+                new_name = f"c{idx:02d}_{img_file.name}"
+                new_path = final_images_dir / new_name
+                shutil.copy2(img_file, new_path)
+                # Remap image references in markdown
+                old_ref = f"images/{img_file.name}"
+                new_ref = f"images/{new_name}"
+                chunk_md = chunk_md.replace(old_ref, new_ref)
+                # Also handle _mineru_images/ variant
+                for prefix in [f"{cr.md_path.stem}_mineru_images",
+                               f"{cr.md_path.stem}_images"]:
+                    old_ref2 = f"{prefix}/{img_file.name}"
+                    chunk_md = chunk_md.replace(old_ref2, new_ref)
+
+        md_parts.append(chunk_md)
+
+    if not md_parts:
+        merged.error = "all chunks failed: " + "; ".join(errors)
+        merged.elapsed_seconds = total_elapsed
+        return merged
+
+    final_md = "\n\n".join(md_parts)
+    final_md_path.write_text(final_md, encoding="utf-8")
+
+    merged.success = True
+    merged.md_path = final_md_path
+    merged.md_size = len(final_md.encode("utf-8"))
+    merged.elapsed_seconds = total_elapsed
+
+    if errors:
+        _log.warning("some chunks failed during merge: %s", "; ".join(errors))
+
+    return merged
+
+
+def _convert_long_pdf(pdf_path: Path, opts: ConvertOptions,
+                      chunk_size: int = DEFAULT_CHUNK_PAGES) -> ConvertResult:
+    """Handle a long PDF: split → convert each chunk → merge results.
+
+    Uses the local MinerU API for each chunk sequentially.
+    """
+    out_dir = opts.output_dir if opts.output_dir else pdf_path.parent
+    chunks_dir = out_dir / f".{pdf_path.stem}_chunks"
+
+    chunk_paths = _split_pdf(pdf_path, chunk_size=chunk_size,
+                             output_dir=chunks_dir)
+
+    chunk_results: list[ConvertResult] = []
+    for i, chunk_pdf in enumerate(chunk_paths):
+        _log.info("converting chunk %d/%d: %s", i + 1, len(chunk_paths),
+                  chunk_pdf.name)
+        chunk_opts = ConvertOptions(
+            api_url=opts.api_url,
+            output_dir=chunks_dir,
+            backend=opts.backend,
+            lang=opts.lang,
+            parse_method=opts.parse_method,
+            formula_enable=opts.formula_enable,
+            table_enable=opts.table_enable,
+            save_content_list=opts.save_content_list,
+            force=opts.force,
+            dry_run=opts.dry_run,
+        )
+        cr = convert_pdf(chunk_pdf, chunk_opts)
+        chunk_results.append(cr)
+
+    merged = _merge_chunk_results(chunk_results, pdf_path, out_dir)
+
+    if merged.success and chunks_dir.exists():
+        shutil.rmtree(chunks_dir)
+        _log.debug("cleaned up chunks dir: %s", chunks_dir)
+
+    return merged
+
+
+def _convert_long_pdf_cloud(
+    pdf_path: Path, opts: ConvertOptions,
+    *,
+    api_key: str, cloud_url: str,
+    chunk_size: int = DEFAULT_CHUNK_PAGES,
+) -> ConvertResult:
+    """Handle a long PDF via cloud API: split → batch upload → merge."""
+    out_dir = opts.output_dir if opts.output_dir else pdf_path.parent
+    chunks_dir = out_dir / f".{pdf_path.stem}_chunks"
+
+    chunk_paths = _split_pdf(pdf_path, chunk_size=chunk_size,
+                             output_dir=chunks_dir)
+
+    chunk_opts = ConvertOptions(
+        output_dir=chunks_dir,
+        backend=opts.backend,
+        lang=opts.lang,
+        parse_method=opts.parse_method,
+        formula_enable=opts.formula_enable,
+        table_enable=opts.table_enable,
+        save_content_list=opts.save_content_list,
+    )
+    batch_results = convert_pdfs_cloud_batch(
+        chunk_paths, chunk_opts,
+        api_key=api_key, cloud_url=cloud_url,
+    )
+
+    merged = _merge_chunk_results(batch_results, pdf_path, out_dir)
+
+    if merged.success and chunks_dir.exists():
+        shutil.rmtree(chunks_dir)
+        _log.debug("cleaned up chunks dir: %s", chunks_dir)
+
+    return merged
 
 
 # ============================================================================
