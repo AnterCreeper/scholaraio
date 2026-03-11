@@ -1,7 +1,6 @@
 ---
 name: ingest
 description: Ingest papers from inbox into the knowledge base. Runs the pipeline to convert PDFs via MinerU, extract metadata, deduplicate by DOI, and build indexes. Use when the user has new papers to process, wants to run the pipeline, or rebuild indexes.
-disable-model-invocation: true
 ---
 
 # 入库论文

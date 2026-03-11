@@ -1,7 +1,6 @@
 ---
 name: rename
 description: Rename paper directories to standardized Author-Year-Title format based on JSON metadata. Use when the user wants to normalize filenames after metadata corrections.
-disable-model-invocation: true
 ---
 
 # 重命名论文文件
