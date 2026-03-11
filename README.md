@@ -54,7 +54,7 @@ claude    # Launch Claude Code in the project directory — that's it
 | **Layered Reading** | Read at the depth you need | L1 metadata → L2 abstract → L3 conclusion → L4 full text |
 | **Multi-Source Import** | Bring your existing library | Endnote XML/RIS, Zotero (API + SQLite), PDF, Markdown — more sources planned |
 | **Workspaces** | Organize for projects | Paper subsets with scoped search and BibTeX export |
-| **Academic Writing** | AI-assisted drafting | Literature review, paper sections, citation check, rebuttal, gap analysis |
+| **Academic Writing** | AI-assisted drafting | Literature review, paper sections, citation check, rebuttal, gap analysis — every claim traceable to your own library |
 | **MCP Server** | 31 tools | Works with Claude Desktop, Cursor, and any MCP client |
 
 ## Beyond Paper Management
