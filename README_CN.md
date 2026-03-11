@@ -5,7 +5,7 @@
 
 # ScholarAIO
 
-**你的科研终端。检索、阅读、分析、写作——全部用自然语言完成。**
+**Scholar All-In-One — 为 AI coding agent 打造的科研知识基础设施。**
 
 [English](README.md) | [中文](README_CN.md)
 
@@ -18,7 +18,7 @@
 
 ---
 
-ScholarAIO 把 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 变成一个完整的科研终端。放入 PDF，提出问题，发现关联，起草综述——一个终端，从头到尾。
+你的 coding agent 已经能读代码、写代码、跑实验。ScholarAIO 给它加上一个结构化的论文知识库——于是同一个 agent，既能帮你写代码，也能检索文献、交叉验证结果、复现论文方法、起草文稿。一个终端，一个 agent，完成科研全流程。
 
 <!-- TODO: 加 demo GIF -->
 <!-- <div align="center">
@@ -52,10 +52,38 @@ claude    # 在项目目录启动 Claude Code，开始对话
 | **期刊探索** | 全量期刊调研 | OpenAlex 多维过滤 → 向量化 → 聚类 → 语义搜索 |
 | **引用图谱** | 参考文献与影响力 | 正向/反向引用、共同引用分析 |
 | **分层阅读** | 按需加载 | L1 元数据 → L2 摘要 → L3 结论 → L4 全文 |
-| **多源导入** | 带上你的文献库 | Endnote XML/RIS、Zotero（API + SQLite）、PDF、Markdown |
+| **多源导入** | 带上你的文献库 | Endnote XML/RIS、Zotero（API + SQLite）、PDF、Markdown——更多来源持续接入 |
 | **工作区** | 按项目组织 | 论文子集管理，支持范围内检索和 BibTeX 导出 |
 | **学术写作** | AI 辅助撰写 | 文献综述、论文章节、引用验证、审稿回复、研究空白分析 |
 | **MCP 服务器** | 31 个工具 | Claude Desktop、Cursor 等 MCP 客户端均可调用 |
+
+## 不只是论文管理
+
+ScholarAIO 把 PDF 解析成干净的 Markdown，LaTeX 公式准确，图片附件完整。这意味着你的 coding agent 不只能"读"论文，还能：
+
+- **复现方法** — 读算法描述，写出实现，直接运行
+- **验证结论** — 从图表中提取数据，独立计算，交叉核对
+- **推导公式** — 接着论文的推导继续展开，用数值计算验证边界条件
+- **可视化结果** — 把论文数据和你自己的实验结果画在一起对比
+
+知识库是基础设施，agent 在此之上能做什么，取决于你的想象力。
+
+## 兼容你的 Agent
+
+ScholarAIO 的设计目标是 **agent 无关**。目前已为 7 种 agent 和 IDE 提供开箱即用的配置：
+
+| Agent / IDE | 集成方式 | 配置文件 |
+|-------------|---------|---------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | 完整 skills + 指令 | `CLAUDE.md` + `.claude/skills/` |
+| [Cursor](https://cursor.sh) | 指令 wrapper | `.cursorrules` |
+| [Windsurf](https://codeium.com/windsurf) | 指令 wrapper | `.windsurfrules` |
+| [Cline](https://github.com/cline/cline) | 指令 + skills | `.clinerules` + `.claude/skills/` |
+| [GitHub Copilot](https://github.com/features/copilot) | 指令 wrapper | `.github/copilot-instructions.md` |
+| [Codex](https://openai.com/codex) / OpenClaw | 完整指令 + skills | `AGENTS.md` + `.agents/skills/` |
+
+**MCP 服务器**（`scholaraio-mcp`，31 个工具）适用于任何 MCP 兼容客户端。Skills 遵循开放的 [AgentSkills.io](https://agentskills.io) 标准——`.agents/skills/` 是 `.claude/skills/` 的符号链接，方便跨 agent 发现。
+
+**从现有工具迁移？** 支持从 Endnote（XML/RIS）和 Zotero（Web API 或本地 SQLite）直接导入——PDF、元数据、引用关系一并迁入。更多导入源持续开发中。
 
 ## 工作流程
 
@@ -72,7 +100,7 @@ PDF → MinerU → 结构化 Markdown（图表 + LaTeX 公式保留）
    （关键词）     （语义）       （聚类）
       └─────────────┼─────────────┘
                     ↓
-        Claude Code / MCP / CLI
+        你的 agent（Claude Code / Cursor / CLI / MCP / ...）
 ```
 
 ## 配置说明
@@ -94,8 +122,8 @@ PDF → MinerU → 结构化 Markdown（图表 + LaTeX 公式保留）
 
 | 模式 | 适用场景 | 命令 |
 |------|---------|------|
-| **Claude Code**（推荐） | 完整科研工作流——对话式交互 | 项目目录下运行 `claude` |
-| **MCP 服务器** | Claude Desktop / Cursor 集成 | `scholaraio-mcp` |
+| **Agent**（推荐） | 完整科研工作流——对话式交互 | 项目目录下运行 `claude` 或你喜欢的 agent |
+| **MCP 服务器** | Claude Desktop / Cursor 等 MCP 客户端 | `scholaraio-mcp` |
 | **CLI** | 脚本、快速查询 | `scholaraio --help` |
 
 <details>
@@ -150,21 +178,11 @@ scholaraio/          # Python 包
   export.py          # BibTeX 导出
   audit.py           # 数据质量审计
 
-.claude/skills/      # 22 个 Claude Code Skills（AgentSkills.io 格式）
+.claude/skills/      # 22 个 agent skills（AgentSkills.io 格式）
+.agents/skills/      # ↑ 符号链接，方便跨 agent 发现
 data/papers/         # 你的论文库（不进 git）
 data/inbox/          # 放入 PDF 即可入库
 ```
-
-## 为什么选 ScholarAIO？
-
-| | 传统工作流 | Zotero / Endnote | ScholarAIO |
-|--|-----------|------------------|------------|
-| **导入 PDF** | 手动重命名、整理 | 导入 + 手动标签 | 放入 PDF → 自动解析、提取元数据、去重 |
-| **检索** | 每篇 PDF 里 Ctrl+F | 标题/作者搜索 | 关键词 + 语义 + 融合检索，覆盖全文 |
-| **发现关联** | 全靠自己读 | 手动建分组 | 自动主题聚类、引用图谱、共同引用分析 |
-| **写文献综述** | 从论文里复制粘贴 | 从论文里复制粘贴 | AI 基于你的文献库起草，附真实引用 |
-| **导出参考文献** | 手动录入 BibTeX | 内置导出 | 一条命令，按工作区/年份/期刊过滤 |
-| **交互方式** | 鼠标 + 菜单 | 鼠标 + 菜单 | 终端里用自然语言 |
 
 ## 参与贡献
 

@@ -5,7 +5,7 @@
 
 # ScholarAIO
 
-**Your research terminal. Search, read, analyze, and write — all in natural language.**
+**Scholar All-In-One — a knowledge infrastructure for AI coding agents.**
 
 [English](README.md) | [中文](README_CN.md)
 
@@ -18,7 +18,7 @@
 
 ---
 
-ScholarAIO turns [Claude Code](https://docs.anthropic.com/en/docs/claude-code) into a full research terminal. Drop PDFs, ask questions, discover connections, draft your literature review — one terminal, start to finish.
+Your coding agent already reads code, writes code, and runs experiments. ScholarAIO gives it a structured knowledge base of your research papers — so the same agent that writes your code can also search your literature, cross-check results against published findings, reproduce methods from papers, and draft your manuscript. One terminal, one agent, the full research loop.
 
 <!-- TODO: Add demo GIF here -->
 <!-- <div align="center">
@@ -52,10 +52,38 @@ claude    # Launch Claude Code in the project directory — that's it
 | **Journal Exploration** | Full-journal survey | OpenAlex multi-filter fetch → embed → cluster → search |
 | **Citation Graph** | References & impact | Forward/backward citations, shared references across your library |
 | **Layered Reading** | Read at the depth you need | L1 metadata → L2 abstract → L3 conclusion → L4 full text |
-| **Multi-Source Import** | Bring your library | Endnote XML/RIS, Zotero (API + SQLite), PDF, Markdown |
+| **Multi-Source Import** | Bring your existing library | Endnote XML/RIS, Zotero (API + SQLite), PDF, Markdown — more sources planned |
 | **Workspaces** | Organize for projects | Paper subsets with scoped search and BibTeX export |
 | **Academic Writing** | AI-assisted drafting | Literature review, paper sections, citation check, rebuttal, gap analysis |
 | **MCP Server** | 31 tools | Works with Claude Desktop, Cursor, and any MCP client |
+
+## Beyond Paper Management
+
+ScholarAIO parses PDFs into clean Markdown with accurate LaTeX and figure attachments. This means your coding agent doesn't just *read* papers — it can:
+
+- **Reproduce methods** — read an algorithm description, write the implementation, run it
+- **Verify claims** — extract data from figures and tables, compute independently, cross-check
+- **Explore formulas** — pick up where a derivation leaves off, test boundary cases numerically
+- **Visualize results** — plot data from papers alongside your own experiments
+
+The knowledge base is the foundation; what your agent builds on top of it is open-ended.
+
+## Works With Your Agent
+
+ScholarAIO is designed to be **agent-agnostic**. It currently ships with configuration for 7 agents and IDEs:
+
+| Agent / IDE | Integration | Config file |
+|-------------|-------------|-------------|
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Full skills + instructions | `CLAUDE.md` + `.claude/skills/` |
+| [Cursor](https://cursor.sh) | Instructions wrapper | `.cursorrules` |
+| [Windsurf](https://codeium.com/windsurf) | Instructions wrapper | `.windsurfrules` |
+| [Cline](https://github.com/cline/cline) | Instructions + skills | `.clinerules` + `.claude/skills/` |
+| [GitHub Copilot](https://github.com/features/copilot) | Instructions wrapper | `.github/copilot-instructions.md` |
+| [Codex](https://openai.com/codex) / OpenClaw | Full instructions + skills | `AGENTS.md` + `.agents/skills/` |
+
+The **MCP server** (`scholaraio-mcp`, 31 tools) works with any MCP-compatible client. Skills follow the open [AgentSkills.io](https://agentskills.io) standard — `.agents/skills/` is a symlink to `.claude/skills/` for cross-agent discovery.
+
+**Migrating from existing tools?** Import directly from Endnote (XML/RIS) and Zotero (Web API or local SQLite) — your PDFs, metadata, and references come along. More import sources are on the roadmap.
 
 ## How It Works
 
@@ -72,7 +100,7 @@ PDF → MinerU → Structured Markdown (figures + LaTeX intact)
    (keyword)     (semantic)      (clustering)
       └─────────────┼─────────────┘
                     ↓
-        Claude Code / MCP / CLI
+        Your agent (Claude Code / Cursor / CLI / MCP / ...)
 ```
 
 ## Configuration
@@ -94,8 +122,8 @@ Full config reference → [`config.yaml`](config.yaml)
 
 | Mode | Best for | Command |
 |------|----------|---------|
-| **Claude Code** (recommended) | Full research workflow — conversational | `claude` in project dir |
-| **MCP Server** | Claude Desktop / Cursor integration | `scholaraio-mcp` |
+| **Agent** (recommended) | Full research workflow — conversational | `claude` / your preferred agent in project dir |
+| **MCP Server** | Claude Desktop / Cursor / any MCP client | `scholaraio-mcp` |
 | **CLI** | Scripting, quick queries | `scholaraio --help` |
 
 <details>
@@ -150,21 +178,11 @@ scholaraio/          # Python package
   export.py          # BibTeX export
   audit.py           # Data quality auditing
 
-.claude/skills/      # 22 Claude Code skills (AgentSkills.io format)
+.claude/skills/      # 22 agent skills (AgentSkills.io format)
+.agents/skills/      # ↑ symlink for cross-agent discovery
 data/papers/         # Your paper library (gitignored)
 data/inbox/          # Drop PDFs here for ingestion
 ```
-
-## Why ScholarAIO?
-
-| | Traditional workflow | Zotero / Endnote | ScholarAIO |
-|--|---------------------|------------------|------------|
-| **Ingest PDFs** | Manual rename & organize | Import + manual tagging | Drop PDF → auto-parse, extract metadata, deduplicate |
-| **Search** | Ctrl+F in each PDF | Title/author search | Keyword + semantic + fusion search across full text |
-| **Discover connections** | Read everything yourself | Manual collections | Auto topic clustering, citation graph, shared references |
-| **Write literature review** | Copy-paste from papers | Copy-paste from papers | AI drafts from your library with real citations |
-| **Export references** | Manual BibTeX entry | Built-in export | One command, filtered by workspace/year/journal |
-| **Interaction** | Mouse + menus | Mouse + menus | Natural language in terminal |
 
 ## Contributing
 
