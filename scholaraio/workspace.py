@@ -28,14 +28,21 @@ def _read(ws_dir: Path) -> list[dict]:
     pj = _papers_json(ws_dir)
     if not pj.exists():
         return []
-    return json.loads(pj.read_text(encoding="utf-8"))
+    try:
+        return json.loads(pj.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        _log.error("papers.json 格式损坏 (%s): %s", pj, e)
+        return []
 
 
 def _write(ws_dir: Path, entries: list[dict]) -> None:
-    _papers_json(ws_dir).write_text(
+    pj = _papers_json(ws_dir)
+    tmp = pj.with_suffix(".json.tmp")
+    tmp.write_text(
         json.dumps(entries, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    tmp.replace(pj)
 
 
 # ============================================================================
@@ -74,7 +81,7 @@ def add(ws_dir: Path, paper_refs: list[str], db_path: Path) -> list[dict]:
     from scholaraio.index import lookup_paper
 
     entries = _read(ws_dir)
-    existing_ids = {e["id"] for e in entries}
+    existing_ids = {e["id"] for e in entries if "id" in e}
     added: list[dict] = []
     now = datetime.now(timezone.utc).isoformat()
 
@@ -177,7 +184,7 @@ def read_paper_ids(ws_dir: Path) -> set[str]:
     Returns:
         UUID 字符串集合，用于搜索过滤。
     """
-    return {e["id"] for e in _read(ws_dir)}
+    return {e["id"] for e in _read(ws_dir) if "id" in e}
 
 
 def read_dir_names(ws_dir: Path, db_path: Path) -> set[str]:
