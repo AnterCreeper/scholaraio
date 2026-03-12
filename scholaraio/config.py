@@ -11,6 +11,7 @@ config.py — ScholarAIO 配置加载
   1. 显式传入的 config_path
   2. 环境变量 SCHOLARAIO_CONFIG
   3. 当前工作目录逐级向上查找
+  4. ~/.scholaraio/config.yaml（全局配置，插件模式使用）
 
 LLM API key 查找顺序：
   1. config.local.yaml 中的 llm.api_key
@@ -333,9 +334,10 @@ def load_config(config_path: Path | None = None) -> Config:
 
 
 def _find_config_file() -> Path | None:
-    """Walk up from cwd to find config.yaml."""
+    """Walk up from cwd to find config.yaml, then try ~/.scholaraio/."""
+    # 1. Walk up from cwd (max 6 levels)
     current = Path.cwd()
-    for _ in range(6):  # max 6 levels up
+    for _ in range(6):
         candidate = current / "config.yaml"
         if candidate.exists():
             return candidate
@@ -343,6 +345,10 @@ def _find_config_file() -> Path | None:
         if parent == current:
             break
         current = parent
+    # 2. Global fallback: ~/.scholaraio/config.yaml (plugin mode)
+    global_cfg = Path.home() / ".scholaraio" / "config.yaml"
+    if global_cfg.exists():
+        return global_cfg
     return None
 
 
