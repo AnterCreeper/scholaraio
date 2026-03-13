@@ -365,20 +365,25 @@ def call_llm(
 ) -> LLMResult:
     """统一 LLM 调用入口。
 
-    POST 到 OpenAI-compatible ``/v1/chat/completions`` 端点，
-    自动解析 ``response.usage``，记录 token 用量和耗时到 MetricsStore。
+    根据 ``llm_cfg.backend`` 分发到对应后端：
+    - ``"anthropic"``  — 调用 Anthropic 接口；
+    - ``"google"``     — 调用 Google Gemini 接口；
+    - 其他值           — 视为 OpenAI-compatible，使用 ``/v1/chat/completions`` 端点。
+
+    每个后端都会在可用时解析 token 用量（如 ``response.usage`` 或等价字段），
+    并将 token 统计和耗时记录到 MetricsStore。
 
     ``config`` 可以是完整的 :class:`Config` 或单独的 :class:`LLMConfig`。
     传入 ``LLMConfig`` 时需同时提供 ``api_key``。
 
     Args:
         prompt: 用户消息内容。
-        config: ScholarAIO 全局配置，或 LLMConfig 实例。
+        config: ScholarAIO 全局配置，或 LLMConfig 实例（包含 ``backend`` / ``model`` 等）。
         api_key: 显式 API 密钥（覆盖 config 中的值）。
         system: 可选的 system message。
-        json_mode: 是否启用 JSON 响应格式。
-        max_tokens: 最大生成 token 数。
-        timeout: 超时秒数，默认使用 config.llm.timeout。
+        json_mode: 是否启用 JSON 响应格式（仅在后端支持时生效）。
+        max_tokens: 最大生成 token 数（按后端语义传递）。
+        timeout: 超时秒数，默认使用 ``config.llm.timeout``。
         purpose: 调用用途标识，用于 metrics 记录（如 ``"extract.robust"``）。
 
     Returns:
@@ -386,7 +391,7 @@ def call_llm(
 
     Raises:
         RuntimeError: 未配置 API key。
-        requests.HTTPError: API 返回非 2xx 状态码。
+        各后端 HTTP / SDK 客户端可能抛出的异常（如 ``requests.HTTPError`` 等）。
     """
     # Support both Config (has .llm attr) and LLMConfig (has .base_url directly)
     from .config import LLMConfig
