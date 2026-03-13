@@ -218,11 +218,14 @@ All relative paths (`data/papers`, `data/index.db`, etc.) resolve from the direc
 
 LLM API key lookup order:
 1. `config.local.yaml` → `llm.api_key`
-2. Environment variable `SCHOLARAIO_LLM_API_KEY`
-3. Environment variable `DEEPSEEK_API_KEY`
-4. Environment variable `OPENAI_API_KEY`
+2. Environment variable `SCHOLARAIO_LLM_API_KEY` (universal, any backend)
+3. Backend-specific environment variables:
+   - `openai-compat`: `DEEPSEEK_API_KEY` → `OPENAI_API_KEY`
+   - `anthropic`: `ANTHROPIC_API_KEY`
+   - `google`: `GOOGLE_API_KEY` → `GEMINI_API_KEY`
 
 Default LLM backend: DeepSeek (`deepseek-chat`), OpenAI-compatible protocol.
+Three backend protocols supported: `openai-compat` (DeepSeek / OpenAI / vLLM / Ollama), `anthropic` (Claude), `google` (Gemini).
 `ingest.extractor: robust` (default) — regex + LLM dual-run; LLM corrects OCR errors + full-text multi-DOI detection. Other modes: `auto` (LLM fallback only), `regex` (pure regex), `llm` (pure LLM).
 
 ## Code Style

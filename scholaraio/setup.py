@@ -77,10 +77,10 @@ _S: dict[str, dict[Lang, str]] = {
         "zh": "  已创建 config.yaml（默认配置）。",
     },
     "llm_key_prompt": {
-        "en": "  LLM API key (DeepSeek / OpenAI compatible).\n"
+        "en": "  LLM API key (DeepSeek / OpenAI / Anthropic / Google).\n"
         "  Without it: metadata extraction degrades to regex-only, enrich unavailable.\n"
         "  Press Enter to skip.",
-        "zh": "  LLM API key（DeepSeek / OpenAI 兼容）。\n"
+        "zh": "  LLM API key（DeepSeek / OpenAI / Anthropic / Google）。\n"
         "  不配置：元数据提取降级为纯正则，enrich 不可用。\n"
         "  按 Enter 跳过。",
     },
@@ -462,10 +462,12 @@ paths:
   papers_dir: data/papers
   index_db: data/index.db
 
-# LLM backend (OpenAI-compatible protocol)
-# API key: set in config.local.yaml or env var DEEPSEEK_API_KEY / OPENAI_API_KEY
+# LLM backend (multi-provider support)
+# API key: set in config.local.yaml or env var
+#   SCHOLARAIO_LLM_API_KEY (generic fallback), or provider-specific:
+#   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY / GEMINI_API_KEY
 llm:
-  backend: openai-compat   # openai-compat | anthropic
+  backend: openai-compat   # openai-compat | anthropic | google
   model: deepseek-chat
   base_url: https://api.deepseek.com
   timeout: 30

@@ -16,8 +16,10 @@ config.py — ScholarAIO 配置加载
 LLM API key 查找顺序：
   1. config.local.yaml 中的 llm.api_key
   2. 环境变量 SCHOLARAIO_LLM_API_KEY
-  3. 环境变量 DEEPSEEK_API_KEY（默认后端兼容）
-  4. 环境变量 OPENAI_API_KEY（OpenAI 兼容后端）
+  3. 按 llm.backend 查找对应厂商环境变量，例如：
+       - openai-compat: DEEPSEEK_API_KEY → OPENAI_API_KEY
+       - anthropic: ANTHROPIC_API_KEY
+       - google: GOOGLE_API_KEY → GEMINI_API_KEY
 """
 
 from __future__ import annotations
@@ -48,10 +50,13 @@ class PathsConfig:
 
 @dataclass
 class LLMConfig:
-    """LLM 后端配置（OpenAI 兼容协议）。
+    """LLM 后端配置（支持多厂商协议）。
 
     Attributes:
-        backend: LLM 协议类型，``"openai-compat"`` 或 ``"anthropic"``。
+        backend: LLM 协议类型。支持:
+            - ``"openai-compat"`` — OpenAI 兼容协议（DeepSeek / OpenAI / vLLM / Ollama 等）
+            - ``"anthropic"`` — Anthropic Messages API（Claude 系列）
+            - ``"google"`` — Google Gemini API
         model: 模型名称。
         base_url: API 基础 URL（不含 ``/v1/...`` 后缀）。
         api_key: API 密钥，建议放 config.local.yaml 或环境变量。
@@ -250,15 +255,28 @@ class Config:
     def resolved_api_key(self) -> str:
         """按优先级查找 LLM API key。
 
-        查找顺序: config.local.yaml ``llm.api_key`` → 环境变量
-        ``SCHOLARAIO_LLM_API_KEY`` → ``DEEPSEEK_API_KEY`` → ``OPENAI_API_KEY``。
+        查找顺序:
+        1. config.local.yaml ``llm.api_key``
+        2. 环境变量 ``SCHOLARAIO_LLM_API_KEY``
+        3. 按 backend 查找对应厂商环境变量:
+           - openai-compat: ``DEEPSEEK_API_KEY`` → ``OPENAI_API_KEY``
+           - anthropic: ``ANTHROPIC_API_KEY``
+           - google: ``GOOGLE_API_KEY`` → ``GEMINI_API_KEY``
 
         Returns:
             API key 字符串，未找到则返回空字符串。
         """
         if self.llm.api_key:
             return self.llm.api_key
-        for env_var in ("SCHOLARAIO_LLM_API_KEY", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"):
+        generic = os.environ.get("SCHOLARAIO_LLM_API_KEY", "")
+        if generic:
+            return generic
+        backend_env_map: dict[str, tuple[str, ...]] = {
+            "openai-compat": ("DEEPSEEK_API_KEY", "OPENAI_API_KEY"),
+            "anthropic": ("ANTHROPIC_API_KEY",),
+            "google": ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+        }
+        for env_var in backend_env_map.get(self.llm.backend, ("DEEPSEEK_API_KEY", "OPENAI_API_KEY")):
             val = os.environ.get(env_var, "")
             if val:
                 return val

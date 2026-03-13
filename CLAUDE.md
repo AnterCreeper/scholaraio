@@ -227,11 +227,14 @@ config.yaml 查找顺序：
 
 LLM API key 查找顺序：
 1. `config.local.yaml` 中的 `llm.api_key`
-2. 环境变量 `SCHOLARAIO_LLM_API_KEY`
-3. 环境变量 `DEEPSEEK_API_KEY`
-4. 环境变量 `OPENAI_API_KEY`
+2. 环境变量 `SCHOLARAIO_LLM_API_KEY`（通用，任意 backend）
+3. 按 backend 查找对应厂商环境变量：
+   - `openai-compat`: `DEEPSEEK_API_KEY` → `OPENAI_API_KEY`
+   - `anthropic`: `ANTHROPIC_API_KEY`
+   - `google`: `GOOGLE_API_KEY` → `GEMINI_API_KEY`
 
 默认 LLM 后端：DeepSeek (`deepseek-chat`)，OpenAI 兼容协议。
+支持三种 backend 协议：`openai-compat`（DeepSeek / OpenAI / vLLM / Ollama）、`anthropic`（Claude）、`google`（Gemini）。
 `ingest.extractor: robust`（默认）— regex + LLM 双跑，LLM 校正 OCR 错误 + 全文 multi-DOI 检测。其他模式：`auto`（LLM 仅兜底）、`regex`（纯正则）、`llm`（纯 LLM）。
 
 ## 代码风格
