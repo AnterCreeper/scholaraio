@@ -323,7 +323,14 @@ def show_style(name: str, cfg: Config) -> str:
         desc = BUILTIN_DESCRIPTIONS.get(name, "")
         return f"# Built-in style: {name}\n# {desc}\n# (implemented in scholaraio/citation_styles.py)"
 
+    import re as _re
+
+    if not _re.match(r"^[a-zA-Z0-9_-]+$", name):
+        raise ValueError(f"Invalid style name '{name}': must contain only letters, digits, hyphens, underscores.")
+
     style_file = styles_dir(cfg) / f"{name}.py"
+    if not style_file.resolve().is_relative_to(styles_dir(cfg).resolve()):
+        raise ValueError(f"Invalid style name '{name}': path traversal detected.")
     if not style_file.exists():
         raise FileNotFoundError(f"Style '{name}' not found.")
     return style_file.read_text(encoding="utf-8")

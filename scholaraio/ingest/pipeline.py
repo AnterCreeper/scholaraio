@@ -184,7 +184,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
 
     # md-only entry (no PDF): skip MinerU entirely
     if ctx.pdf_path is None:
-        if ctx.md_path and ctx.md_path.exists():
+        if ctx.md_path and (ctx.md_path.exists() or ctx.opts.get("dry_run")):
             _log.debug("no PDF, using existing .md: %s", ctx.md_path.name)
             return StepResult.OK
         _log.error("no PDF and no .md")

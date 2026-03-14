@@ -1194,7 +1194,7 @@ def _cmd_export_markdown(args: argparse.Namespace, cfg) -> None:
             numbered=not args.bullet,
             style=style,
         )
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError, AttributeError) as e:
         _log.error("%s", e)
         sys.exit(1)
 
@@ -1242,7 +1242,7 @@ def _cmd_style_show(args: argparse.Namespace, cfg) -> None:
     try:
         code = show_style(args.name, cfg)
         print(code)
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         _log.error("%s", e)
         sys.exit(1)
 
@@ -1263,7 +1263,7 @@ def _cmd_export_docx(args: argparse.Namespace, cfg) -> None:
         _log.error("请通过 --input 指定 Markdown 文件，或通过 stdin 传入内容")
         sys.exit(1)
 
-    output = Path(args.output) if args.output else Path("output.docx")
+    output = Path(args.output) if args.output else cfg._root / "workspace" / "output.docx"
 
     try:
         export_docx(content, output, title=args.title or None)
@@ -2193,7 +2193,7 @@ def main() -> None:
 
     p_ed = p_export_sub.add_parser("docx", help="将 Markdown 文本导出为 Word DOCX 文件")
     p_ed.add_argument("--input", "-i", type=str, default=None, help="输入 Markdown 文件路径（省略则从 stdin 读取）")
-    p_ed.add_argument("--output", "-o", type=str, default="output.docx", help="输出 .docx 文件路径（默认 output.docx）")
+    p_ed.add_argument("--output", "-o", type=str, default=None, help="输出 .docx 文件路径（默认 workspace/output.docx）")
     p_ed.add_argument("--title", type=str, default=None, help="文档标题（可选，插入为一级标题）")
 
     # --- ws (workspace) ---

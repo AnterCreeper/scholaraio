@@ -11,6 +11,17 @@ import re
 from pathlib import Path
 
 
+def _meta_year(meta: dict) -> int | None:
+    """Normalize meta['year'] to int or None, tolerating string values."""
+    raw = meta.get("year")
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _bibtex_escape(text: str) -> str:
     """Escape special LaTeX characters in text."""
     for ch in ("&", "%", "#", "_"):
@@ -132,9 +143,10 @@ def export_bibtex(
         meta = read_meta(d)
 
         # filters
-        if year_start is not None and (meta.get("year") or 0) < year_start:
+        meta_yr = _meta_year(meta)
+        if year_start is not None and (meta_yr or 0) < year_start:
             continue
-        if year_end is not None and (meta.get("year") or 9999) > year_end:
+        if year_end is not None and (meta_yr or 9999) > year_end:
             continue
         if journal and journal.lower() not in (meta.get("journal") or "").lower():
             continue
@@ -241,9 +253,10 @@ def export_ris(
         if paper_ids and d.name not in paper_ids:
             continue
         meta = read_meta(d)
-        if year_start is not None and (meta.get("year") or 0) < year_start:
+        meta_yr = _meta_year(meta)
+        if year_start is not None and (meta_yr or 0) < year_start:
             continue
-        if year_end is not None and (meta.get("year") or 9999) > year_end:
+        if year_end is not None and (meta_yr or 9999) > year_end:
             continue
         if journal and journal.lower() not in (meta.get("journal") or "").lower():
             continue
@@ -271,7 +284,7 @@ def export_markdown_refs(
 
     Args:
         papers_dir: Root papers directory.
-        cfg: Config object (required when style != "apa").
+        cfg: Config object (required for custom styles; built-in styles work without it).
         paper_ids: Specific paper dir names to export. None = all.
         year: Year filter (e.g. "2023", "2020-2024").
         journal: Journal name filter (case-insensitive substring).
@@ -301,16 +314,17 @@ def export_markdown_refs(
         if paper_ids and d.name not in paper_ids:
             continue
         meta = read_meta(d)
-        if year_start is not None and (meta.get("year") or 0) < year_start:
+        meta_yr = _meta_year(meta)
+        if year_start is not None and (meta_yr or 0) < year_start:
             continue
-        if year_end is not None and (meta.get("year") or 9999) > year_end:
+        if year_end is not None and (meta_yr or 9999) > year_end:
             continue
         if journal and journal.lower() not in (meta.get("journal") or "").lower():
             continue
         metas.append(meta)
 
     # Sort by year desc, then title
-    metas.sort(key=lambda m: (-(m.get("year") or 0), m.get("title") or ""))
+    metas.sort(key=lambda m: (-(_meta_year(m) or 0), m.get("title") or ""))
 
     lines: list[str] = []
     for i, meta in enumerate(metas, 1):
