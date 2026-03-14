@@ -119,7 +119,7 @@ PDF → MinerU → 结构化 Markdown（图表 + LaTeX 公式保留）
 
 | Key | 用途 | 获取方式 |
 |-----|------|---------|
-| LLM API key | 元数据提取、内容富化、学术讨论 | 在 `config.local.yaml` 中设置 `llm.api_key`，或使用环境变量：`SCHOLARAIO_LLM_API_KEY`（通用）、`DEEPSEEK_API_KEY`、`ANTHROPIC_API_KEY`、`GOOGLE_API_KEY`。默认后端：[DeepSeek](https://platform.deepseek.com/)；同时支持 Claude、Gemini、Ollama 及任意 OpenAI 兼容 API |
+| LLM API key | 元数据提取、内容富化、学术讨论 | 在 `config.local.yaml` 中设置 `llm.api_key`，或使用环境变量：`SCHOLARAIO_LLM_API_KEY`（通用）、`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`ANTHROPIC_API_KEY`、`GOOGLE_API_KEY` / `GEMINI_API_KEY`。默认后端：[DeepSeek](https://platform.deepseek.com/)；同时支持 Claude、Gemini、Ollama 及任意 OpenAI 兼容 API |
 | `MINERU_API_KEY` | PDF → 结构化 Markdown | [mineru.net](https://mineru.net/apiManage/token) 免费申请，也可[本地部署](https://github.com/opendatalab/MinerU) |
 
 > **均为可选。** 没有 LLM key：降级为纯正则提取。没有 MinerU key：直接将 `.md` 放入 `data/inbox/`。
