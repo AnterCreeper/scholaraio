@@ -30,7 +30,8 @@ description: Draft point-by-point responses to peer review comments. Locates sup
 对每条意见：
 1. 理解审稿人的核心诉求
 2. 在原稿中定位相关段落
-3. 在工作区文献中搜索支撑证据：
+3. 检查相关论文的 `notes.md`（历史分析笔记），复用已有发现
+4. 在工作区文献中搜索支撑证据：
    ```bash
    scholaraio ws search <name> "<审稿人关注的关键词>"
    scholaraio show <dir_name> --layer 3      # 读结论找证据
@@ -68,6 +69,7 @@ description: Draft point-by-point responses to peer review comments. Locates sup
 ### 4. 输出
 
 - 保存回复信到 `workspace/<name>/response-letter.md`
+- 将深度分析的论文关键发现追加到 `notes.md`（通过 `loader.append_notes()`），格式：`## YYYY-MM-DD | <workspace> | review-response`
 - 如需补充引用新论文到工作区：
   ```bash
   scholaraio ws add <name> <dir_name>

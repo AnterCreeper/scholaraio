@@ -21,7 +21,7 @@ scholaraio ws show <name>                    # 论文列表
 scholaraio topics                             # 主题聚类（如已建模）
 ```
 
-对工作区论文做 L2 扫描（标题 + 摘要），建立领域地图。
+对工作区论文做 L2 扫描（标题 + 摘要），建立领域地图。同时检查各论文的 `notes.md`（历史分析笔记），复用已有发现。
 
 ### 2. 多维度分析
 
@@ -94,6 +94,8 @@ scholaraio usearch "<future work 关键词>"
 4. **建议的下一步**
 
 **量化辅助**：必要时编写 Python 代码从 meta.json 批量提取数据，做统计图表（年份分布、方法频次、参数范围覆盖等），用可视化支撑空白发现。
+
+**分析笔记持久化**：对深度分析过的论文，将关键发现追加到 `notes.md`（通过 `loader.append_notes()`），格式：`## YYYY-MM-DD | <workspace> | research-gap`。
 
 ### 4. 互动讨论
 

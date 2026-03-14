@@ -126,6 +126,51 @@ def load_l4(md_path: Path) -> str:
 
 
 # ============================================================================
+#  Agent notes (T2 persistent analysis notes)
+# ============================================================================
+
+_NOTES_FILENAME = "notes.md"
+
+
+def load_notes(paper_dir: Path) -> str | None:
+    """加载论文的 agent 分析笔记。
+
+    笔记文件 (``notes.md``) 由 agent 在分析论文时自动创建和追加，
+    用于跨会话、跨工作区复用分析结论。
+
+    Args:
+        paper_dir: 论文目录路径（包含 ``meta.json`` 的目录）。
+
+    Returns:
+        笔记文本，不存在时返回 ``None``。
+    """
+    notes_path = paper_dir / _NOTES_FILENAME
+    if notes_path.exists():
+        text = notes_path.read_text(encoding="utf-8").strip()
+        return text if text else None
+    return None
+
+
+def append_notes(paper_dir: Path, section: str) -> None:
+    """向论文笔记文件追加一条分析记录。
+
+    如果 ``notes.md`` 不存在则创建。每条记录之间用空行分隔。
+
+    Args:
+        paper_dir: 论文目录路径。
+        section: 要追加的笔记内容（Markdown 格式，建议以 ``## 日期 | 来源`` 开头）。
+    """
+    notes_path = paper_dir / _NOTES_FILENAME
+    section = section.rstrip("\n")
+    if notes_path.exists():
+        existing = notes_path.read_text(encoding="utf-8").rstrip("\n")
+        notes_path.write_text(existing + "\n\n" + section + "\n", encoding="utf-8")
+    else:
+        notes_path.write_text(section + "\n", encoding="utf-8")
+    _log.debug("appended notes to %s", notes_path)
+
+
+# ============================================================================
 #  TOC extraction
 # ============================================================================
 

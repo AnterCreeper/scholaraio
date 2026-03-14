@@ -40,6 +40,31 @@ You are not a passive tool awaiting instructions, but an active collaborator. Pr
 
 The above are baseline capabilities. Feel free to combine CLI tools and the coding agent's native abilities (reading/writing files, running code, multi-turn reasoning) to discover more powerful workflows — batch-comparing methodological differences across papers, auto-generating research trend reports, finding undervalued key papers from citation graphs. The tools are finite, but their combinations are open-ended.
 
+### Subagent Information Tiers (T1/T2/T3)
+
+When the main agent delegates paper analysis to a subagent, information flows at three tiers:
+
+| Tier | Content | Lifecycle | Consumer |
+|------|---------|-----------|----------|
+| T1 Response | Refined conclusions, directly answering the main agent's question | Enters main context, lost on compression | Main agent (current conversation) |
+| T2 Notes | Key findings, analysis highlights, cross-paper connections | **Persisted to `notes.md`**, reusable across sessions | Any future agent/session |
+| T3 Full Record | Search process, raw quotes, reasoning chains | Lives in subagent context, not persisted | Debug only |
+
+**T2 Notes Convention:**
+- Storage path: `data/papers/<Author-Year-Title>/notes.md`
+- Each analysis appends a section: `## YYYY-MM-DD | <workspace or task source> | <skill name>`
+- Content includes: key findings, methodological highlights, comparisons with other papers, notable limitations
+- Code API: `loader.load_notes(paper_dir)` to read, `loader.append_notes(paper_dir, section)` to append
+
+**Subagent Workflow:**
+1. Before analyzing a paper, check for existing notes via `load_notes()` — reuse prior findings to avoid redundant work
+2. After analysis, persist cross-session-worthy discoveries via `append_notes()` to `notes.md`
+3. The T1 response returned to the main agent contains only refined conclusions, not search process details
+
+**Context Management Principles:**
+- Workspace paper lists (>30 papers), full paper text (L4), and other large content should be processed by subagents, returning only conclusions to the main context
+- Avoid dumping long lists directly in the main agent; delegate to subagents for filtering and summarization
+
 ## Module Overview
 
 | Module | Function |
@@ -134,6 +159,7 @@ data/papers/
 └── <Author-Year-Title>/
     ├── meta.json    # L1+L2+L3 metadata (includes "id": "<uuid>")
     ├── paper.md     # L4 source (MinerU output)
+    ├── notes.md     # Agent analysis notes (T2 tier, optional, auto-generated)
     ├── images/      # MinerU-extracted images (referenced in md)
     ├── layout.json  # MinerU layout analysis (optional)
     └── *_content_list.json  # MinerU structured content (optional)

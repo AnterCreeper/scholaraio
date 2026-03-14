@@ -37,6 +37,31 @@ MinerU 解析的 Markdown 保留了高质量公式（LaTeX）和图片附件（`
 
 以上列出的只是基础能力。你可以自由组合这些 CLI 工具和 Claude Code 自身的能力（读写文件、执行代码、多轮推理），发掘出更多玩法——比如批量对比多篇论文的方法差异、自动生成研究趋势报告、从引用图谱中发现被低估的关键论文。工具是有限的，但组合方式是开放的。
 
+### Subagent 信息分层（T1/T2/T3）
+
+当主 agent 委派 subagent 分析论文时，信息按三个层次流动：
+
+| 层 | 内容 | 生命周期 | 消费者 |
+|---|------|----------|--------|
+| T1 回复 | 精炼结论，直接回答主 agent 的提问 | 进入主 context，随对话压缩消失 | 主 agent（当前对话） |
+| T2 笔记 | 论文关键发现、分析要点、跨论文关联 | **持久化到 `notes.md`**，跨会话复用 | 任何未来 agent/会话 |
+| T3 完整记录 | 搜索过程、原文引用、推理链 | subagent context 内，不持久化 | 仅 debug 用 |
+
+**T2 笔记约定：**
+- 存储路径：`data/papers/<Author-Year-Title>/notes.md`
+- 每次分析追加一个 section，格式：`## YYYY-MM-DD | <workspace 名或任务来源> | <skill 名>`
+- 内容包括：关键发现、方法特点、与其他论文的对比、值得注意的局限性
+- 代码接口：`loader.load_notes(paper_dir)` 读取，`loader.append_notes(paper_dir, section)` 追加
+
+**Subagent 工作流程：**
+1. 分析论文前，先用 `load_notes()` 检查是否已有历史笔记——有则复用，避免重复劳动
+2. 分析完成后，将值得跨会话保留的发现通过 `append_notes()` 写入 `notes.md`
+3. 返回给主 agent 的 T1 回复只包含精炼结论，不包含搜索过程等细节
+
+**Context 管理原则：**
+- 工作区论文列表（>30 篇）、论文全文（L4）等大体量内容应由 subagent 处理，仅将结论带回主 context
+- 主 agent 中避免直接 dump 长列表，改用 subagent 筛选后返回摘要
+
 ## 模块概览
 
 | 模块 | 功能 |
@@ -131,6 +156,7 @@ data/papers/
 └── <Author-Year-Title>/
     ├── meta.json    # L1+L2+L3 元数据（含 "id": "<uuid>"）
     ├── paper.md     # L4 来源（MinerU 输出）
+    ├── notes.md     # Agent 分析笔记（T2 层，可选，自动生成）
     ├── images/      # MinerU 提取的图片（md 中引用）
     ├── layout.json  # MinerU 版面分析结果（可选）
     └── *_content_list.json  # MinerU 结构化内容（可选）

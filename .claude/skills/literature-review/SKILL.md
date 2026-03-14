@@ -51,11 +51,15 @@ scholaraio show <dir_name> --layer 2          # 逐篇扫描摘要
 
 ### 4. 深度阅读关键论文
 
-对每个章节的核心论文加载 L3（结论）或 L4（全文）：
+对每个章节的核心论文，先检查是否有历史分析笔记（`data/papers/<dir>/notes.md`），有则复用已有发现，避免重复劳动。
+
+然后加载 L3（结论）或 L4（全文）：
 ```bash
 scholaraio show <dir_name> --layer 3          # 结论
 scholaraio show <dir_name> --layer 4          # 全文（仅关键论文）
 ```
+
+分析完成后，将值得跨会话保留的关键发现追加到论文的 `notes.md`（通过 `loader.append_notes()`）。格式：`## YYYY-MM-DD | <workspace> | literature-review`，内容包括方法特点、核心贡献、与其他论文的关键对比。
 
 **多模态分析**（MinerU 解析的论文保留了图表和公式）：
 - 读取论文中的关键图表（`data/papers/<dir>/images/`），辅助理解实验结果和方法流程

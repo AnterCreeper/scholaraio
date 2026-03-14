@@ -26,7 +26,13 @@ description: Assist with writing sections of a research paper (Introduction, Rel
 - **用户已有内容**：草稿、大纲、实验数据、图表
 - **风格参考**（可选）：用户可提供同期刊/同领域的范文，你来分析其写作风格（句式结构、术语选择、段落节奏、引用方式、形式化程度），然后仿照
 
-### 2. 各章节写作策略
+### 2. 论文分析笔记复用
+
+在深度阅读工作区论文时，先检查论文目录下是否有 `notes.md`（历史分析笔记）。已有笔记可直接复用，无需重复阅读全文。
+
+分析完成后，将新的关键发现追加到论文的 `notes.md`（通过 `loader.append_notes()`）。格式：`## YYYY-MM-DD | <workspace> | paper-writing`。
+
+### 3. 各章节写作策略
 
 #### Introduction
 1. 从宏观背景切入，逐步聚焦到具体问题
@@ -74,7 +80,7 @@ description: Assist with writing sections of a research paper (Introduction, Rel
 - 包含：背景一句、问题一句、方法一句、主要结果两句、意义一句
 - 字数严格遵循目标期刊要求
 
-### 3. 引用管理
+### 4. 引用管理
 
 - 正文引用格式与目标期刊一致（通常 `\cite{key}` 或 `(Author, Year)`）
 - **所有引用必须来自工作区中的真实论文**，绝不编造引用
@@ -88,7 +94,7 @@ description: Assist with writing sections of a research paper (Introduction, Rel
   scholaraio ws export <name> -o workspace/<name>/references.bib
   ```
 
-### 4. 输出
+### 5. 输出
 
 - 每完成一节保存到 `workspace/<name>/` 下（如 `introduction.md`、`related-work.md`）
 - 或按用户要求合并为完整论文文件
