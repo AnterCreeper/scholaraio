@@ -53,11 +53,20 @@ import = [
 mcp = [
     "mcp>=1.0",
 ]
+office = [
+    "markitdown[docx,pptx,xlsx]>=0.1",
+    "python-docx>=1.1",
+]
+draw = [
+    "cli-anything-inkscape>=1.0.0",
+    "mermaid-py>=0.3",
+]
 full = [
     "scholaraio[embed]",
     "scholaraio[topics]",
     "scholaraio[import]",
     "scholaraio[pdf]",
+    "scholaraio[office]",
     "modelscope>=1.10",
     "curl-cffi>=0.5",
 ]

@@ -1135,8 +1135,97 @@ def cmd_export(args: argparse.Namespace, cfg) -> None:
     action = args.export_action
     if action == "bibtex":
         _cmd_export_bibtex(args, cfg)
+    elif action == "ris":
+        _cmd_export_ris(args, cfg)
+    elif action == "markdown":
+        _cmd_export_markdown(args, cfg)
+    elif action == "docx":
+        _cmd_export_docx(args, cfg)
     else:
         _log.error("Unknown export action: %s", action)
+        sys.exit(1)
+
+
+def _cmd_export_ris(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.export import export_ris
+
+    paper_ids = args.paper_ids if args.paper_ids else None
+    if not paper_ids and not args.all:
+        _log.error("请指定论文 ID 或 --all")
+        sys.exit(1)
+
+    ris = export_ris(
+        cfg.papers_dir,
+        paper_ids=paper_ids,
+        year=args.year,
+        journal=args.journal,
+    )
+
+    if not ris:
+        ui("未找到匹配的论文")
+        return
+
+    if args.output:
+        out = Path(args.output)
+        out.write_text(ris, encoding="utf-8")
+        count = ris.count("TY  -")
+        ui(f"已导出到 {out}（{count} 篇）")
+    else:
+        print(ris)
+
+
+def _cmd_export_markdown(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.export import export_markdown_refs
+
+    paper_ids = args.paper_ids if args.paper_ids else None
+    if not paper_ids and not args.all:
+        _log.error("请指定论文 ID 或 --all")
+        sys.exit(1)
+
+    md = export_markdown_refs(
+        cfg.papers_dir,
+        paper_ids=paper_ids,
+        year=args.year,
+        journal=args.journal,
+        numbered=not args.bullet,
+    )
+
+    if not md:
+        ui("未找到匹配的论文")
+        return
+
+    if args.output:
+        out = Path(args.output)
+        out.write_text(md, encoding="utf-8")
+        count = md.count("\n")
+        ui(f"已导出到 {out}（{count} 条引用）")
+    else:
+        print(md)
+
+
+def _cmd_export_docx(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.export import export_docx
+
+    # Determine input content
+    if args.input:
+        input_path = Path(args.input)
+        if not input_path.exists():
+            _log.error("输入文件不存在: %s", args.input)
+            sys.exit(1)
+        content = input_path.read_text(encoding="utf-8")
+    elif not sys.stdin.isatty():
+        content = sys.stdin.read()
+    else:
+        _log.error("请通过 --input 指定 Markdown 文件，或通过 stdin 传入内容")
+        sys.exit(1)
+
+    output = Path(args.output) if args.output else Path("output.docx")
+
+    try:
+        export_docx(content, output, title=args.title or None)
+        ui(f"已导出到 {output}")
+    except ImportError as e:
+        _log.error("%s", e)
         sys.exit(1)
 
 
@@ -2026,16 +2115,36 @@ def main() -> None:
     p_ei.add_argument("--name", default=None, help="探索库名称（省略列出全部）")
 
     # --- export ---
-    p_export = sub.add_parser("export", help="导出论文（BibTeX 等格式）")
+    p_export = sub.add_parser("export", help="导出论文或文档（BibTeX / RIS / Markdown / DOCX）")
     p_export.set_defaults(func=cmd_export)
     p_export_sub = p_export.add_subparsers(dest="export_action", required=True)
 
-    p_eb = p_export_sub.add_parser("bibtex", help="导出 BibTeX 格式")
+    p_eb = p_export_sub.add_parser("bibtex", help="导出 BibTeX 格式（LaTeX 引用）")
     p_eb.add_argument("paper_ids", nargs="*", help="论文目录名（可多个）")
     p_eb.add_argument("--all", action="store_true", help="导出全部论文")
     p_eb.add_argument("--year", type=str, default=None, help="年份过滤：2023 / 2020-2024")
     p_eb.add_argument("--journal", type=str, default=None, help="期刊名过滤（模糊匹配）")
     p_eb.add_argument("-o", "--output", type=str, default=None, help="输出文件路径（省略则输出到屏幕）")
+
+    p_er = p_export_sub.add_parser("ris", help="导出 RIS 格式（Zotero / Endnote / Mendeley 导入）")
+    p_er.add_argument("paper_ids", nargs="*", help="论文目录名（可多个）")
+    p_er.add_argument("--all", action="store_true", help="导出全部论文")
+    p_er.add_argument("--year", type=str, default=None, help="年份过滤：2023 / 2020-2024")
+    p_er.add_argument("--journal", type=str, default=None, help="期刊名过滤（模糊匹配）")
+    p_er.add_argument("-o", "--output", type=str, default=None, help="输出文件路径（省略则输出到屏幕）")
+
+    p_em = p_export_sub.add_parser("markdown", help="导出 Markdown 文献列表（可直接粘贴到文档）")
+    p_em.add_argument("paper_ids", nargs="*", help="论文目录名（可多个）")
+    p_em.add_argument("--all", action="store_true", help="导出全部论文")
+    p_em.add_argument("--year", type=str, default=None, help="年份过滤：2023 / 2020-2024")
+    p_em.add_argument("--journal", type=str, default=None, help="期刊名过滤（模糊匹配）")
+    p_em.add_argument("--bullet", action="store_true", help="使用无序列表（默认有序）")
+    p_em.add_argument("-o", "--output", type=str, default=None, help="输出文件路径（省略则输出到屏幕）")
+
+    p_ed = p_export_sub.add_parser("docx", help="将 Markdown 文本导出为 Word DOCX 文件")
+    p_ed.add_argument("--input", "-i", type=str, default=None, help="输入 Markdown 文件路径（省略则从 stdin 读取）")
+    p_ed.add_argument("--output", "-o", type=str, default="output.docx", help="输出 .docx 文件路径（默认 output.docx）")
+    p_ed.add_argument("--title", type=str, default=None, help="文档标题（可选，插入为一级标题）")
 
     # --- ws (workspace) ---
     p_ws = sub.add_parser("ws", help="工作区论文子集管理")

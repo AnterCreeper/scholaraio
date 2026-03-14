@@ -189,10 +189,14 @@ thesis inbox 跳过此判断，直接标记入库。
 ```
 data/inbox-doc/
 ├── report.pdf    # 非论文文档 PDF（技术报告、标准、讲义等）
-└── notes.md      # 或直接放 .md
+├── notes.md      # 或直接放 .md
+├── report.docx   # Word 文档（MarkItDown 转换）
+├── data.xlsx     # Excel 表格（MarkItDown 转换）
+└── slides.pptx   # PowerPoint（MarkItDown 转换）
 ```
 
 非论文文档入库流程：
+- **Office 文件**（`.docx` / `.xlsx` / `.pptx`）：先通过 `step_office_convert`（MarkItDown）转为 `.md`，再走后续步骤
 - 跳过 DOI 去重和 API 查询
 - LLM 自动生成标题和摘要（确保检索可用）
 - 无 LLM 时降级：第一个 markdown 标题或文件名 → 标题，前 500 词 → 摘要
@@ -277,20 +281,20 @@ LLM API key 查找顺序：
 
 Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agentskills.io) 开放标准。每个 skill 是一个文件夹，包含 `SKILL.md`（YAML frontmatter + 指令）。根目录 `skills/` 为指向 `.claude/skills/` 的符号链接，供 Claude Code 插件系统发现。
 
-**现有 skills（22 个）：**
+**现有 skills（23 个）：**
 
 知识库管理：
 - `search` — 文献搜索（关键词 / 语义 / 作者 / 融合检索 / 高引排行）
 - `show` — 查看论文内容（L1-L4 分层）
 - `enrich` — 富化论文内容（TOC / 结论 / 摘要 / 引用量）
-- `ingest` — 入库论文 + 索引重建（pipeline 预设）
+- `ingest` — 入库论文与文档（PDF / DOCX / XLSX / PPTX / MD）+ 索引重建
 - `topics` — 主题探索（BERTopic 聚类 + 合并 + 可视化）
 - `explore` — 多维文献探索（OpenAlex 多维过滤 + 关键词/语义/融合检索 + BERTopic）
 - `graph` — 引用图谱查询
 - `citations` — 引用量查询和补查
 - `index` — 重建关键词 / 语义索引
 - `workspace` — 工作区管理（创建 / 添加 / 搜索 / 导出）
-- `export` — BibTeX 导出
+- `export` — 多格式导出（BibTeX / RIS / Markdown 文献列表 / DOCX 文档）
 - `import` — Endnote / Zotero 导入
 - `rename` — 论文文件重命名
 - `audit` — 论文审计（规则检查 + LLM 深度诊断 + 修复）
@@ -302,6 +306,9 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 - `writing-polish` — 写作润色（去 AI 味 + 风格适配 + 中英文）
 - `review-response` — 审稿回复（逐条分析 + 证据检索 + rebuttal 撰写）
 - `research-gap` — 研究空白识别（多维度分析 + 开放问题发现）
+
+可视化：
+- `draw` — 绘图（Mermaid 结构化图表 + cli-anything-inkscape 矢量图形）
 
 系统运维：
 - `setup` — 环境检测与安装向导
