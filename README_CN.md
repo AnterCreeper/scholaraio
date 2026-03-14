@@ -54,6 +54,7 @@ claude    # 在项目目录启动 Claude Code，开始对话
 | **分层阅读** | 按需加载 | L1 元数据 → L2 摘要 → L3 结论 → L4 全文 |
 | **多源导入** | 带上你的文献库 | Endnote XML/RIS、Zotero（API + SQLite，支持 collection → workspace 映射）、PDF、Markdown——更多来源持续接入 |
 | **工作区** | 按项目组织 | 论文子集管理，支持范围内检索和 BibTeX 导出 |
+| **持久化笔记** | 跨会话记忆 | Agent 的分析结果按论文保存（`notes.md`），再次访问时复用已有发现，无需重读全文——省 token、不重复劳动 |
 | **学术写作** | AI 辅助撰写 | 文献综述、论文章节、引用验证、审稿回复、研究空白分析——每条引用可追溯至你自己的文献库 |
 | **MCP 服务器** | 31 个工具 | Claude Desktop、Cursor 等 MCP 客户端均可调用 |
 
