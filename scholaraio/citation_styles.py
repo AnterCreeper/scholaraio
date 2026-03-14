@@ -32,13 +32,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scholaraio.config import Config
 
-FormatterFn = Callable[[dict, "int | None"], str]
+FormatterFn = Callable[[dict, int | None], str]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -246,12 +247,12 @@ BUILTIN_DESCRIPTIONS: dict[str, str] = {
 # Dynamic cache loading
 # ─────────────────────────────────────────────────────────────────────────────
 
-def styles_dir(cfg: "Config") -> Path:
+def styles_dir(cfg: Config) -> Path:
     """Return the citation styles cache directory (data/citation_styles/)."""
     return cfg.papers_dir.parent / "citation_styles"
 
 
-def list_styles(cfg: "Config") -> list[dict]:
+def list_styles(cfg: Config) -> list[dict]:
     """Return all available styles as a list of dicts with name/source/description."""
     results = []
     for name, desc in BUILTIN_DESCRIPTIONS.items():
@@ -278,7 +279,7 @@ def list_styles(cfg: "Config") -> list[dict]:
     return results
 
 
-def get_formatter(name: str, cfg: "Config") -> FormatterFn:
+def get_formatter(name: str, cfg: Config) -> FormatterFn:
     """Load a formatter by style name.
 
     Checks built-in styles first, then cache at data/citation_styles/<name>.py.
@@ -308,7 +309,7 @@ def get_formatter(name: str, cfg: "Config") -> FormatterFn:
     return mod.format_ref
 
 
-def show_style(name: str, cfg: "Config") -> str:
+def show_style(name: str, cfg: Config) -> str:
     """Return the source code of a custom style, or description for built-ins."""
     if name in BUILTIN_STYLES:
         desc = BUILTIN_DESCRIPTIONS.get(name, "")

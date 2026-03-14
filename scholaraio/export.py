@@ -398,7 +398,6 @@ def export_docx(
     try:
         from docx import Document
         from docx.shared import Pt
-        from docx.oxml.ns import qn
     except ImportError:
         raise ImportError(
             "python-docx 未安装，请运行: pip install python-docx"
@@ -458,7 +457,7 @@ def _md_to_docx(doc, content: str) -> None:
             i += 1  # skip closing fence
             if code_lines:
                 p = doc.add_paragraph("\n".join(code_lines))
-                p.style = doc.styles["No Spacing"] if "No Spacing" in doc.styles else p.style
+                p.style = doc.styles.get("No Spacing", p.style)
                 p.runs[0].font.name = "Courier New"
                 p.runs[0].font.size = Pt(10)
             continue
