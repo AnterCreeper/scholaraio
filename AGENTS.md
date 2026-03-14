@@ -76,11 +76,11 @@ When the main agent delegates paper analysis to a subagent, information flows at
 | `ingest/extractor.py` | Metadata extraction (regex / auto / robust / llm — 4 modes) |
 | `ingest/metadata/` | API query completion (Crossref / S2 / OpenAlex), JSON output, file renaming |
 | `ingest/pipeline.py` | Composable ingest pipeline (DOI dedup + pending + external import batch conversion) |
-| `index.py` | FTS5 full-text search + papers_registry + citations graph |
-| `vectors.py` | Qwen3 semantic vectors + FAISS incremental indexing + GPU adaptive batch processing |
+| `index.py` | Keyword full-text search + papers_registry + citations graph |
+| `vectors.py` | Semantic vectors + incremental indexing + GPU adaptive batch processing |
 | `topics.py` | BERTopic topic modeling + 6 HTML visualizations |
 | `loader.py` | L1-L4 layered loading + enrich_toc + enrich_l3 |
-| `explore.py` | Multi-dimensional literature exploration (OpenAlex multi-filter + FTS5 + semantic + unified search + topics, isolated in `data/explore/`) |
+| `explore.py` | Multi-dimensional literature exploration (OpenAlex multi-filter + keyword + semantic + unified search + topics, isolated in `data/explore/`) |
 | `workspace.py` | Workspace paper subset management (reuses search/export) |
 | `export.py` | BibTeX export |
 | `audit.py` | Data quality audit + repair |
@@ -116,7 +116,7 @@ explore.py — Multi-dimensional literature exploration (independent data flow, 
     → data/explore/<name>/papers.jsonl (supports incremental update, DOI-based dedup)
                  → explore.db (paper_vectors + explore_fts FTS5 full-text index)
                  → faiss.index (FAISS semantic search)
-  Search: semantic / keyword(FTS5) / unified(RRF) — three modes
+  Search: semantic / keyword / unified — three modes
   Topic modeling/visualization/queries reuse topics.py (via papers_map parameter)
                  → topic_model/ (BERTopic, unified format) + viz/ (HTML)
 
@@ -287,10 +287,10 @@ Knowledge base management:
 - `enrich` — Enrich paper content (TOC / conclusion / abstract / citation count)
 - `ingest` — Ingest papers + rebuild indexes (pipeline presets)
 - `topics` — Topic exploration (BERTopic clustering + merge + visualization)
-- `explore` — Multi-dimensional literature exploration (OpenAlex multi-filter + FTS5/semantic/unified search + BERTopic)
+- `explore` — Multi-dimensional literature exploration (OpenAlex multi-filter + keyword/semantic/unified search + BERTopic)
 - `graph` — Citation graph queries
 - `citations` — Citation count queries and refresh
-- `index` — Rebuild FTS5 / FAISS indexes
+- `index` — Rebuild keyword / semantic indexes
 - `workspace` — Workspace management (create / add / search / export)
 - `export` — BibTeX export
 - `import` — Endnote / Zotero import

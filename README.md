@@ -48,7 +48,7 @@ claude    # Launch Claude Code in the project directory — that's it
 |--|---------|---------|
 | **PDF Parsing** | Deep structure extraction | [MinerU](https://github.com/opendatalab/MinerU) → Markdown with figures, tables, LaTeX equations preserved. Long PDFs (>100 pp) are auto-split and merged |
 | **Not Just Papers** | Any document goes in | Journal articles, theses, technical reports, standards, lecture notes — three inboxes for different document types, each with tailored metadata handling |
-| **Hybrid Search** | Keyword + semantic fusion | FTS5 + Qwen3 embeddings + FAISS → RRF ranking |
+| **Hybrid Search** | Keyword + semantic fusion | Keyword + semantic embeddings → RRF ranking |
 | **Topic Discovery** | Auto-clustering | BERTopic + 6 interactive HTML visualizations — works on both your library and explore datasets |
 | **Literature Exploration** | Multi-dimensional discovery | OpenAlex with 9 filter dimensions (journal, concept, author, institution, keyword, source type, year, citations, work type) → embed → cluster → search |
 | **Citation Graph** | References & impact | Forward/backward citations, shared references across your library |
@@ -141,7 +141,7 @@ Full config reference → [`config.yaml`](config.yaml)
 
 **Search & Read**
 ```
-scholaraio search QUERY       Keyword search (FTS5)
+scholaraio search QUERY       Keyword search
 scholaraio vsearch QUERY      Semantic vector search
 scholaraio usearch QUERY      Unified search (keyword + semantic fusion)
 scholaraio search-author NAME Search by author
@@ -152,7 +152,7 @@ scholaraio show PAPER         View paper content (L1-L4)
 **Ingest & Enrich**
 ```
 scholaraio pipeline PRESET    Run ingestion pipeline (full|ingest|enrich|reindex)
-scholaraio index              Build FTS5 search index
+scholaraio index              Build keyword search index
 scholaraio embed              Generate semantic vectors
 scholaraio enrich-toc         Extract table of contents
 scholaraio enrich-l3          Extract conclusions

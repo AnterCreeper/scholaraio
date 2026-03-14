@@ -73,11 +73,11 @@ MinerU 解析的 Markdown 保留了高质量公式（LaTeX）和图片附件（`
 | `ingest/extractor.py` | 元数据提取（regex / auto / robust / llm 四种模式） |
 | `ingest/metadata/` | API 查询补全（Crossref / S2 / OpenAlex）、JSON 输出、文件重命名 |
 | `ingest/pipeline.py` | 可组合入库流水线（DOI 去重 + pending + 外部导入批量转换） |
-| `index.py` | FTS5 全文检索 + papers_registry + citations 引用图谱 |
-| `vectors.py` | Qwen3 语义向量 + FAISS 增量索引 + GPU 自适应批处理 |
+| `index.py` | 关键词全文检索 + papers_registry + citations 引用图谱 |
+| `vectors.py` | 语义向量 + 增量索引 + GPU 自适应批处理 |
 | `topics.py` | BERTopic 主题建模 + 6 种 HTML 可视化 |
 | `loader.py` | L1-L4 分层加载 + enrich_toc + enrich_l3 |
-| `explore.py` | 多维文献探索（OpenAlex 多维过滤 + FTS5 + 语义 + 融合检索 + 主题，数据隔离在 `data/explore/`） |
+| `explore.py` | 多维文献探索（OpenAlex 多维过滤 + 关键词 + 语义 + 融合检索 + 主题，数据隔离在 `data/explore/`） |
 | `workspace.py` | 工作区论文子集管理（复用搜索/导出） |
 | `export.py` | BibTeX 导出 |
 | `audit.py` | 数据质量审计 + 修复 |
@@ -113,7 +113,7 @@ explore.py — 多维文献探索（独立数据流，与主库隔离）
     → data/explore/<name>/papers.jsonl（支持增量更新，DOI 去重追加）
                  → explore.db (paper_vectors + FTS5 全文索引)
                  → faiss.index (FAISS 语义检索)
-  搜索：语义 / 关键词(FTS5) / 融合(RRF) 三种模式
+  搜索：语义 / 关键词 / 融合 三种模式
   主题建模/可视化/查询复用 topics.py（通过 papers_map 参数）
                  → topic_model/ (BERTopic, 统一格式) + viz/ (HTML)
 
@@ -285,10 +285,10 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 - `enrich` — 富化论文内容（TOC / 结论 / 摘要 / 引用量）
 - `ingest` — 入库论文 + 索引重建（pipeline 预设）
 - `topics` — 主题探索（BERTopic 聚类 + 合并 + 可视化）
-- `explore` — 多维文献探索（OpenAlex 多维过滤 + FTS5/语义/融合检索 + BERTopic）
+- `explore` — 多维文献探索（OpenAlex 多维过滤 + 关键词/语义/融合检索 + BERTopic）
 - `graph` — 引用图谱查询
 - `citations` — 引用量查询和补查
-- `index` — 重建 FTS5 / FAISS 索引
+- `index` — 重建关键词 / 语义索引
 - `workspace` — 工作区管理（创建 / 添加 / 搜索 / 导出）
 - `export` — BibTeX 导出
 - `import` — Endnote / Zotero 导入
