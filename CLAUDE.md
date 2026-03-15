@@ -72,7 +72,7 @@ MinerU 解析的 Markdown 保留了高质量公式（LaTeX）和图片附件（`
 | `ingest/mineru.py` | PDF → MinerU Markdown（云 API / 本地） |
 | `ingest/extractor.py` | 元数据提取（regex / auto / robust / llm 四种模式） |
 | `ingest/metadata/` | API 查询补全（Crossref / S2 / OpenAlex）、JSON 输出、文件重命名 |
-| `ingest/pipeline.py` | 可组合入库流水线（DOI 去重 + pending + 外部导入批量转换） |
+| `ingest/pipeline.py` | 可组合入库流水线（DOI / 专利公开号去重 + pending + 外部导入批量转换） |
 | `index.py` | 关键词全文检索 + papers_registry + citations 引用图谱 |
 | `vectors.py` | 语义向量 + 增量索引 + GPU 自适应批处理 |
 | `topics.py` | BERTopic 主题建模 + 6 种 HTML 可视化 |
@@ -87,6 +87,7 @@ MinerU 解析的 Markdown 保留了高质量公式（LaTeX）和图片附件（`
 | `mcp_server.py` | MCP 服务端（31 tools） |
 | `setup.py` | 环境检测 + 安装向导 |
 | `metrics.py` | LLM token 用量 + API 计时 |
+| `translate.py` | 论文翻译（语言检测 + LLM 分块翻译 + 批量翻译） |
 | `migrate.py` | 数据迁移（扁平结构 → 按目录结构） |
 
 CLI 命令一览：`scholaraio --help`
@@ -99,8 +100,9 @@ PDF → mineru.py → .md     （或直接放 .md 跳过 MinerU）
              extractor.py (Stage 1: 从 md 头部提取字段，支持 regex/auto/robust/llm)
              metadata/    (Stage 2: API 查询补全，输出 .json，重命名文件)
                    ↓
-             pipeline.py  (DOI 去重检查)
+             pipeline.py  (DOI / 专利公开号 去重检查)
                ├─ 有 DOI → data/papers/<Author-Year-Title>/meta.json + paper.md
+               ├─ 有公开号 → data/papers/<Author-Year-Title>/（patent，按公开号去重）
                └─ 无 DOI → data/pending/（待人工确认）
                    ↓
              index.py → data/index.db (SQLite FTS5)
@@ -158,6 +160,7 @@ data/papers/
     ├── meta.json    # L1+L2+L3 元数据（含 "id": "<uuid>"）
     ├── paper.md     # L4 来源（MinerU 输出）
     ├── notes.md     # Agent 分析笔记（T2 层，可选，自动生成）
+    ├── paper_{lang}.md # 翻译版本（如 paper_zh.md，可选）
     ├── images/      # MinerU 提取的图片（md 中引用）
     ├── layout.json  # MinerU 版面分析结果（可选）
     └── *_content_list.json  # MinerU 结构化内容（可选）
@@ -182,8 +185,19 @@ data/inbox-thesis/
 └── thesis.pdf    # 学位论文 PDF（自动标记 paper_type: thesis，跳过 DOI 去重）
 ```
 
+Paper types: `article`（默认）、`thesis`、`patent`、`book`、`document`（含 `technical-report` / `lecture-notes` 等子类型）。
+
 注：普通 inbox 中无 DOI 的论文会由 LLM 自动判断是否为 thesis——是则标记入库，否则转 pending。
 thesis inbox 跳过此判断，直接标记入库。
+
+### data/inbox-patent/ 目录
+
+```
+data/inbox-patent/
+└── patent.pdf    # 专利 PDF（自动提取公开号，按公开号去重，标记 patent）
+```
+
+注：支持的公开号格式：CN/US/EP/WO/JP/KR/DE/FR/GB + 7位以上数字 + 类型码（如 CN112345678A、US10123456B2）。
 
 ### data/inbox-doc/ 目录
 
@@ -202,7 +216,7 @@ data/inbox-doc/
 - LLM 自动生成标题和摘要（确保检索可用）
 - 无 LLM 时降级：第一个 markdown 标题或文件名 → 标题，前 500 词 → 摘要
 - paper_type 标记为 `document`（或 `technical-report` / `lecture-notes` 等具体类型）
-- 审计规则对 document 类型不报 missing_doi 警告
+- 审计规则对 document / patent 类型不报 missing_doi 警告
 
 超长 PDF（默认 >100 页）自动切分为多个短 PDF 分段解析后合并。
 
@@ -220,10 +234,11 @@ data/pending/
 ```
 
 pending.json 中 `issue` 字段标识原因：
-- `no_doi` — 无 DOI 且非 thesis，需人工确认后补充 DOI 再入库
-- `duplicate` — DOI 与已入库论文重复（含 `duplicate_of` 字段指向已有论文目录名），用户可决定覆盖
+- `no_doi` — 无 DOI 且非 thesis/patent，需人工确认后补充 DOI 再入库
+- `duplicate` — DOI 或专利公开号与已入库论文重复（含 `duplicate_of` 字段指向已有论文目录名），用户可决定覆盖
 
 注：thesis 自动入库（来自 thesis inbox 或 LLM 判定），不经过 pending。
+patent 自动入库（来自 patent inbox），按公开号去重，不经过 pending。
 
 ### data/explore/ 目录
 
@@ -272,6 +287,15 @@ LLM API key 查找顺序：
 支持三种 backend 协议：`openai-compat`（DeepSeek / OpenAI / vLLM / Ollama）、`anthropic`（Claude）、`google`（Gemini）。
 `ingest.extractor: robust`（默认）— regex + LLM 双跑，LLM 校正 OCR 错误 + 全文 multi-DOI 检测。其他模式：`auto`（LLM 仅兜底）、`regex`（纯正则）、`llm`（纯 LLM）。
 
+翻译配置（`config.yaml`）：
+```yaml
+translate:
+  auto_translate: false   # 入库时是否自动翻译
+  target_lang: zh          # 目标语言（zh/en/ja/ko/de/fr/es）
+  chunk_size: 4000         # 分块大小
+  concurrency: 5           # 并发翻译数
+```
+
 ## 代码风格
 
 - **Docstrings**：库模块（`index.py`、`loader.py`、`vectors.py` 等）的公共 API 函数使用 Google-style docstrings（含 Args / Returns / Raises）。CLI handler 函数（`cli.py` 中的 `cmd_*`）不加 docstring。
@@ -282,7 +306,7 @@ LLM API key 查找顺序：
 
 Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agentskills.io) 开放标准。每个 skill 是一个文件夹，包含 `SKILL.md`（YAML frontmatter + 指令）。根目录 `skills/` 为指向 `.claude/skills/` 的符号链接，供 Claude Code 插件系统发现。
 
-**现有 skills（23 个）：**
+**现有 skills（24 个）：**
 
 知识库管理：
 - `search` — 文献搜索（关键词 / 语义 / 作者 / 融合检索 / 高引排行）
@@ -299,6 +323,7 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 - `import` — Endnote / Zotero 导入
 - `rename` — 论文文件重命名
 - `audit` — 论文审计（规则检查 + LLM 深度诊断 + 修复）
+- `translate` — 论文翻译（语言检测 + LLM 分块翻译 + 批量翻译）
 
 学术写作：
 - `literature-review` — 文献综述写作（基于 workspace，主题分组 + 批判性叙述）
@@ -364,6 +389,7 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 │   ├── papers/           # 已入库论文
 │   ├── inbox/            # 待入库 PDF
 │   ├── inbox-thesis/     # 学位论文
+│   ├── inbox-patent/     # 专利
 │   ├── inbox-doc/        # 非论文文档
 │   ├── pending/          # 待确认
 │   ├── explore/          # 文献探索数据

@@ -70,7 +70,10 @@ class RegexExtractor:
     def extract(self, filepath: Path) -> PaperMetadata:
         from scholaraio.ingest.metadata import extract_metadata_from_markdown
 
-        return extract_metadata_from_markdown(filepath)
+        meta = extract_metadata_from_markdown(filepath)
+        text = filepath.read_text(encoding="utf-8", errors="replace")
+        _extract_patent_number(meta, text)
+        return meta
 
 
 # ============================================================================
@@ -163,6 +166,9 @@ class LLMExtractor:
             meta.first_author_lastname = fb.first_author_lastname
         if not meta.first_author:
             meta.first_author = fb.first_author
+
+        # Patent number extraction from full text
+        _extract_patent_number(meta, text)
 
         return meta
 

@@ -82,13 +82,15 @@ When the main agent delegates paper analysis to a subagent, information flows at
 | `loader.py` | L1-L4 layered loading + enrich_toc + enrich_l3 |
 | `explore.py` | Multi-dimensional literature exploration (OpenAlex multi-filter + keyword + semantic + unified search + topics, isolated in `data/explore/`) |
 | `workspace.py` | Workspace paper subset management (reuses search/export) |
-| `export.py` | BibTeX export |
+| `export.py` | BibTeX / RIS / Markdown bibliography / DOCX export |
+| `citation_styles.py` | Citation style management (built-in APA/Vancouver/Chicago/MLA + dynamically loaded custom styles, stored in `data/citation_styles/`) |
 | `audit.py` | Data quality audit + repair |
 | `sources/` | Data source adapters (local / endnote / zotero) |
 | `cli.py` | Full CLI entry point |
 | `mcp_server.py` | MCP server (31 tools) |
 | `setup.py` | Environment detection + setup wizard |
 | `metrics.py` | LLM token usage + API timing |
+| `translate.py` | Paper translation (language detection + LLM chunked translation + batch translation) |
 | `migrate.py` | Data migration (flat structure → per-directory structure) |
 
 CLI command reference: `scholaraio --help`
@@ -101,8 +103,9 @@ PDF → mineru.py → .md     (or place .md directly to skip MinerU)
              extractor.py (Stage 1: extract fields from md header; regex/auto/robust/llm)
              metadata/    (Stage 2: API query completion, JSON output, file renaming)
                    ↓
-             pipeline.py  (DOI dedup check)
+             pipeline.py  (DOI / patent publication number dedup check)
                ├─ Has DOI → data/papers/<Author-Year-Title>/meta.json + paper.md
+               ├─ Has pub number → data/papers/<Author-Year-Title>/ (patent, dedup by publication number)
                └─ No DOI  → data/pending/ (awaiting manual confirmation)
                    ↓
              index.py → data/index.db (SQLite FTS5)
@@ -160,6 +163,7 @@ data/papers/
     ├── meta.json    # L1+L2+L3 metadata (includes "id": "<uuid>")
     ├── paper.md     # L4 source (MinerU output)
     ├── notes.md     # Agent analysis notes (T2 tier, optional, auto-generated)
+    ├── paper_{lang}.md # Translated version (e.g. paper_zh.md, optional)
     ├── images/      # MinerU-extracted images (referenced in md)
     ├── layout.json  # MinerU layout analysis (optional)
     └── *_content_list.json  # MinerU structured content (optional)
@@ -187,15 +191,28 @@ data/inbox-thesis/
 Note: Papers without DOI in the regular inbox are auto-classified by LLM — if thesis, tagged and ingested; otherwise moved to pending.
 The thesis inbox skips this classification and ingests directly.
 
+### data/inbox-patent/ Directory
+
+```
+data/inbox-patent/
+└── patent.pdf    # Patent PDF (auto-extracts publication number, dedup by publication number, tagged patent)
+```
+
+Note: Supported publication number formats: CN/US/EP/WO/JP/KR/DE/FR/GB + 7+ digits + type code (e.g. CN112345678A, US10123456B2).
+
 ### data/inbox-doc/ Directory
 
 ```
 data/inbox-doc/
 ├── report.pdf    # Non-paper document PDF (technical reports, standards, lecture notes, etc.)
-└── notes.md      # Or place .md directly
+├── notes.md      # Or place .md directly
+├── report.docx   # Word document (MarkItDown conversion)
+├── data.xlsx     # Excel spreadsheet (MarkItDown conversion)
+└── slides.pptx   # PowerPoint (MarkItDown conversion)
 ```
 
 Non-paper document ingest flow:
+- **Office files** (`.docx` / `.xlsx` / `.pptx`): first converted to `.md` via `step_office_convert` (MarkItDown), then proceed through subsequent steps
 - Skips DOI dedup and API queries
 - LLM auto-generates title and summary (ensures search indexability)
 - Without LLM, degrades: first markdown heading or filename → title, first 500 words → summary
@@ -279,20 +296,20 @@ Three backend protocols supported: `openai-compat` (DeepSeek / OpenAI / vLLM / O
 
 Skills are defined in `.claude/skills/` directory (also discoverable via `.agents/skills/` symlink), following the [Agent Skills](https://agentskills.io) open standard. Each skill is a folder containing a `SKILL.md` file (YAML frontmatter + instructions).
 
-**Available skills (22):**
+**Available skills (24):**
 
 Knowledge base management:
 - `search` — Literature search (keyword / semantic / author / hybrid retrieval / top-cited ranking)
 - `show` — View paper content (L1-L4 layered)
 - `enrich` — Enrich paper content (TOC / conclusion / abstract / citation count)
-- `ingest` — Ingest papers + rebuild indexes (pipeline presets)
+- `ingest` — Ingest papers and documents (PDF / DOCX / XLSX / PPTX / MD) + rebuild indexes
 - `topics` — Topic exploration (BERTopic clustering + merge + visualization)
 - `explore` — Multi-dimensional literature exploration (OpenAlex multi-filter + keyword/semantic/unified search + BERTopic)
 - `graph` — Citation graph queries
 - `citations` — Citation count queries and refresh
 - `index` — Rebuild keyword / semantic indexes
 - `workspace` — Workspace management (create / add / search / export)
-- `export` — BibTeX export
+- `export` — Multi-format export (BibTeX / RIS / Markdown bibliography / DOCX document)
 - `import` — Endnote / Zotero import
 - `rename` — Paper file renaming
 - `audit` — Paper audit (rule checks + LLM deep diagnosis + repair)
@@ -304,6 +321,12 @@ Academic writing:
 - `writing-polish` — Writing polish (remove AI patterns + style adaptation + EN/ZH)
 - `review-response` — Review response (point-by-point analysis + evidence search + rebuttal)
 - `research-gap` — Research gap identification (multi-dimensional analysis + open question discovery)
+
+Visualization:
+- `draw` — Drawing (Mermaid structured diagrams + cli-anything-inkscape vector graphics)
+
+Translation:
+- `translate` — Paper translation (language detection + LLM chunked translation + batch translation)
 
 System maintenance:
 - `setup` — Environment detection and setup wizard
@@ -358,6 +381,7 @@ In plugin mode, all data lives under `~/.scholaraio/`:
 │   ├── papers/           # Ingested papers
 │   ├── inbox/            # PDFs awaiting ingest
 │   ├── inbox-thesis/     # Theses
+│   ├── inbox-patent/     # Patents
 │   ├── inbox-doc/        # Non-paper documents
 │   ├── pending/          # Awaiting confirmation
 │   ├── explore/          # Literature exploration data

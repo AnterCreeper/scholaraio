@@ -723,7 +723,6 @@ def cmd_shared_refs(args: argparse.Namespace, cfg) -> None:
 
 
 def cmd_translate(args: argparse.Namespace, cfg) -> None:
-    from scholaraio.papers import iter_paper_dirs
     from scholaraio.translate import batch_translate, translate_paper
 
     papers_dir = cfg.papers_dir

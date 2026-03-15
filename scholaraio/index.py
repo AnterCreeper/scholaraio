@@ -563,9 +563,7 @@ def lookup_paper(db_path: Path, user_input: str) -> dict | None:
             return dict(row)
         # Try patent publication number
         try:
-            row = conn.execute(
-                "SELECT * FROM papers_registry WHERE publication_number = ?", (user_input,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM papers_registry WHERE publication_number = ?", (user_input,)).fetchone()
             if row:
                 return dict(row)
         except sqlite3.OperationalError:

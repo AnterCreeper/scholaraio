@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Patent literature management**: New `data/inbox-patent/` inbox for patent documents; automatic publication number extraction (CN/US/EP/WO/JP/KR/DE/FR/GB formats); deduplication by publication number; `paper_type: patent` auto-tagging; `publication_number` field in `PaperMetadata` and `papers_registry`
+- **Paper translation** (`translate` CLI + skill): LLM-based markdown translation preserving LaTeX formulas, code blocks, and images; language detection heuristic; configurable defaults (`config.yaml` `translate` section) with per-call `--lang`/`--force` override; single paper and batch modes; `show --lang` to view translated versions; `pipeline --steps translate` for batch processing
 - **Federated search** (`fsearch` CLI + `federated_search` MCP tool): search across main library, explore silos (`explore:NAME` / `explore:*`), and arXiv in a single command; arXiv results annotated with "已入库" when DOI matches the main library
 - **arXiv source module** (`sources/arxiv.py`): shared Atom API client using `defusedxml` for safe XML parsing
 - **Insights analytics** (`scholaraio insights`): behavior dashboard showing top search keywords, most-read papers, weekly reading trend, semantic neighbor recommendations, and active workspaces with paper counts

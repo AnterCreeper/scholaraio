@@ -1,20 +1,21 @@
 ---
 name: ingest
-description: Ingest papers and documents from inbox into the knowledge base. Runs the pipeline to convert PDFs via MinerU (auto-splits long PDFs), Office files (DOCX/XLSX/PPTX) via MarkItDown, extract metadata, deduplicate by DOI, and build indexes. Supports three inboxes - regular papers, theses, and general documents. Use when the user has new papers or documents to process, wants to run the pipeline, or rebuild indexes.
+description: Ingest papers, patents, and documents from inbox into the knowledge base. Runs the pipeline to convert PDFs via MinerU (auto-splits long PDFs), Office files (DOCX/XLSX/PPTX) via MarkItDown, extract metadata, deduplicate by DOI or patent publication number, and build indexes. Supports four inboxes - regular papers, patents, theses, and general documents. Use when the user has new papers, patents, or documents to process, wants to run the pipeline, or rebuild indexes.
 version: 1.0.0
 author: ZimoLiao/scholaraio
 license: MIT
-tags: ["academic", "papers", "pipeline", "pdf", "docx", "office"]
+tags: ["academic", "papers", "patent", "pipeline", "pdf", "docx", "office"]
 ---
 # 入库文档
 
-将 inbox 中的 PDF、Office 文档（DOCX/XLSX/PPTX）或 Markdown 文件处理入库。
+将 inbox 中的 PDF、Office 文档（DOCX/XLSX/PPTX）或 Markdown 文件处理入库。支持论文、专利、学位论文和一般文档四种入库类型。
 
 ## 支持的文件格式
 
 | 格式 | 放入目录 | 处理方式 |
 |------|----------|----------|
 | `.pdf` | `data/inbox/` 或 `data/inbox-doc/` | MinerU 转 Markdown |
+| `.pdf` / `.md` | `data/inbox-patent/` | 专利文献（按公开号去重） |
 | `.docx` `.xlsx` `.pptx` | `data/inbox-doc/` | MarkItDown 转 Markdown |
 | `.md` | 任意 inbox | 直接入库（跳过转换） |
 
@@ -34,8 +35,9 @@ scholaraio pipeline <preset>
 
 可用预设：`full` | `ingest` | `enrich` | `reindex`
 
-3. pipeline 会依次处理三个 inbox 目录：
+3. pipeline 会依次处理四个 inbox 目录：
    - `data/inbox/` — 普通论文（有 DOI 才入库，无 DOI 且非 thesis 转 pending）
+   - `data/inbox-patent/` — 专利文献（按公开号去重，自动标记 patent，跳过 DOI 去重）
    - `data/inbox-thesis/` — 学位论文（跳过 DOI 去重，自动标记 thesis）
    - `data/inbox-doc/` — 非论文文档（技术报告、讲义、Word/Excel/PPT、标准文档等，跳过 DOI 去重，LLM 生成标题/摘要）
 
@@ -45,7 +47,12 @@ scholaraio pipeline <preset>
    - `step_ingest`（写入 `data/papers/`）
    - **依赖**：需安装 `pip install 'markitdown[docx,pptx,xlsx]'`
 
-5. 无 DOI 论文的处理逻辑：
+5. 专利文献处理逻辑（`data/inbox-patent/`）：
+   - 自动提取公开号（CN/US/EP/WO/JP/KR/DE/FR/GB 格式）
+   - 按公开号去重（非 DOI），跳过 DOI 检查
+   - 自动标记 `paper_type: patent`
+
+6. 无 DOI 论文的处理逻辑：
    - 来自 `data/inbox-thesis/` → 直接标记为 thesis 并入库
    - 来自 `data/inbox-doc/` → 标记为 document 类型，LLM 生成标题和摘要后入库
    - 来自 `data/inbox/` → LLM 分析判断是否 thesis
@@ -67,6 +74,9 @@ scholaraio pipeline <preset>
 
 用户说："我把一个 Word 文档放进 inbox-doc 了"
 → 执行 `pipeline ingest`（自动用 MarkItDown 转换 DOCX）
+
+用户说："我有几篇专利放在 inbox-patent 了"
+→ 执行 `pipeline ingest`（自动处理四个 inbox 目录，专利按公开号去重）
 
 用户说："重新建索引"
 → 执行 `pipeline reindex`

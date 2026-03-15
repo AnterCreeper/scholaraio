@@ -75,9 +75,8 @@ class PaperMetadata:
 DOI_CORE = r'10\.\d{4,9}/[^\s,;)\]>"\'}]+'
 
 # Patent publication number patterns (CN/US/EP/WO/JP/KR/DE/FR/GB)
-PATENT_NUMBER_RE = re.compile(
-    r'\b((?:CN|US|EP|WO|JP|KR|DE|FR|GB)\d{4,}[A-Z]\d?)\b'
-)
+# Requires ≥7 digits to avoid false positives (real patents: CN 9+, US 7+, EP 7+)
+PATENT_NUMBER_RE = re.compile(r"\b((?:CN|US|EP|WO|JP|KR|DE|FR|GB)\d{7,}[A-Z]\d?)\b")
 
 # H1 headings that are NOT paper titles
 NON_TITLE_H1 = [
