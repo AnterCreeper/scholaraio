@@ -84,9 +84,9 @@ When the main agent delegates paper analysis to a subagent, information flows at
 | `workspace.py` | Workspace paper subset management (reuses search/export) |
 | `export.py` | BibTeX export |
 | `audit.py` | Data quality audit + repair |
-| `sources/` | Data source adapters (local / endnote / zotero) |
+| `sources/` | Data source adapters (local / endnote / zotero / arxiv) |
 | `cli.py` | Full CLI entry point |
-| `mcp_server.py` | MCP server (31 tools) |
+| `mcp_server.py` | MCP server (32 tools) |
 | `setup.py` | Environment detection + setup wizard |
 | `metrics.py` | LLM token usage + API timing |
 | `migrate.py` | Data migration (flat structure → per-directory structure) |
@@ -279,7 +279,7 @@ Three backend protocols supported: `openai-compat` (DeepSeek / OpenAI / vLLM / O
 
 Skills are defined in `.claude/skills/` directory (also discoverable via `.agents/skills/` symlink), following the [Agent Skills](https://agentskills.io) open standard. Each skill is a folder containing a `SKILL.md` file (YAML frontmatter + instructions).
 
-**Available skills (22):**
+**Available skills (24):**
 
 Knowledge base management:
 - `search` — Literature search (keyword / semantic / author / hybrid retrieval / top-cited ranking)
@@ -290,9 +290,10 @@ Knowledge base management:
 - `explore` — Multi-dimensional literature exploration (OpenAlex multi-filter + keyword/semantic/unified search + BERTopic)
 - `graph` — Citation graph queries
 - `citations` — Citation count queries and refresh
+- `insights` — Research behavior analysis (search hot keywords / most-read papers / reading trends / semantic neighbor recommendations)
 - `index` — Rebuild keyword / semantic indexes
 - `workspace` — Workspace management (create / add / search / export)
-- `export` — BibTeX export
+- `export` — Multi-format export (BibTeX / RIS / Markdown reference list / DOCX)
 - `import` — Endnote / Zotero import
 - `rename` — Paper file renaming
 - `audit` — Paper audit (rule checks + LLM deep diagnosis + repair)
@@ -304,6 +305,9 @@ Academic writing:
 - `writing-polish` — Writing polish (remove AI patterns + style adaptation + EN/ZH)
 - `review-response` — Review response (point-by-point analysis + evidence search + rebuttal)
 - `research-gap` — Research gap identification (multi-dimensional analysis + open question discovery)
+
+Visualization:
+- `draw` — Drawing (Mermaid structured diagrams + cli-anything-inkscape vector graphics)
 
 System maintenance:
 - `setup` — Environment detection and setup wizard
