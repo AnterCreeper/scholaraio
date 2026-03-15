@@ -51,14 +51,14 @@ FormatterFn = Callable[[dict, int | None], str]
 def _fmt_apa(meta: dict, idx: int | None = None) -> str:
     """APA 7th edition (author-date, ampersand, italicised journal+volume)."""
     authors = meta.get("authors") or []
-    if len(authors) == 1:
+    if not authors:
+        author_str = "Unknown"
+    elif len(authors) == 1:
         author_str = authors[0]
     elif len(authors) <= 3:
         author_str = ", ".join(authors[:-1]) + f", & {authors[-1]}"
-    elif authors:
-        author_str = f"{authors[0]} et al."
     else:
-        author_str = "Unknown"
+        author_str = f"{authors[0]} et al."
 
     year = meta.get("year") or "n.d."
     title = meta.get("title") or "Untitled"
@@ -100,12 +100,12 @@ def _fmt_vancouver(meta: dict, idx: int | None = None) -> str:
             return f"{last} {initials}"
         return name
 
-    if len(authors) <= 6:
-        author_str = ", ".join(_initials(a) for a in authors)
-    elif authors:
-        author_str = ", ".join(_initials(a) for a in authors[:6]) + ", et al"
-    else:
+    if not authors:
         author_str = "Unknown"
+    elif len(authors) <= 6:
+        author_str = ", ".join(_initials(a) for a in authors)
+    else:
+        author_str = ", ".join(_initials(a) for a in authors[:6]) + ", et al"
 
     year = meta.get("year") or "n.d."
     title = meta.get("title") or "Untitled"
