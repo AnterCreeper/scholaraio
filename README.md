@@ -55,7 +55,10 @@ claude    # Launch Claude Code in the project directory — that's it
 | **Layered Reading** | Read at the depth you need | L1 metadata → L2 abstract → L3 conclusion → L4 full text |
 | **Multi-Source Import** | Bring your existing library | Endnote XML/RIS, Zotero (API + SQLite, with collection → workspace mapping), PDF, Markdown — more sources planned |
 | **Workspaces** | Organize for projects | Paper subsets with scoped search and BibTeX export |
+| **Multi-Format Export** | BibTeX, RIS, Markdown, DOCX | Export your library or workspace in any format — ready for Zotero, Endnote, manuscript submission, or sharing |
 | **Persistent Notes** | Cross-session memory | Agent analysis is saved per-paper (`notes.md`). Revisiting a paper reuses prior findings instead of re-reading the full text — saves tokens and avoids redundant work |
+| **Research Insights** | Reading behavior analytics | Search hot keywords, most-read papers, reading trends, and semantic neighbor recommendations for papers you haven't read yet |
+| **Diagrams & Figures** | Publication-ready visuals | Mermaid (flowcharts, sequence diagrams, ER diagrams, Gantt charts, mind maps) and vector graphics via Inkscape — output PNG/SVG/PDF |
 | **Academic Writing** | AI-assisted drafting | Literature review, paper sections, citation check, rebuttal, gap analysis — every claim traceable to your own library |
 | **MCP Server** | 32 tools | Works with Claude Desktop, Cursor, and any MCP client |
 
