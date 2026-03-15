@@ -256,7 +256,15 @@ def styles_dir(cfg: Config) -> Path:
 
 
 def list_styles(cfg: Config) -> list[dict]:
-    """Return all available styles as a list of dicts with name/source/description."""
+    """Return all available styles as a list of dicts with name/source/description.
+
+    Args:
+        cfg: Project configuration (used to resolve data/citation_styles/ path).
+
+    Returns:
+        List of dicts, each with keys ``name``, ``source`` (``"built-in"`` or
+        ``"custom"``), and ``description``.
+    """
     results = []
     for name, desc in BUILTIN_DESCRIPTIONS.items():
         results.append({"name": name, "source": "built-in", "description": desc})
@@ -285,10 +293,20 @@ def list_styles(cfg: Config) -> list[dict]:
 def get_formatter(name: str, cfg: Config) -> FormatterFn:
     """Load a formatter by style name.
 
-    Checks built-in styles first, then cache at data/citation_styles/<name>.py.
+    Checks built-in styles first, then dynamic cache at data/citation_styles/<name>.py.
+
+    Args:
+        name: Citation style name (e.g. ``"apa"``, ``"vancouver"``).
+        cfg: Project configuration (used to resolve the style cache directory).
+
+    Returns:
+        A callable ``(meta: dict, idx: int | None) -> str`` that formats one reference.
 
     Raises:
-        FileNotFoundError: If the style is not found anywhere.
+        ValueError: If ``name`` contains invalid characters or a path traversal is detected.
+        FileNotFoundError: If the style is not found in built-ins or the cache.
+        ImportError: If the custom style file cannot be imported or executed.
+        AttributeError: If the style file does not define a ``format_ref`` function.
     """
     if name in BUILTIN_STYLES:
         return BUILTIN_STYLES[name]
@@ -323,7 +341,19 @@ def get_formatter(name: str, cfg: Config) -> FormatterFn:
 
 
 def show_style(name: str, cfg: Config) -> str:
-    """Return the source code of a custom style, or description for built-ins."""
+    """Return the source code of a custom style, or a description comment for built-ins.
+
+    Args:
+        name: Citation style name.
+        cfg: Project configuration (used to resolve the style cache directory).
+
+    Returns:
+        Source code string of the style file, or a comment block for built-in styles.
+
+    Raises:
+        ValueError: If ``name`` contains invalid characters or a path traversal is detected.
+        FileNotFoundError: If the custom style file does not exist.
+    """
     if name in BUILTIN_STYLES:
         desc = BUILTIN_DESCRIPTIONS.get(name, "")
         return f"# 内置格式：{name}\n# {desc}\n# （实现位于 scholaraio/citation_styles.py）"
@@ -331,11 +361,11 @@ def show_style(name: str, cfg: Config) -> str:
     import re as _re
 
     if not _re.match(r"^[a-zA-Z0-9_-]+$", name):
-        raise ValueError(f"Invalid style name '{name}': must contain only letters, digits, hyphens, underscores.")
+        raise ValueError(f"引用格式名称无效 '{name}'：只允许字母、数字、连字符和下划线。")
 
     style_file = styles_dir(cfg) / f"{name}.py"
     if not style_file.resolve().is_relative_to(styles_dir(cfg).resolve()):
-        raise ValueError(f"Invalid style name '{name}': path traversal detected.")
+        raise ValueError(f"引用格式名称无效 '{name}'：检测到路径穿越攻击。")
     if not style_file.exists():
-        raise FileNotFoundError(f"Style '{name}' not found.")
+        raise FileNotFoundError(f"引用格式 '{name}' 不存在。")
     return style_file.read_text(encoding="utf-8")
