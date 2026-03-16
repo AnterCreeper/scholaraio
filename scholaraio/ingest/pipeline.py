@@ -1059,14 +1059,17 @@ def run_pipeline(
             - ``inbox_dir`` (Path): 自定义 inbox 目录。
             - ``papers_dir`` (Path): 自定义 papers 目录。
     """
-    # Auto-inject translate step when config.translate.auto_translate is enabled
-    if cfg.translate.auto_translate and "translate" not in step_names and "translate" in STEPS:
+    # Auto-inject translate step when config.translate.auto_translate is enabled.
+    # Only inject when the pipeline includes inbox steps (i.e. new papers are being ingested),
+    # to avoid triggering LLM translation on unrelated runs like reindex/embed.
+    has_inbox = any(n in STEPS and STEPS[n].scope == "inbox" for n in step_names)
+    if cfg.translate.auto_translate and has_inbox and "translate" not in step_names and "translate" in STEPS:
         # Insert translate before global-scope steps (embed/index)
         first_global = next(
             (i for i, n in enumerate(step_names) if n in STEPS and STEPS[n].scope == "global"),
             len(step_names),
         )
-        step_names = step_names[:first_global] + ["translate"] + step_names[first_global:]
+        step_names = [*step_names[:first_global], "translate", *step_names[first_global:]]
 
     # Validate steps
     for name in step_names:
@@ -1670,7 +1673,7 @@ def _detect_patent(ctx: InboxCtx) -> bool:
     # Scan text for patent number patterns
     if ctx.md_path and ctx.md_path.exists():
         try:
-            text = ctx.md_path.read_text(encoding="utf-8")[:10000]
+            text = ctx.md_path.read_text(encoding="utf-8", errors="replace")[:10000]
             from scholaraio.ingest.metadata._models import PATENT_NUMBER_RE
 
             m = PATENT_NUMBER_RE.search(text)

@@ -102,10 +102,10 @@ def _hard_split(text: str, chunk_size: int) -> list[str]:
     """Split an oversized text block into pieces ≤ chunk_size.
 
     Tries sentence boundaries first (``". "``), falls back to hard cut.
+    Avoids cutting through ``\\x00PROTECTED_N\\x00`` placeholder tokens.
     """
     if len(text) <= chunk_size:
         return [text]
-    # Try splitting on sentence-ending ". "
     parts: list[str] = []
     while len(text) > chunk_size:
         cut = text.rfind(". ", 0, chunk_size)
@@ -113,11 +113,30 @@ def _hard_split(text: str, chunk_size: int) -> list[str]:
             cut = chunk_size  # hard cut
         else:
             cut += 2  # include ". "
+        # Ensure we don't split inside a placeholder token
+        cut = _adjust_for_placeholder(text, cut)
         parts.append(text[:cut])
         text = text[cut:]
     if text:
         parts.append(text)
     return parts
+
+
+def _adjust_for_placeholder(text: str, cut: int) -> int:
+    """Move cut point outside any placeholder span it would bisect."""
+    # Find the last placeholder start before cut
+    last_start = text.rfind("\x00PROTECTED_", 0, cut)
+    if last_start == -1:
+        return cut
+    # Find the closing NUL of that placeholder
+    end = text.find("\x00", last_start + 1)
+    if end == -1:
+        return cut
+    end += 1  # include the closing NUL
+    if cut < end:
+        # cut falls inside the placeholder — move past it
+        return end
+    return cut
 
 
 def _split_into_chunks(text: str, chunk_size: int) -> list[str]:
@@ -292,7 +311,8 @@ def translate_paper(
 
     if out_path.exists() and not force:
         _log.debug("translation already exists: %s", out_path.name)
-        return out_path
+        translate_paper.skip_reason = SKIP_ALREADY_EXISTS  # type: ignore[attr-defined]
+        return None
 
     text = md_path.read_text(encoding="utf-8", errors="replace")
     if not text.strip():

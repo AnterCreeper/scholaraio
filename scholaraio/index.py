@@ -69,7 +69,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_registry_doi
 """
 
 _REGISTRY_PUBNUM_INDEX = """
-CREATE INDEX IF NOT EXISTS idx_registry_publication_number
+CREATE UNIQUE INDEX IF NOT EXISTS idx_registry_publication_number
     ON papers_registry(publication_number) WHERE publication_number IS NOT NULL AND publication_number != '';
 """
 
@@ -530,11 +530,14 @@ def _enrich_dir_names(results: list[dict], conn: sqlite3.Connection) -> list[dic
 
 
 def lookup_paper(db_path: Path, user_input: str) -> dict | None:
-    """查找论文：支持 UUID、dir_name、DOI。
+    """查找论文：支持 UUID、dir_name、DOI、专利公开号。
+
+    按以下顺序尝试匹配: UUID → dir_name → DOI → publication_number。
+    公开号查询会自动归一化为大写。
 
     Args:
         db_path: SQLite 数据库路径。
-        user_input: UUID、目录名或 DOI。
+        user_input: UUID、目录名、DOI 或专利公开号。
 
     Returns:
         ``papers_registry`` 行字典，找不到时返回 ``None``。
