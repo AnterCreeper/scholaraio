@@ -1309,7 +1309,7 @@ def import_external(
     """
     papers_dir = cfg.papers_dir
     pending_dir = cfg._root / "data" / "pending"
-    existing_dois = _collect_existing_dois(papers_dir)
+    existing_dois, existing_pub_nums = _collect_existing_ids(papers_dir)
 
     opts: dict[str, Any] = {"dry_run": dry_run, "no_api": no_api}
     stats: dict[str, int] = {"ingested": 0, "duplicate": 0, "needs_review": 0, "failed": 0, "skipped": 0}
@@ -1332,6 +1332,7 @@ def import_external(
             inbox_dir=cfg._root / "data" / "inbox",  # not actually used
             papers_dir=papers_dir,
             existing_dois=existing_dois,
+            existing_pub_nums=existing_pub_nums,
             cfg=cfg,
             opts=opts,
             pending_dir=pending_dir,
@@ -1992,6 +1993,12 @@ def _ensure_registry_schema(conn, db_path: Path) -> None:
         conn.execute("SELECT publication_number FROM papers_registry LIMIT 0")
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE papers_registry ADD COLUMN publication_number TEXT")
+    # Ensure UNIQUE partial index exists (matches index.py schema)
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_registry_publication_number "
+        "ON papers_registry(publication_number) "
+        "WHERE publication_number IS NOT NULL AND publication_number != ''"
+    )
     _registry_migrated.add(db_path)
 
 
@@ -2006,6 +2013,7 @@ def _update_registry(cfg, meta, dir_name: str) -> None:
         with sqlite3.connect(db_path) as conn:
             _ensure_registry_schema(conn, db_path)
             pub_num = (getattr(meta, "publication_number", "") or "").upper().strip()
+            doi_norm = (meta.doi or "").lower().strip()
             try:
                 conn.execute(
                     """INSERT INTO papers_registry
@@ -2022,7 +2030,7 @@ def _update_registry(cfg, meta, dir_name: str) -> None:
                         meta.id,
                         dir_name,
                         meta.title or "",
-                        meta.doi or "",
+                        doi_norm,
                         pub_num,
                         meta.year,
                         meta.first_author_lastname or "",
@@ -2051,7 +2059,7 @@ def _update_registry(cfg, meta, dir_name: str) -> None:
                             meta.id,
                             dir_name,
                             meta.title or "",
-                            meta.doi or "",
+                            doi_norm,
                             "",
                             meta.year,
                             meta.first_author_lastname or "",
