@@ -207,6 +207,8 @@ echo "# 标题\n内容..." | scholaraio export docx --output workspace/doc.docx
 
 **依赖**：需安装 `pip install python-docx`
 
+> **高级排版**：`export docx` 仅做简单 Markdown → Word 转换。需要自定义样式、嵌入图片、表格等高级排版时，请使用 `/document` skill（直接调用 python-docx API）。
+
 ---
 
 ## 示例

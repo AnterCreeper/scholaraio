@@ -41,6 +41,8 @@ scholaraio shared-refs "<id1>" "<id2>" [--min N] [--ws NAME]
 - 已有论文运行 `refetch --all --force` 补拉
 - 之后运行 `index --rebuild` 重建索引以更新 citations 表
 
+> **空结果排查**：如果 `refs`/`citing` 返回空结果，说明该论文的引用数据尚未获取。先运行 `refetch "<paper-id>"` 补拉，再 `index --rebuild` 更新 citations 表。
+
 ## 示例
 
 用户说："这篇论文引了哪些文献"

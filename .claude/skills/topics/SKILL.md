@@ -25,7 +25,7 @@ tags: ["academic", "research", "topic-modeling", "bertopic"]
 **构建/重建主题模型：**
 ```bash
 scholaraio topics --build
-scholaraio topics --rebuild [--min-topic-size N]
+scholaraio topics --rebuild [--min-topic-size N] [--nr-topics N]
 ```
 
 **手动合并指定主题（格式: 逗号分隔同组ID，+分隔不同组）：**

@@ -22,18 +22,28 @@ tags: ["academic", "papers", "patent", "pipeline", "pdf", "docx", "office"]
 ## 执行逻辑
 
 1. 根据用户意图选择预设：
-   - **入库新文档**（默认）：使用 `ingest` 预设
-   - **完整处理**：使用 `full` 预设（入库 + 内容富化 + 重建索引）
-   - **仅重建索引**：使用 `reindex` 预设
-   - **仅内容富化**：使用 `enrich` 预设
+   - **入库新文档**（默认）：使用 `ingest` 预设（= mineru, extract, dedup, ingest, embed, index）
+   - **完整处理**：使用 `full` 预设（= mineru, extract, dedup, ingest, toc, l3, embed, index）
+   - **仅重建索引**：使用 `reindex` 预设（= embed, index）
+   - **仅内容富化**：使用 `enrich` 预设（= toc, l3, embed, index）
+
+   > **注意**：`inbox-doc/` 始终使用专用步骤 `office_convert, mineru, extract_doc, ingest`，不受 preset 影响。`inbox-patent/` 和 `inbox-thesis/` 也有各自的固定流程。preset 中的 papers 级步骤（toc, l3）和 global 级步骤（embed, index）在处理完所有 inbox 后统一执行。
 
 2. 执行流水线命令：
 
 ```bash
-scholaraio pipeline <preset>
+scholaraio pipeline <preset> [--dry-run] [--no-api] [--force] [--inspect]
 ```
 
 可用预设：`full` | `ingest` | `enrich` | `reindex`
+
+常用选项：
+- `--dry-run` — 预览处理，不写文件
+- `--no-api` — 离线模式，跳过外部 API 查询
+- `--force` — 强制重新处理（toc/l3 等步骤）
+- `--inspect` — 展示处理详情
+- `--steps STEPS` — 自定义步骤序列（逗号分隔），如 `--steps toc,l3,index`
+- `--list` — 列出所有可用步骤和预设
 
 3. pipeline 会依次处理四个 inbox 目录：
    - `data/inbox/` — 普通论文（有 DOI 才入库，无 DOI 且非 thesis 转 pending）
@@ -59,7 +69,7 @@ scholaraio pipeline <preset>
      - 是 thesis → 标记并入库
      - 不是 thesis → 转入 `data/pending/` 待人工确认
 
-6. 超长 PDF（>100 页）自动切分为短 PDF 分段转换后合并。
+7. 超长 PDF（>100 页）自动切分为短 PDF 分段转换后合并。
 
 ## 示例
 
@@ -70,7 +80,7 @@ scholaraio pipeline <preset>
 → 执行 `pipeline full`
 
 用户说："我有几份技术报告放在 inbox-doc 里了"
-→ 执行 `pipeline ingest`（pipeline 自动处理三个 inbox 目录）
+→ 执行 `pipeline ingest`（pipeline 自动处理四个 inbox 目录）
 
 用户说："我把一个 Word 文档放进 inbox-doc 了"
 → 执行 `pipeline ingest`（自动用 MarkItDown 转换 DOCX）

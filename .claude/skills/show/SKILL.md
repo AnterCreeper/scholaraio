@@ -13,8 +13,8 @@ tags: ["academic", "papers", "reading", "content"]
 ## 执行逻辑
 
 1. 解析用户输入，提取：
-   - **paper-id**：论文标识符（即 `data/papers/` 下的目录名）
-   - **layer**：查看层次（1-4），未指定则默认 L1+L2
+   - **paper-id**：论文标识符（目录名 / UUID / DOI 均可）
+   - **layer**：查看层次（1-4），默认 `--layer 2`（输出包含 L1 元数据 + L2 摘要）
 
 2. 如果用户不确定论文 ID，先用 `/search` 帮用户找到目标论文。
 

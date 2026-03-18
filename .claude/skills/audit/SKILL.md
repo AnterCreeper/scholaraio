@@ -36,7 +36,7 @@ scholaraio audit [--severity error|warning|info]
 scholaraio repair "<paper-id>" --title "正确标题" [--author "一作"] [--year YYYY] [--doi "10.xxx/..."] --dry-run
 
 # 确认后执行
-scholaraio repair "<paper-id>" --title "正确标题" [--author "一作"] [--year YYYY] [--doi "10.xxx/..."]
+scholaraio repair "<paper-id>" --title "正确标题" [--author "一作"] [--year YYYY] [--doi "10.xxx/..."] [--no-api]
 
 # 修复后重建索引
 scholaraio pipeline reindex

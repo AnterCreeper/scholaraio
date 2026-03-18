@@ -37,8 +37,8 @@ tags: ["academic", "writing", "peer-review", "rebuttal"]
 4. 在工作区文献中搜索支撑证据：
    ```bash
    scholaraio ws search <name> "<审稿人关注的关键词>"
-   scholaraio show <dir_name> --layer 3      # 读结论找证据
-   scholaraio show <dir_name> --layer 4      # 必要时读全文
+   scholaraio show <paper-id> --layer 3      # 读结论找证据
+   scholaraio show <paper-id> --layer 4      # 必要时读全文
    ```
 4. 从引用图谱中找额外支撑：
    ```bash
@@ -75,7 +75,7 @@ tags: ["academic", "writing", "peer-review", "rebuttal"]
 - 将深度分析的论文关键发现追加到 `notes.md`（通过 `loader.append_notes()`），格式：`## YYYY-MM-DD | <workspace> | review-response`
 - 如需补充引用新论文到工作区：
   ```bash
-  scholaraio ws add <name> <dir_name>
+  scholaraio ws add <name> <paper-id>
   ```
 
 ## 写作原则

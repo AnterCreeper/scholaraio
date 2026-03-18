@@ -242,7 +242,7 @@ print(f"已生成: {SVG} ({SVG.stat().st_size} bytes)")
 
 3. **生成代码**：根据用户描述生成 Mermaid 代码或完整 Python 脚本
 
-3. **输出到 workspace/**：
+4. **输出到 workspace/**：
    ```
    workspace/
    └── figures/
@@ -251,7 +251,7 @@ print(f"已生成: {SVG} ({SVG.stat().st_size} bytes)")
        └── experiment_setup.svg
    ```
 
-4. **提示用户**：告知输出路径和嵌入方式（`![图名](workspace/figures/diagram.png)`）
+5. **提示用户**：告知输出路径和嵌入方式（`![图名](workspace/figures/diagram.png)`）
 
 ## 示例
 

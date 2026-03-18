@@ -27,6 +27,9 @@ scholaraio refetch --all
 # 强制重查所有
 scholaraio refetch --all --force
 
+# 加速并发（默认 5）
+scholaraio refetch --all -j 10
+
 # 补查单篇
 scholaraio refetch "<paper-id>"
 ```

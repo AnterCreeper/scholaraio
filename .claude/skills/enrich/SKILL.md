@@ -30,18 +30,23 @@ tags: ["academic", "papers", "metadata", "enrichment", "llm"]
 
 **提取目录：**
 ```bash
-scholaraio enrich-toc [<paper-id> | --all] [--force]
+scholaraio enrich-toc [<paper-id> | --all] [--force] [--inspect]
 ```
 
 **提取结论：**
 ```bash
-scholaraio enrich-l3 [<paper-id> | --all] [--force]
+scholaraio enrich-l3 [<paper-id> | --all] [--force] [--inspect] [--max-retries N]
 ```
 
 **补全摘要：**
 ```bash
-scholaraio backfill-abstract [--dry-run]
+scholaraio backfill-abstract [--dry-run] [--doi-fetch]
 ```
+
+参数说明：
+- `--inspect` — 展示提取过程详情（调试用）
+- `--max-retries N` — L3 提取最大重试次数（默认 2）
+- `--doi-fetch` — 从出版商网页抓取官方 abstract（覆盖现有，需联网）
 
 4. 展示处理结果。
 

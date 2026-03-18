@@ -67,7 +67,7 @@ scholaraio ws rename <旧名称> <新名称>
 ### 在工作区内搜索
 
 ```bash
-scholaraio ws search <名称> "<查询词>" [--top N] [--year YYYY] [--journal 期刊名] [--mode unified|keyword|semantic]
+scholaraio ws search <名称> "<查询词>" [--top N] [--year YYYY] [--journal 期刊名] [--type 类型] [--mode unified|keyword|semantic]
 ```
 
 搜索模式：
@@ -80,7 +80,7 @@ scholaraio ws search <名称> "<查询词>" [--top N] [--year YYYY] [--journal �
 ### 导出工作区 BibTeX
 
 ```bash
-scholaraio ws export <名称> [--year YYYY] [--journal 期刊名]
+scholaraio ws export <名称> [-o 输出文件] [--year YYYY] [--journal 期刊名] [--type 类型]
 ```
 
 ## Context 管理

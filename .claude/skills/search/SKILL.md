@@ -31,7 +31,7 @@ tags: ["academic", "search", "papers", "semantic", "fts5"]
 
 **融合检索（默认）：**
 ```bash
-scholaraio usearch "$ARGUMENTS" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
+scholaraio usearch "<查询词>" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
 ```
 
 **关键词搜索：**
@@ -96,7 +96,7 @@ ids, toc, l3_conclusion
 → 执行 `search-author "Liao"`
 
 用户说："我库里引用最高的论文有哪些"
-→ 执行 `top-cited --top 10`
+→ 转交 `/citations` skill（使用 `top-cited` 命令）
 
 用户说："2020年以后关于 drag reduction 的论文"
 → 执行 `usearch "drag reduction" --year 2020-`
@@ -105,7 +105,7 @@ ids, toc, l3_conclusion
 → 执行 `usearch "turbulence" --journal "Fluid Mechanics"`
 
 用户说："库里引用最高的 review 文章"
-→ 执行 `top-cited --top 10 --type review`
+→ 转交 `/citations` skill（使用 `top-cited --type review` 命令）
 
 用户说："帮我在 arXiv 上也搜一下 physics-informed neural network"
 → 执行 `fsearch "physics-informed neural network" --scope main,arxiv`
