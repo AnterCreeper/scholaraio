@@ -186,6 +186,29 @@ def list_workspaces(ws_root: Path) -> list[str]:
     return sorted(d.name for d in ws_root.iterdir() if d.is_dir() and _papers_json(d).exists())
 
 
+def validate_workspace_name(name: str) -> bool:
+    """Return True if *name* is a safe workspace identifier.
+
+    Rejects empty names, absolute paths, path separators, and ``..``
+    components to prevent path traversal outside ``workspace/``.
+
+    Args:
+        name: Candidate workspace name from user input.
+
+    Returns:
+        ``True`` when the name is safe for path construction.
+    """
+    if not name:
+        return False
+    import os
+
+    if os.path.isabs(name):
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    return ".." not in name
+
+
 def show(ws_dir: Path, db_path: Path) -> list[dict]:
     """查看工作区论文列表，刷新过期的 dir_name。
 
@@ -234,9 +257,14 @@ def rename(ws_root: Path, old_name: str, new_name: str) -> Path:
         重命名后的工作区目录路径。
 
     Raises:
+        ValueError: 工作区名称非法（路径穿越/绝对路径等）。
         FileNotFoundError: 源工作区不存在。
         FileExistsError: 目标工作区已存在。
     """
+    if not validate_workspace_name(old_name):
+        raise ValueError(f"非法工作区名称: {old_name}")
+    if not validate_workspace_name(new_name):
+        raise ValueError(f"非法工作区名称: {new_name}")
     old_dir = ws_root / old_name
     new_dir = ws_root / new_name
     if not old_dir.exists():

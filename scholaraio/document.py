@@ -169,21 +169,21 @@ def inspect_pptx(path: Path) -> str:
                         lines.append(f"    font: {', '.join(font_info)}")
 
                 # Estimate text overflow (rough heuristic)
-                est_lines: float = 0
+                # Accumulate per-paragraph height to avoid bias from mixed font sizes.
+                est_height = 0.0
                 for para in tf.paragraphs:
-                    text_len = len(para.text)
-                    if text_len == 0:
-                        est_lines += 0.5  # empty para still takes space
-                        continue
-                    # Estimate chars per line based on shape width and font size
                     font_size = 18  # default pt
                     if para.runs and para.runs[0].font.size:
                         font_size = para.runs[0].font.size.pt
+                    line_height_in = 1.2 * (font_size / 72) if font_size else 0.3
+                    text_len = len(para.text)
+                    if text_len == 0:
+                        est_height += line_height_in * 0.5  # empty para still takes space
+                        continue
+                    # Estimate chars per line based on shape width and font size
                     chars_per_line = max(1, int(w * 72 / (font_size * 0.55)))
-                    est_lines += max(1, -(-text_len // chars_per_line))  # ceil div
-
-                line_height_in = 1.2 * (font_size / 72) if font_size else 0.3
-                est_height = est_lines * line_height_in
+                    est_lines = max(1, -(-text_len // chars_per_line))  # ceil div
+                    est_height += est_lines * line_height_in
                 if est_height > h * 1.1 and h > 0.5:
                     warnings.append(f'  \u26a0 文字可能溢出: 估算高度 {est_height:.1f}" > 容器高度 {h:.1f}"')
 

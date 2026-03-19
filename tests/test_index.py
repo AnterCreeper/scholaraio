@@ -8,6 +8,7 @@ Does NOT test: SQLite internals, exact ranking scores, hash logic.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 from scholaraio.index import build_index, lookup_paper, search
 
@@ -65,6 +66,16 @@ class TestLookupPaper:
         result = lookup_paper(tmp_db, "10.1234/jfm.2023.001")
         assert result is not None
         assert result["doi"] == "10.1234/jfm.2023.001"
+
+    def test_lookup_by_doi_is_backward_compatible_with_legacy_uppercase_registry(self, tmp_papers, tmp_db):
+        build_index(tmp_papers, tmp_db)
+        with sqlite3.connect(tmp_db) as conn:
+            conn.execute("UPDATE papers_registry SET doi = UPPER(doi) WHERE doi != ''")
+            conn.commit()
+
+        result = lookup_paper(tmp_db, "10.1234/jfm.2023.001")
+        assert result is not None
+        assert result["id"] == "aaaa-1111"
 
     def test_lookup_by_publication_number(self, tmp_path, tmp_db):
         """Patent lookup normalizes to uppercase for matching."""

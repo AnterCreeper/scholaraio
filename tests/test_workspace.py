@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from scholaraio.workspace import add, create, list_workspaces, read_paper_ids, rename
+from scholaraio.workspace import add, create, list_workspaces, read_paper_ids, rename, validate_workspace_name
 
 
 class TestWorkspaceCreate:
@@ -130,3 +130,28 @@ class TestRenameWorkspace:
 
         with pytest.raises(FileExistsError, match="目标工作区已存在"):
             rename(ws_root, "old", "new")
+
+    def test_rename_rejects_invalid_old_name(self, tmp_path):
+        ws_root = tmp_path / "workspace"
+        create(ws_root / "old")
+
+        with pytest.raises(ValueError, match="非法工作区名称"):
+            rename(ws_root, "../old", "new")
+
+    def test_rename_rejects_invalid_new_name(self, tmp_path):
+        ws_root = tmp_path / "workspace"
+        create(ws_root / "old")
+
+        with pytest.raises(ValueError, match="非法工作区名称"):
+            rename(ws_root, "old", "../new")
+
+
+class TestValidateWorkspaceName:
+    def test_accepts_regular_name(self):
+        assert validate_workspace_name("my-ws_2026")
+
+    def test_rejects_empty_or_path_like_name(self):
+        assert not validate_workspace_name("")
+        assert not validate_workspace_name("../foo")
+        assert not validate_workspace_name("foo/bar")
+        assert not validate_workspace_name("foo\\bar")

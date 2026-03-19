@@ -1201,7 +1201,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
 
         explore_root = cfg._root / "data" / "explore"
         if not explore_root.exists():
-            ui("No explore libraries. Use scholaraio explore fetch --issn <ISSN> to create one.")
+            ui("暂无 explore 库，请先运行 scholaraio explore fetch --issn <ISSN> 创建。")
             return
         for d in sorted(explore_root.iterdir()):
             meta_file = d / "meta.json"
@@ -1214,7 +1214,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                     qinfo = f"ISSN {meta['issn']}"
                 else:
                     qinfo = "?"
-                ui(f"  {d.name}: {meta.get('count', '?')} papers ({qinfo}, fetched {meta.get('fetched_at', '?')})")
+                ui(f"  {d.name}: {meta.get('count', '?')} 篇 ({qinfo}，抓取时间 {meta.get('fetched_at', '?')})")
         return
 
     elif action == "info":
@@ -1224,7 +1224,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             # List all explore libraries
             explore_root = cfg._root / "data" / "explore"
             if not explore_root.exists():
-                ui("No explore libraries. Use scholaraio explore fetch --issn <ISSN> to create one.")
+                ui("暂无 explore 库，请先运行 scholaraio explore fetch --issn <ISSN> 创建。")
                 return
             for d in sorted(explore_root.iterdir()):
                 meta_file = d / "meta.json"
@@ -1238,7 +1238,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                         qinfo = f"ISSN {meta['issn']}"
                     else:
                         qinfo = "?"
-                    ui(f"  {d.name}: {meta.get('count', '?')} papers ({qinfo}, fetched {meta.get('fetched_at', '?')})")
+                    ui(f"  {d.name}: {meta.get('count', '?')} 篇 ({qinfo}，抓取时间 {meta.get('fetched_at', '?')})")
             return
         from scholaraio.explore import count_papers
 
@@ -1693,7 +1693,7 @@ def cmd_ws(args: argparse.Namespace, cfg) -> None:
     elif action == "rename":
         try:
             workspace.rename(ws_root, args.old_name, args.new_name)
-        except (FileNotFoundError, FileExistsError) as e:
+        except (ValueError, FileNotFoundError, FileExistsError) as e:
             ui(str(e))
             return
         ui(f"工作区已重命名: {args.old_name} → {args.new_name}")
