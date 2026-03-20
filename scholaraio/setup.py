@@ -104,12 +104,12 @@ _S: dict[str, dict[Lang, str]] = {
     "import_hint": {
         "en": "\nTip: To import papers from Zotero or Endnote, use:\n"
         "  scholaraio import-endnote <xml-or-ris-file>\n"
-        "  scholaraio import-zotero --library-id <ID> --api-key <KEY> --collection <KEY>\n"
-        "  scholaraio import-zotero --local /path/to/zotero.sqlite --collection <KEY>\n",
-        "zh": "\nTip: 导入 Zotero 或 Endnote 文献，使用：\n"
+        "  scholaraio import-zotero --library-id <ID> --api-key <API_KEY> --collection <COLLECTION_KEY>\n"
+        "  scholaraio import-zotero --local /path/to/zotero.sqlite\n",
+        "zh": "\n提示：导入 Zotero 或 Endnote 文献，使用：\n"
         "  scholaraio import-endnote <xml 或 ris 文件>\n"
-        "  scholaraio import-zotero --library-id <ID> --api-key <KEY> --collection <KEY>\n"
-        "  scholaraio import-zotero --local /path/to/zotero.sqlite --collection <KEY>\n",
+        "  scholaraio import-zotero --library-id <ID> --api-key <API_KEY> --collection <COLLECTION_KEY>\n"
+        "  scholaraio import-zotero --local /path/to/zotero.sqlite\n",
     },
     "done": {
         "en": "\nSetup complete! Put papers in data/inbox/ and run:\n  scholaraio pipeline ingest\n",

@@ -306,9 +306,9 @@ def cmd_show(args: argparse.Namespace, cfg) -> None:
                 sys.exit(1)
             translated_path = md_path.parent / f"paper_{lang}.md"
             if translated_path.exists():
-                ui(f"\n--- 全文（{lang}）---\n")
+                ui(f"\n--- 全文（{lang}） ---\n")
             else:
-                ui(f"\n--- 全文（原文，paper_{lang}.md 不存在）---\n")
+                ui(f"\n--- 全文（原文，paper_{lang}.md 不存在） ---\n")
         else:
             ui("\n--- 全文 ---\n")
         ui(load_l4(md_path, lang=lang))
