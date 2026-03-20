@@ -1043,6 +1043,9 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
     action = args.explore_action
 
     if action == "fetch":
+        if args.limit is not None and args.limit <= 0:
+            ui(f"--limit 必须为正整数，当前为: {args.limit}")
+            return
         # Determine name: explicit --name, or derive from filters
         name = args.name
         if not name:

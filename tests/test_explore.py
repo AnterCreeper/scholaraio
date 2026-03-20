@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from scholaraio.explore import _build_filter
+import pytest
+
+from scholaraio.explore import _build_filter, fetch_explore
 
 
 class TestBuildFilter:
@@ -15,3 +17,12 @@ class TestBuildFilter:
         filt_negative, _ = _build_filter(min_citations=-3)
         assert "cited_by_count" not in filt_zero
         assert "cited_by_count" not in filt_negative
+
+
+class TestFetchExploreLimit:
+    def test_limit_must_be_positive(self):
+        with pytest.raises(ValueError, match="limit 必须为正整数"):
+            fetch_explore("tmp-limit-check", issn="0022-1120", limit=0)
+
+        with pytest.raises(ValueError, match="limit 必须为正整数"):
+            fetch_explore("tmp-limit-check", issn="0022-1120", limit=-1)

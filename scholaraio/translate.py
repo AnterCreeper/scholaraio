@@ -308,9 +308,11 @@ def validate_lang(lang: str) -> str:
     so config values like ``"ZH"`` or ``" zh "`` are accepted.
 
     Raises:
-        ValueError: If ``lang`` doesn't match the ``[a-z]{2,5}`` pattern
-            (ISO 639-1/3) after normalization.
+        ValueError: If ``lang`` is not a string, or doesn't match the
+            ``[a-z]{2,5}`` pattern (ISO 639-1/3) after normalization.
     """
+    if not isinstance(lang, str):
+        raise ValueError(f"invalid language code type: {type(lang).__name__} (expected string)")
     lang = lang.lower().strip()
     if not _LANG_CODE_RE.match(lang):
         raise ValueError(f"invalid language code: {lang!r} (expected 2-5 lowercase letters)")

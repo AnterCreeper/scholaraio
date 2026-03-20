@@ -297,6 +297,9 @@ def fetch_explore(
     Returns:
         本次新拉取的论文数量。
     """
+    if limit is not None and limit <= 0:
+        raise ValueError(f"limit 必须为正整数，当前为: {limit}")
+
     out_dir = _explore_dir(name, cfg)
     out_dir.mkdir(parents=True, exist_ok=True)
     papers_file = _papers_path(name, cfg)
@@ -351,6 +354,7 @@ def fetch_explore(
                 )
                 if not papers:
                     break
+                written = 0
                 for p in papers:
                     if limit is not None and total >= limit:
                         break
@@ -361,11 +365,19 @@ def fetch_explore(
                             continue
                     f_handle.write(json.dumps(p, ensure_ascii=False) + "\n")
                     total += 1
+                    written += 1
                     if incremental:
                         pid = p.get("doi", "").lower() or p.get("openalex_id", "")
                         if pid:
                             existing_pids.add(pid)
-                _log.info("page %d: +%d papers (total %d, %.0fs)", page, len(papers), total, t.elapsed)
+                _log.info(
+                    "page %d: fetched=%d, written=%d (total %d, %.0fs)",
+                    page,
+                    len(papers),
+                    written,
+                    total,
+                    t.elapsed,
+                )
         finally:
             f_handle.close()
 

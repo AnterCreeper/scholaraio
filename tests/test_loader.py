@@ -8,6 +8,7 @@ layers that require LLM enrichment or full-text paper files.
 from __future__ import annotations
 
 import json
+import logging
 from typing import cast
 
 from scholaraio.config import Config
@@ -124,6 +125,15 @@ class TestLoadL4:
         (paper_dir / "paper_zh.md").write_text("中文", encoding="utf-8")
         result = load_l4(paper_dir / "paper.md", lang=None)
         assert "Turbulence modeling" in result
+
+    def test_invalid_lang_logs_warning_without_traceback(self, tmp_papers, caplog):
+        md_path = tmp_papers / "Smith-2023-Turbulence" / "paper.md"
+        with caplog.at_level(logging.WARNING, logger="scholaraio.loader"):
+            result = load_l4(md_path, lang="../bad")
+        assert "Turbulence modeling" in result
+        records = [r for r in caplog.records if "invalid lang code" in r.getMessage()]
+        assert records
+        assert all(r.exc_info is None for r in records)
 
 
 class TestNotes:

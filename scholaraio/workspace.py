@@ -191,7 +191,8 @@ def validate_workspace_name(name: str) -> bool:
 
     Rejects empty names, ``.``/``..`` names, leading/trailing whitespace,
     absolute paths, path separators, Windows drive-like names (``:``),
-    and ``..`` components to prevent path traversal outside ``workspace/``.
+    and any name containing ``..`` to prevent path traversal outside
+    ``workspace/``.
 
     Args:
         name: Candidate workspace name from user input.

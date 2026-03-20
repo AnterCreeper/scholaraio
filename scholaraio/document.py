@@ -272,7 +272,7 @@ def inspect_docx(path: Path) -> str:
                 display = text[:70] + ("..." if len(text) > 70 else "")
                 lines.append(f'  [{style_name}] "{display}"')
             elif style_name.startswith("List"):
-                # Aggregate consecutive list items
+                # Emit each list paragraph as one list-item line.
                 lines.append(f'  [{style_name}] "{text[:60]}"')
                 para_count += 1
             elif "toc" in style_name.lower():

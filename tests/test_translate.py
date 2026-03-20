@@ -5,10 +5,13 @@ Covers pure-function logic that doesn't require LLM calls.
 
 from __future__ import annotations
 
+import pytest
+
 from scholaraio.translate import (
     _build_translate_prompt,
     _split_into_chunks,
     detect_language,
+    validate_lang,
 )
 
 
@@ -41,6 +44,23 @@ class TestDetectLanguage:
         """Code blocks should not influence language detection."""
         text = "这是中文文本。\n```python\nprint('hello world')\n```\n继续中文。"
         assert detect_language(text) == "zh"
+
+
+class TestValidateLang:
+    """Language code validation and normalization."""
+
+    def test_normalizes_case_and_whitespace(self):
+        assert validate_lang(" ZH ") == "zh"
+
+    def test_rejects_non_string_inputs(self):
+        with pytest.raises(ValueError, match="type"):
+            validate_lang(None)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="type"):
+            validate_lang(123)  # type: ignore[arg-type]
+
+    def test_rejects_invalid_pattern(self):
+        with pytest.raises(ValueError, match="expected 2-5 lowercase letters"):
+            validate_lang("zh-cn")
 
 
 class TestSplitIntoChunks:
