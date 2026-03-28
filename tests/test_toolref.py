@@ -7,6 +7,7 @@ from scholaraio.toolref import (
     _build_openfoam_manifest,
     _clean_manifest_text,
     _has_local_docs,
+    _normalize_search_query,
     _normalize_program_filter,
     _pick_manifest_synopsis,
     _parse_manifest_html,
@@ -23,6 +24,11 @@ def test_normalize_program_filter_for_qe():
 def test_normalize_program_filter_for_non_qe():
     assert _normalize_program_filter("openfoam", "simpleFoam") == "simplefoam"
     assert _normalize_program_filter("bioinformatics", "samtools") == "samtools"
+
+
+def test_normalize_search_query_rewrites_punctuation_runs():
+    assert _normalize_search_query("k-point/convergence") == "k point convergence"
+    assert _normalize_search_query("  spike__rbd ") == "spike rbd"
 
 
 def test_build_openfoam_manifest_uses_requested_version():

@@ -27,6 +27,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import re
 import textwrap
 from html import unescape
 from pathlib import Path
@@ -171,6 +172,12 @@ def _manifest_page_count(vdir: Path) -> int:
         if html_path.with_suffix(".json").exists():
             count += 1
     return count
+
+
+def _normalize_search_query(query: str) -> str:
+    normalized = re.sub(r"[-_/]+", " ", query).strip()
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized or query.strip()
 
 
 def _build_openfoam_manifest(version: str) -> list[dict]:
@@ -1525,10 +1532,12 @@ def toolref_search(
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
 
+    normalized_query = _normalize_search_query(query)
+
     # build FTS5 query — auto-convert spaces to OR for better recall
-    fts_query = query
-    if " " in query and not any(kw in query.upper() for kw in ("OR", "AND", "NOT", '"')):
-        words = query.split()
+    fts_query = normalized_query
+    if " " in normalized_query and not any(kw in normalized_query.upper() for kw in ("OR", "AND", "NOT", '"')):
+        words = normalized_query.split()
         fts_query = " OR ".join(words)
 
     try:
@@ -1558,7 +1567,7 @@ def toolref_search(
         rows = conn.execute(sql, params).fetchall()
     except Exception:
         # FTS query syntax error — try quoting
-        safe_query = '"' + query.replace('"', "") + '"'
+        safe_query = '"' + normalized_query.replace('"', "") + '"'
         try:
             rows = conn.execute(
                 """SELECT p.*, rank
