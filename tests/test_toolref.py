@@ -277,9 +277,15 @@ def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkey
     vdir = tmp_path / "bioinformatics" / "2026-03-curated"
     pages_dir = vdir / "pages"
     pages_dir.mkdir(parents=True)
-    for idx, name in enumerate(["samtools-sort", "samtools-view"], start=1):
+    for idx, (name, page_name) in enumerate(
+        [("samtools-sort", "samtools/sort"), ("samtools-view", "samtools/view")],
+        start=1,
+    ):
         (pages_dir / f"{idx:03d}-{name}.html").write_text("<html></html>", encoding="utf-8")
-        (pages_dir / f"{idx:03d}-{name}.json").write_text("{}", encoding="utf-8")
+        (pages_dir / f"{idx:03d}-{name}.json").write_text(
+            json.dumps({"page_name": page_name}),
+            encoding="utf-8",
+        )
     (vdir / "meta.json").write_text(
         json.dumps(
             {
@@ -302,3 +308,5 @@ def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkey
     assert (pages_dir / "002-samtools-view.html").exists()
     meta = json.loads((vdir / "meta.json").read_text(encoding="utf-8"))
     assert meta["fetched_pages"] == 2
+    assert meta["failed_pages"] == 0
+    assert meta["last_fetch_failed_page_names"] == ["samtools/view"]

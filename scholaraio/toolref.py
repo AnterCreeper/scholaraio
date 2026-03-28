@@ -174,6 +174,27 @@ def _manifest_page_count(vdir: Path) -> int:
     return count
 
 
+def _manifest_present_page_names(vdir: Path) -> set[str]:
+    pages_dir = vdir / "pages"
+    if not pages_dir.exists():
+        return set()
+    names: set[str] = set()
+    for meta_path in pages_dir.glob("*.json"):
+        try:
+            payload = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        page_name = payload.get("page_name")
+        if page_name and meta_path.with_suffix(".html").exists():
+            names.add(page_name)
+    return names
+
+
+def _manifest_missing_page_names(vdir: Path, manifest: list[dict]) -> list[str]:
+    present = _manifest_present_page_names(vdir)
+    return [item["page_name"] for item in manifest if item["page_name"] not in present]
+
+
 def _normalize_search_query(query: str) -> str:
     normalized = re.sub(r"[-_/]+", " ", query).strip()
     normalized = re.sub(r"\s+", " ", normalized)
@@ -1174,6 +1195,25 @@ def toolref_fetch(
                 ui(
                     f"[toolref] 警告：新抓取仅得到 {fetched_pages}/{len(manifest)} 页，"
                     f"低于现有缓存 {existing_pages} 页；保留现有缓存"
+                )
+                current_missing = _manifest_missing_page_names(vdir, manifest)
+                preserved_meta = {
+                    "tool": tool,
+                    "display_name": info["display_name"],
+                    "version": version,
+                    "format": info["format"],
+                    "repo": info.get("repo", ""),
+                    "source_type": source_type,
+                    "force_refreshed": force,
+                    "fetched_pages": existing_pages,
+                    "expected_pages": len(manifest),
+                    "failed_pages": len(current_missing),
+                    "failed_page_names": current_missing,
+                    "last_fetch_failed_page_names": failures,
+                }
+                (vdir / "meta.json").write_text(
+                    json.dumps(preserved_meta, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
                 )
             else:
                 if vdir.exists():
