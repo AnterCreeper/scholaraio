@@ -13,6 +13,7 @@ from scholaraio.toolref import (
     _parse_manifest_html,
     toolref_fetch,
     toolref_list,
+    toolref_show,
 )
 
 
@@ -310,3 +311,54 @@ def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkey
     assert meta["fetched_pages"] == 2
     assert meta["failed_pages"] == 0
     assert meta["last_fetch_failed_page_names"] == ["samtools/view"]
+
+
+def test_toolref_show_falls_back_to_program_manual_page(tmp_path, monkeypatch):
+    from scholaraio import toolref as mod
+    import sqlite3
+
+    monkeypatch.setattr(mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
+    tdir = tmp_path / "bioinformatics"
+    vdir = tdir / "2026-03-curated"
+    vdir.mkdir(parents=True)
+    (tdir / "current").symlink_to(vdir, target_is_directory=True)
+
+    db = tdir / "toolref.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(mod._PAGES_SCHEMA)
+    conn.execute(
+        """INSERT INTO toolref_pages
+           (tool, version, program, section, page_name, title, synopsis, content)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            "bioinformatics",
+            "2026-03-curated",
+            "minimap2",
+            "alignment",
+            "minimap2/manual",
+            "minimap2 manual",
+            "manual page",
+            "manual content",
+        ),
+    )
+    conn.execute(
+        """INSERT INTO toolref_pages
+           (tool, version, program, section, page_name, title, synopsis, content)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            "bioinformatics",
+            "2026-03-curated",
+            "minimap2",
+            "alignment",
+            "minimap2/options",
+            "minimap2 options",
+            "options page",
+            "options content",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    rows = toolref_show("bioinformatics", "minimap2", cfg=None)
+    assert rows
+    assert rows[0]["page_name"] == "minimap2/manual"

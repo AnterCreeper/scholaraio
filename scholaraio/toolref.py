@@ -1526,6 +1526,23 @@ def toolref_show(
             (tool, version, version, title_query),
         ).fetchall()
 
+    if not rows and len(query_parts) == 1:
+        # try exact program match, preferring manual or top-level pages
+        rows = conn.execute(
+            """SELECT * FROM toolref_pages
+               WHERE tool = ? AND (version = ? OR ? IS NULL)
+               AND LOWER(program) = ?
+               ORDER BY
+                 CASE
+                   WHEN LOWER(page_name) LIKE '%/manual' THEN 0
+                   WHEN LOWER(page_name) LIKE '%/command-reference' THEN 1
+                   ELSE 2
+                 END,
+                 LENGTH(page_name)
+               LIMIT 20""",
+            (tool, version, version, query_parts[0]),
+        ).fetchall()
+
     conn.close()
     return [dict(r) for r in rows]
 
