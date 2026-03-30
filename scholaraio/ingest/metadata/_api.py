@@ -200,6 +200,12 @@ def _title_keywords(title: str, max_words: int = 8) -> str:
     return " ".join(significant[:max_words])
 
 
+def _is_arxiv_datacite_doi(doi: str) -> bool:
+    """Return True if *doi* is arXiv's own DataCite DOI, not a publisher DOI."""
+    normalized = (doi or "").strip().lower()
+    return normalized.startswith("10.48550/arxiv.")
+
+
 # ============================================================================
 #  Relaxed Queries (Tier 3)
 # ============================================================================
@@ -296,7 +302,7 @@ def _apply_arxiv_metadata(meta: PaperMetadata, arxiv_data: dict) -> None:
             pass
     if arxiv_data.get("abstract"):
         meta.abstract = arxiv_data["abstract"]
-    if arxiv_data.get("doi") and not meta.doi:
+    if arxiv_data.get("doi") and not meta.doi and not _is_arxiv_datacite_doi(arxiv_data["doi"]):
         meta.doi = arxiv_data["doi"]
     official_arxiv_id = normalize_arxiv_ref(arxiv_data.get("arxiv_id", ""))
     if official_arxiv_id:
@@ -327,6 +333,9 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
     arxiv_data: dict = {}
     arxiv_lookup_used = False
 
+    if meta.arxiv_id and _is_arxiv_datacite_doi(meta.doi):
+        meta.doi = ""
+
     # ---- Tier 1: DOI lookup (all three, DOI queries are not rate-limited) ----
     if meta.doi:
         cr_data = query_crossref(doi=meta.doi)
@@ -356,7 +365,7 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
             arxiv_lookup_used = True
             _apply_arxiv_metadata(meta, arxiv_data)
             ext_ids = s2_data.get("externalIds") or {}
-            if ext_ids.get("DOI") and not meta.doi:
+            if ext_ids.get("DOI") and not meta.doi and not _is_arxiv_datacite_doi(ext_ids["DOI"]):
                 meta.doi = ext_ids["DOI"]
                 _log.debug("arXiv → DOI resolved: %s", meta.doi)
             if meta.doi:
@@ -476,7 +485,7 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
         meta.citation_count_s2 = s2_data.get("citationCount")
         meta.s2_paper_id = s2_data.get("paperId", "")
         ext_ids = s2_data.get("externalIds") or {}
-        if not meta.doi and ext_ids.get("DOI"):
+        if not meta.doi and ext_ids.get("DOI") and not _is_arxiv_datacite_doi(ext_ids["DOI"]):
             meta.doi = ext_ids["DOI"]
         if not meta.arxiv_id and ext_ids.get("ArXiv"):
             meta.arxiv_id = ext_ids["ArXiv"]
@@ -524,7 +533,9 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
         meta.citation_count_openalex = oa_data.get("cited_by_count")
         meta.openalex_id = oa_data.get("id", "")
         if not meta.doi and oa_data.get("doi"):
-            meta.doi = oa_data["doi"].replace("https://doi.org/", "")
+            oa_doi = oa_data["doi"].replace("https://doi.org/", "")
+            if not _is_arxiv_datacite_doi(oa_doi):
+                meta.doi = oa_doi
         # Title: override only if neither Crossref nor S2 provided one
         if not cr_data and not s2_data and oa_data.get("title"):
             meta.title = oa_data["title"]

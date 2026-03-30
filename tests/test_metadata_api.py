@@ -75,3 +75,38 @@ def test_enrich_metadata_normalizes_arxiv_comma_separated_authors(monkeypatch):
     assert meta.authors == ["Jizhong Zhang", "Fazle Hussain", "Jie Yao"]
     assert meta.first_author == "Jizhong Zhang"
     assert meta.first_author_lastname == "Zhang"
+
+
+def test_enrich_metadata_ignores_arxiv_datacite_doi_for_preprint(monkeypatch):
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.get_arxiv_paper",
+        lambda arxiv_id: {
+            "title": "Direct numerical simulation of out-scale-actuated spanwise wall oscillation in turbulent boundary layers",
+            "authors": ["Jizhong Zhang", "Fazle Hussain", "Jie Yao"],
+            "year": "2026",
+            "abstract": "Official arXiv abstract.",
+            "arxiv_id": "2603.25200v1",
+            "doi": "10.48550/arXiv.2603.25200",
+        },
+    )
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_crossref", lambda **kwargs: {})
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_openalex",
+        lambda **kwargs: {"doi": "https://doi.org/10.48550/arXiv.2603.25200", "id": "https://openalex.org/W1"},
+    )
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_semantic_scholar",
+        lambda **kwargs: {
+            "externalIds": {"ArXiv": "2603.25200", "DOI": "10.48550/arXiv.2603.25200"},
+            "references": [],
+            "paperId": "paper-123",
+        },
+    )
+
+    meta = PaperMetadata(title="Test", arxiv_id="2603.25200")
+
+    enrich_metadata(meta)
+
+    assert meta.doi == ""
+    assert meta.arxiv_id == "2603.25200"
+    assert meta.extraction_method == "arxiv_lookup"
