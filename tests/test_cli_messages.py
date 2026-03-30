@@ -144,3 +144,67 @@ class TestSearchResultFormatting:
 
         assert messages
         assert "( [])" not in messages[0]
+
+
+class TestArxivCommands:
+    def test_arxiv_fetch_downloads_to_inbox_without_ingest(self, tmp_path, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        downloaded = tmp_path / "data" / "inbox" / "2603.25200.pdf"
+
+        def fake_download(arxiv_ref, dest_dir, *, overwrite=False):
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            downloaded.write_bytes(b"%PDF")
+            return downloaded
+
+        monkeypatch.setattr("scholaraio.sources.arxiv.download_arxiv_pdf", fake_download)
+
+        cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
+        args = Namespace(arxiv_ref="2603.25200", ingest=False, force=False, dry_run=False)
+
+        cli.cmd_arxiv_fetch(args, cfg)
+
+        assert downloaded.exists()
+        assert any("已下载到 inbox" in m for m in messages)
+
+    def test_arxiv_fetch_ingest_uses_temp_inbox_pipeline(self, tmp_path, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        def fake_download(arxiv_ref, dest_dir, *, overwrite=False):
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            out = dest_dir / "2603.25200.pdf"
+            out.write_bytes(b"%PDF")
+            return out
+
+        seen: dict[str, object] = {}
+
+        def fake_run_pipeline(step_names, cfg, opts):
+            seen["steps"] = step_names
+            seen["inbox_dir"] = opts["inbox_dir"]
+
+        monkeypatch.setattr("scholaraio.sources.arxiv.download_arxiv_pdf", fake_download)
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
+        args = Namespace(arxiv_ref="2603.25200", ingest=True, force=False, dry_run=False)
+
+        cli.cmd_arxiv_fetch(args, cfg)
+
+        assert seen["steps"] == ["mineru", "extract", "dedup", "ingest", "embed", "index"]
+        assert any("开始直接入库" in m for m in messages)
+
+    def test_arxiv_fetch_reports_download_failure(self, tmp_path, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+        monkeypatch.setattr(
+            "scholaraio.sources.arxiv.download_arxiv_pdf", lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError("timeout"))
+        )
+
+        cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
+        args = Namespace(arxiv_ref="2603.25200", ingest=False, force=False, dry_run=False)
+
+        cli.cmd_arxiv_fetch(args, cfg)
+
+        assert any("arXiv 下载失败" in m for m in messages)

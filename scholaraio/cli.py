@@ -54,6 +54,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import tempfile
 from pathlib import Path
 
 from scholaraio.config import load_config
@@ -1977,6 +1978,83 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
 
 
 # ============================================================================
+#  arXiv
+# ============================================================================
+
+
+def cmd_arxiv_search(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.sources.arxiv import search_arxiv
+
+    query = " ".join(args.query).strip()
+    top_k = _resolve_top(args, 10)
+    category = (args.category or "").strip()
+    sort = args.sort or "relevance"
+
+    if not query and not category:
+        ui("请至少提供检索词，或使用 --category 指定 arXiv 分类。")
+        return
+
+    ui(f'arXiv 搜索: query="{query or "*"}" category={category or "-"} sort={sort}\n')
+
+    try:
+        results = search_arxiv(query, top_k=top_k, category=category, sort=sort)
+    except Exception as e:
+        ui(f"arXiv 搜索失败: {e}")
+        return
+    if not results:
+        ui("arXiv 不可用或无结果")
+        return
+
+    for i, r in enumerate(results, 1):
+        authors = r.get("authors", [])
+        first = (authors[0] if authors else "?") + (" et al." if len(authors) > 1 else "")
+        ui(f"  [{i}] [{r.get('year', '?')}] {r.get('title', '')}")
+        ui(f"       {first} | arxiv:{r.get('arxiv_id', '')}")
+        if r.get("doi"):
+            ui(f"       doi:{r['doi']}")
+        if r.get("abstract"):
+            ui(f"       {r['abstract'][:220]}{'...' if len(r['abstract']) > 220 else ''}")
+        ui()
+
+
+def cmd_arxiv_fetch(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.ingest.pipeline import PRESETS, run_pipeline
+    from scholaraio.sources.arxiv import download_arxiv_pdf, normalize_arxiv_ref
+
+    canonical_id = normalize_arxiv_ref(args.arxiv_ref)
+    if not canonical_id:
+        ui(f"无效的 arXiv 标识或 URL: {args.arxiv_ref}")
+        return
+
+    if args.dry_run:
+        if args.ingest:
+            ui(f"[dry-run] 将下载 arXiv PDF 并直接入库: {canonical_id}")
+        else:
+            ui(f"[dry-run] 将下载 arXiv PDF 到 inbox: {canonical_id}")
+        return
+
+    if args.ingest:
+        ui(f"开始直接入库 arXiv 预印本: {canonical_id}")
+        try:
+            with tempfile.TemporaryDirectory(prefix="scholaraio_arxiv_") as tmpdir:
+                tmp_inbox = Path(tmpdir)
+                pdf_path = download_arxiv_pdf(canonical_id, tmp_inbox, overwrite=args.force)
+                ui(f"已下载 PDF: {pdf_path.name}")
+                run_pipeline(PRESETS["ingest"], cfg, {"inbox_dir": tmp_inbox, "force": args.force})
+        except Exception as e:
+            ui(f"arXiv 下载或入库失败: {e}")
+        return
+
+    inbox_dir = cfg._root / "data" / "inbox"
+    try:
+        pdf_path = download_arxiv_pdf(canonical_id, inbox_dir, overwrite=args.force)
+    except Exception as e:
+        ui(f"arXiv 下载失败: {e}")
+        return
+    ui(f"已下载到 inbox: {pdf_path}")
+
+
+# ============================================================================
 #  insights
 # ============================================================================
 
@@ -3181,6 +3259,26 @@ def main() -> None:
         help="搜索范围（逗号分隔）：main / explore:NAME / explore:* / arxiv（默认 main）",
     )
     p_fsearch.add_argument("--top", type=int, default=None, help="每个来源最多返回 N 条（默认 10）")
+
+    # --- arxiv ---
+    p_arxiv = sub.add_parser("arxiv", help="arXiv 检索与拉取工具")
+    p_arxiv_sub = p_arxiv.add_subparsers(dest="arxiv_action", required=True)
+
+    p_arxiv_search = p_arxiv_sub.add_parser("search", help="搜索 arXiv 预印本")
+    p_arxiv_search.set_defaults(func=cmd_arxiv_search)
+    p_arxiv_search.add_argument("query", nargs="*", help="检索词（可省略，配合 --category 使用）")
+    p_arxiv_search.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认 10）")
+    p_arxiv_search.add_argument("--category", type=str, default="", help="arXiv 分类，如 physics.flu-dyn")
+    p_arxiv_search.add_argument(
+        "--sort", choices=["relevance", "recent"], default="relevance", help="排序方式（默认 relevance）"
+    )
+
+    p_arxiv_fetch = p_arxiv_sub.add_parser("fetch", help="下载 arXiv PDF，可选直接入库")
+    p_arxiv_fetch.set_defaults(func=cmd_arxiv_fetch)
+    p_arxiv_fetch.add_argument("arxiv_ref", help="arXiv ID、arXiv:ID、abs URL 或 pdf URL")
+    p_arxiv_fetch.add_argument("--ingest", action="store_true", help="下载后直接走 ingest pipeline 入库")
+    p_arxiv_fetch.add_argument("--force", action="store_true", help="覆盖已有同名 PDF 或强制 pipeline 处理")
+    p_arxiv_fetch.add_argument("--dry-run", action="store_true", help="预览将要执行的操作")
 
     # --- insights ---
     p_insights = sub.add_parser("insights", help="研究行为分析：搜索热词、最常阅读论文等")

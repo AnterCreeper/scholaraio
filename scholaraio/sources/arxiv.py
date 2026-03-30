@@ -5,13 +5,17 @@ from __future__ import annotations
 import logging
 import re
 from html import unescape
+from pathlib import Path
 from urllib.parse import urlparse
 
 import defusedxml.ElementTree as ET
+import requests
+from bs4 import BeautifulSoup
 
 _log = logging.getLogger(__name__)
 
 _ARXIV_API_URL = "https://export.arxiv.org/api/query"
+_ARXIV_LIST_RECENT_URL = "https://arxiv.org/list/{category}/recent"
 _ARXIV_NEW_ID_RE = re.compile(r"^\d{4}\.\d{4,5}$")
 _ARXIV_OLD_ID_RE = re.compile(r"^[a-z\-]+(?:\.[A-Z]{2})?/\d{7}$", re.IGNORECASE)
 
@@ -28,6 +32,20 @@ _NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
 }
+
+_SESSION = requests.Session()
+_SESSION.headers.update({"User-Agent": _user_agent()})
+_SESSION.trust_env = False
+_retry = requests.adapters.HTTPAdapter(
+    max_retries=requests.packages.urllib3.util.retry.Retry(
+        total=2,
+        backoff_factor=1,
+        status_forcelist=[429, 502, 503, 504],
+        allowed_methods=["GET"],
+    )
+)
+_SESSION.mount("https://", _retry)
+_SESSION.mount("http://", _retry)
 
 
 def normalize_arxiv_ref(ref: str) -> str:
@@ -104,10 +122,8 @@ def _parse_entry(entry: ET.Element) -> dict:
 
 
 def _query_arxiv_api(params: dict[str, str | int]) -> list[dict]:
-    import requests
-
     try:
-        resp = requests.get(_ARXIV_API_URL, params=params, headers={"User-Agent": _user_agent()}, timeout=10)
+        resp = _SESSION.get(_ARXIV_API_URL, params=params, timeout=15)
         resp.raise_for_status()
     except Exception as e:
         _log.warning("arXiv API 不可用: %s", e)
@@ -122,13 +138,77 @@ def _query_arxiv_api(params: dict[str, str | int]) -> list[dict]:
     return [_parse_entry(entry) for entry in root.findall("atom:entry", _NS)]
 
 
+def _build_search_query(query: str, category: str) -> str:
+    parts: list[str] = []
+    query = (query or "").strip()
+    category = (category or "").strip()
+    if query:
+        parts.append(f"all:{query}")
+    if category:
+        parts.append(f"cat:{category}")
+    return " AND ".join(parts)
+
+
+def _guess_year_from_arxiv_id(arxiv_id: str) -> str:
+    if _ARXIV_NEW_ID_RE.fullmatch(arxiv_id or ""):
+        return f"20{arxiv_id[:2]}"
+    return ""
+
+
+def _search_arxiv_recent_page(query: str, category: str, top_k: int) -> list[dict]:
+    if not category:
+        return []
+    try:
+        resp = _SESSION.get(_ARXIV_LIST_RECENT_URL.format(category=category), timeout=15)
+        resp.raise_for_status()
+    except Exception as e:
+        _log.warning("arXiv recent 页面不可用: %s", e)
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    items: list[dict] = []
+    for dt, dd in zip(soup.find_all("dt"), soup.find_all("dd"), strict=False):
+        id_link = dt.find("a", href=re.compile(r"^/abs/"))
+        if not id_link:
+            continue
+        arxiv_id = normalize_arxiv_ref(id_link.get_text(" ", strip=True))
+        if not arxiv_id:
+            href = id_link.get("href", "")
+            arxiv_id = normalize_arxiv_ref(f"https://arxiv.org{href}")
+        if not arxiv_id:
+            continue
+
+        title_div = dd.find("div", class_="list-title")
+        authors_div = dd.find("div", class_="list-authors")
+        if not title_div:
+            continue
+        title = title_div.get_text(" ", strip=True).replace("Title:", "", 1).strip()
+        authors = [a.get_text(" ", strip=True) for a in authors_div.find_all("a")] if authors_div else []
+
+        haystack = " ".join([title, *authors]).lower()
+        if query and query.lower() not in haystack:
+            continue
+
+        items.append(
+            {
+                "title": title,
+                "authors": authors,
+                "year": _guess_year_from_arxiv_id(arxiv_id),
+                "abstract": "",
+                "arxiv_id": arxiv_id,
+                "doi": "",
+            }
+        )
+        if len(items) >= top_k:
+            break
+    return items
+
+
 def _fetch_arxiv_abs_page(arxiv_id: str) -> dict:
     """Fetch metadata from the official arXiv abstract page as a fallback."""
-    import requests
-
     url = f"https://arxiv.org/abs/{arxiv_id}"
     try:
-        resp = requests.get(url, headers={"User-Agent": _user_agent()}, timeout=10)
+        resp = _SESSION.get(url, timeout=15)
         resp.raise_for_status()
     except Exception as e:
         _log.warning("arXiv abs 页面不可用: %s", e)
@@ -186,16 +266,47 @@ def get_arxiv_paper(arxiv_ref: str) -> dict:
     return _fetch_arxiv_abs_page(canonical_id)
 
 
-def search_arxiv(query: str, top_k: int = 10) -> list[dict]:
+def search_arxiv(query: str = "", top_k: int = 10, *, category: str = "", sort: str = "relevance") -> list[dict]:
     """Query the arXiv Atom API and return a list of simplified paper dicts.
 
     Args:
         query: Free-text search query.
         top_k: Maximum number of results to return.
+        category: Optional arXiv category, e.g. ``physics.flu-dyn``.
+        sort: ``"relevance"`` or ``"recent"``.
 
     Returns:
         List of dicts with keys: title, authors, year, abstract, arxiv_id, doi.
         Returns an empty list on network failure or XML parse error.
     """
-    params: dict[str, str | int] = {"search_query": f"all:{query}", "max_results": top_k, "sortBy": "relevance"}
-    return _query_arxiv_api(params)
+    search_query = _build_search_query(query, category)
+    if not search_query:
+        return []
+    sort_by = "submittedDate" if sort == "recent" else "relevance"
+    params: dict[str, str | int] = {"search_query": search_query, "max_results": top_k, "sortBy": sort_by}
+    results = _query_arxiv_api(params)
+    if results or sort != "recent":
+        return results
+    return _search_arxiv_recent_page(query, category, top_k)
+
+
+def download_arxiv_pdf(arxiv_ref: str, dest_dir: str | Path, *, overwrite: bool = False) -> Path:
+    """Download an arXiv PDF to *dest_dir* and return the local file path."""
+    canonical_id = normalize_arxiv_ref(arxiv_ref)
+    if not canonical_id:
+        raise ValueError(f"无效的 arXiv 标识: {arxiv_ref}")
+
+    dest_root = Path(dest_dir)
+    dest_root.mkdir(parents=True, exist_ok=True)
+    out_path = dest_root / f"{canonical_id}.pdf"
+    if out_path.exists() and not overwrite:
+        raise FileExistsError(f"文件已存在: {out_path}")
+
+    url = f"https://arxiv.org/pdf/{canonical_id}.pdf"
+    resp = _SESSION.get(url, timeout=30, stream=True)
+    resp.raise_for_status()
+    with out_path.open("wb") as fh:
+        for chunk in resp.iter_content(chunk_size=1024 * 1024):
+            if chunk:
+                fh.write(chunk)
+    return out_path
