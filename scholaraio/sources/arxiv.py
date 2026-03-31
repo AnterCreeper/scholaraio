@@ -17,7 +17,7 @@ _log = logging.getLogger(__name__)
 _ARXIV_API_URL = "https://export.arxiv.org/api/query"
 _ARXIV_LIST_RECENT_URL = "https://arxiv.org/list/{category}/recent"
 _ARXIV_NEW_ID_RE = re.compile(r"^\d{4}\.\d{4,5}$")
-_ARXIV_OLD_ID_RE = re.compile(r"^[a-z\-]+(?:\.[A-Z]{2})?/\d{7}$", re.IGNORECASE)
+_ARXIV_OLD_ID_RE = re.compile(r"^[a-z\-]+(?:\.[a-z\-]+)?/\d{7}$", re.IGNORECASE)
 
 
 def _user_agent() -> str:

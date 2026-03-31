@@ -2040,7 +2040,11 @@ def cmd_arxiv_fetch(args: argparse.Namespace, cfg) -> None:
                 tmp_inbox = Path(tmpdir)
                 pdf_path = download_arxiv_pdf(canonical_id, tmp_inbox, overwrite=args.force)
                 ui(f"已下载 PDF: {pdf_path.name}")
-                run_pipeline(PRESETS["ingest"], cfg, {"inbox_dir": tmp_inbox, "force": args.force})
+                run_pipeline(
+                    PRESETS["ingest"],
+                    cfg,
+                    {"inbox_dir": tmp_inbox, "force": args.force, "include_aux_inboxes": False},
+                )
         except Exception as e:
             ui(f"arXiv 下载或入库失败: {e}")
         return

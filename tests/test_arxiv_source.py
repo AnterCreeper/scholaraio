@@ -268,6 +268,12 @@ class TestNormalizeArxivRef:
 
         assert normalize_arxiv_ref("https://arxiv.org/pdf/2603.25200.pdf") == "2603.25200"
 
+    def test_accepts_old_ids_with_subject_class(self):
+        from scholaraio.sources.arxiv import normalize_arxiv_ref
+
+        assert normalize_arxiv_ref("math.GT/0309136v1") == "math.GT/0309136"
+        assert normalize_arxiv_ref("https://arxiv.org/abs/physics.class-ph/0301001v2") == "physics.class-ph/0301001"
+
 
 class TestGetArxivPaperFallback:
     def test_falls_back_to_abs_page_meta_tags(self):

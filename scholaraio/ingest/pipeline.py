@@ -1126,6 +1126,7 @@ def run_pipeline(
     inbox_dir: Path = opts.get("inbox_dir", cfg._root / "data/inbox")
     papers_dir: Path = opts.get("papers_dir", cfg.papers_dir)
     pending_dir: Path = cfg._root / "data" / "pending"
+    include_aux_inboxes: bool = opts.get("include_aux_inboxes", True)
 
     inbox_steps = [n for n in step_names if STEPS[n].scope == "inbox"]
     papers_steps = [n for n in step_names if STEPS[n].scope == "papers"]
@@ -1156,7 +1157,7 @@ def run_pipeline(
 
         # Process thesis inbox (data/inbox-thesis/)
         thesis_inbox = cfg._root / "data" / "inbox-thesis"
-        if thesis_inbox.exists():
+        if include_aux_inboxes and thesis_inbox.exists():
             _process_inbox(
                 thesis_inbox,
                 papers_dir,
@@ -1174,7 +1175,7 @@ def run_pipeline(
 
         # Process patent inbox (data/inbox-patent/)
         patent_inbox = cfg._root / "data" / "inbox-patent"
-        if patent_inbox.exists():
+        if include_aux_inboxes and patent_inbox.exists():
             _process_inbox(
                 patent_inbox,
                 papers_dir,
@@ -1192,7 +1193,7 @@ def run_pipeline(
 
         # Process document inbox (data/inbox-doc/)
         doc_inbox = cfg._root / "data" / "inbox-doc"
-        if doc_inbox.exists():
+        if include_aux_inboxes and doc_inbox.exists():
             # Documents use extract_doc + ingest (skip dedup/API queries)
             doc_steps = [s for s in _DOC_INBOX_STEPS if s in STEPS]
             _process_inbox(
