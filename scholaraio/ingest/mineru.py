@@ -1142,6 +1142,7 @@ def _convert_long_pdf_cloud(
     chunk_opts = ConvertOptions(
         output_dir=chunks_dir,
         backend=opts.backend,
+        cloud_model_version=opts.cloud_model_version,
         lang=opts.lang,
         parse_method=opts.parse_method,
         formula_enable=opts.formula_enable,

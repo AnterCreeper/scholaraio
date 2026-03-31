@@ -67,7 +67,6 @@ _model_cache: dict = {}  # key: (model_path, device) → SentenceTransformer
 def _load_model(cfg: Config | None = None):
     """Load SentenceTransformer, using module-level cache to avoid reloading."""
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    SentenceTransformer = importlib.import_module("sentence_transformers").SentenceTransformer
 
     # Resolve config
     if cfg is not None:
@@ -87,6 +86,8 @@ def _load_model(cfg: Config | None = None):
         os.environ.setdefault("MODELSCOPE_CACHE", cache_dir)
     if hf_endpoint:
         os.environ["HF_ENDPOINT"] = hf_endpoint
+
+    SentenceTransformer = importlib.import_module("sentence_transformers").SentenceTransformer
 
     # Resolve device
     if device_cfg == "auto":

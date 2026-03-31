@@ -89,6 +89,49 @@ class TestBuildConfig:
         cfg = _build_config(data, tmp_path)
         assert cfg.zotero.library_id == "12345"
 
+    def test_embed_env_vars_override_yaml(self, tmp_path, monkeypatch):
+        data = {
+            "embed": {
+                "source": "modelscope",
+                "cache_dir": "/yaml-cache",
+                "model": "yaml-model",
+            }
+        }
+        monkeypatch.setenv("SCHOLARAIO_EMBED_SOURCE", "huggingface")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_CACHE_DIR", "/env-cache")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_MODEL", "env-model")
+        cfg = _build_config(data, tmp_path)
+        assert cfg.embed.source == "huggingface"
+        assert cfg.embed.cache_dir == "/env-cache"
+        assert cfg.embed.model == "env-model"
+
+    def test_scholaraio_hf_endpoint_wins_over_hf_endpoint(self, tmp_path, monkeypatch):
+        data = {"embed": {"hf_endpoint": "https://yaml-mirror.example"}}
+        monkeypatch.setenv("SCHOLARAIO_HF_ENDPOINT", "https://scholaraio-mirror.example")
+        monkeypatch.setenv("HF_ENDPOINT", "https://generic-mirror.example")
+        cfg = _build_config(data, tmp_path)
+        assert cfg.embed.hf_endpoint == "https://scholaraio-mirror.example"
+
+    def test_empty_embed_env_vars_do_not_override_yaml(self, tmp_path, monkeypatch):
+        data = {
+            "embed": {
+                "source": "huggingface",
+                "cache_dir": "/yaml-cache",
+                "model": "yaml-model",
+                "hf_endpoint": "https://yaml-mirror.example",
+            }
+        }
+        monkeypatch.setenv("SCHOLARAIO_EMBED_SOURCE", "")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_CACHE_DIR", "")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_MODEL", "")
+        monkeypatch.setenv("SCHOLARAIO_HF_ENDPOINT", "")
+        monkeypatch.setenv("HF_ENDPOINT", "")
+        cfg = _build_config(data, tmp_path)
+        assert cfg.embed.source == "huggingface"
+        assert cfg.embed.cache_dir == "/yaml-cache"
+        assert cfg.embed.model == "yaml-model"
+        assert cfg.embed.hf_endpoint == "https://yaml-mirror.example"
+
 
 class TestConfigProperties:
     def test_papers_dir_absolute(self, tmp_path):
