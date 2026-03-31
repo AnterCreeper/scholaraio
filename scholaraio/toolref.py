@@ -333,8 +333,16 @@ def _expand_search_query(tool: str, query: str) -> str:
     elif tool == "bioinformatics":
         if "phylogenetic tree" in normalized:
             expansions.extend(["iqtree", "mafft", "phylogenetics"])
+        if "bootstrap tree" in normalized or "bootstrap support" in normalized or "ultrafast bootstrap" in normalized:
+            expansions.extend(["iqtree", "ultrafast bootstrap", "ufboot", "phylogenetics"])
+        if "read mapping" in normalized or "long read" in normalized or "nanopore" in normalized:
+            expansions.extend(["minimap2", "alignment", "long reads", "ont"])
         if "mutation" in normalized:
             expansions.extend(["bcftools", "samtools", "variant calling"])
+        if "variant calling" in normalized or "vcf" in normalized:
+            expansions.extend(["bcftools", "bcftools call", "bcftools mpileup"])
+        if "protein structure" in normalized or "folding" in normalized:
+            expansions.extend(["esmfold", "protein structure prediction", "transformers"])
 
     deduped: list[str] = []
     for item in expansions:
@@ -476,6 +484,9 @@ def _build_bioinformatics_manifest(_version: str) -> list[dict]:
             "page_name": "minimap2/manual",
             "title": "minimap2 manual",
             "url": "https://lh3.github.io/minimap2/minimap2.html",
+            "fallback_urls": [
+                "https://github.com/lh3/minimap2#readme",
+            ],
         },
         {
             "program": "samtools",
@@ -506,6 +517,20 @@ def _build_bioinformatics_manifest(_version: str) -> list[dict]:
             "url": "https://samtools.github.io/bcftools/bcftools.html",
         },
         {
+            "program": "bcftools",
+            "section": "variant-calling",
+            "page_name": "bcftools/call",
+            "title": "bcftools call",
+            "url": "https://samtools.github.io/bcftools/bcftools.html#call",
+        },
+        {
+            "program": "bcftools",
+            "section": "variant-calling",
+            "page_name": "bcftools/mpileup",
+            "title": "bcftools mpileup",
+            "url": "https://samtools.github.io/bcftools/bcftools.html#mpileup",
+        },
+        {
             "program": "mafft",
             "section": "phylogenetics",
             "page_name": "mafft/manual",
@@ -518,6 +543,13 @@ def _build_bioinformatics_manifest(_version: str) -> list[dict]:
             "page_name": "iqtree/command-reference",
             "title": "IQ-TREE command reference",
             "url": "https://iqtree.github.io/doc/Command-Reference",
+        },
+        {
+            "program": "iqtree",
+            "section": "phylogenetics",
+            "page_name": "iqtree/ultrafast-bootstrap",
+            "title": "IQ-TREE ultrafast bootstrap",
+            "url": "https://iqtree.github.io/doc/Command-Reference#ultrafast-bootstrap",
         },
         {
             "program": "esmfold",
@@ -1342,18 +1374,30 @@ def toolref_fetch(
             dest = staged_vdir / "pages"
             dest.mkdir(parents=True, exist_ok=True)
             for idx, item in enumerate(manifest, start=1):
-                try:
-                    resp = session.get(item["url"], timeout=_MANIFEST_REQUEST_TIMEOUT)
-                    resp.raise_for_status()
-                except requests.RequestException as e:
+                urls = [item["url"], *item.get("fallback_urls", [])]
+                resp = None
+                last_error: Exception | None = None
+                for url in urls:
+                    try:
+                        resp = session.get(url, timeout=_MANIFEST_REQUEST_TIMEOUT)
+                        resp.raise_for_status()
+                        break
+                    except requests.RequestException as e:
+                        last_error = e
+                        _log.warning("拉取失败: %s (%s)", url, e)
+                if resp is None:
                     failures.append(item["page_name"])
-                    _log.warning("拉取失败: %s (%s)", item["url"], e)
                     continue
                 slug = _slugify(item["page_name"])
                 html_path = dest / f"{idx:03d}-{slug}.html"
                 html_path.write_text(resp.text, encoding="utf-8")
+                stored_item = dict(item)
+                if urls[0] != url:
+                    stored_item["fetched_url"] = url
+                    if last_error is not None:
+                        stored_item["primary_fetch_error"] = str(last_error)
                 html_path.with_suffix(".json").write_text(
-                    json.dumps(item, ensure_ascii=False, indent=2),
+                    json.dumps(stored_item, ensure_ascii=False, indent=2),
                     encoding="utf-8",
                 )
 

@@ -23,6 +23,7 @@ Current priority tools:
 
 - Quantum ESPRESSO (`qe`)
 - LAMMPS (`lammps`)
+- Bioinformatics (`bioinformatics`)
 
 ## How To Use
 
@@ -31,6 +32,7 @@ Rebuild the active index first:
 ```bash
 python -m scholaraio.cli toolref fetch qe --version 7.5
 python -m scholaraio.cli toolref fetch lammps --version stable_2Aug2023_update3
+python -m scholaraio.cli toolref fetch bioinformatics --version 2026-03-curated
 ```
 
 Then run the queries below and compare the first result or direct target.
@@ -168,6 +170,57 @@ Current observed healthy state after the latest parser/ranking fix:
 
 - QE `7.5`: `1214` indexed pages
 - LAMMPS `stable_2Aug2023_update3`: `980` indexed pages
+
+## Bioinformatics Golden Queries
+
+### Toolchain routing
+
+```bash
+python -m scholaraio.cli toolref search bioinformatics "read mapping nanopore"
+```
+
+Expected:
+
+- rank 1: `minimap2/manual`
+
+```bash
+python -m scholaraio.cli toolref search bioinformatics "variant calling vcf"
+```
+
+Expected:
+
+- top block contains `bcftools/mpileup` and `bcftools/call`
+
+```bash
+python -m scholaraio.cli toolref search bioinformatics "ultrafast bootstrap"
+```
+
+Expected:
+
+- rank 1: `iqtree/ultrafast-bootstrap`
+
+```bash
+python -m scholaraio.cli toolref search bioinformatics "protein structure folding"
+```
+
+Expected:
+
+- rank 1: `esmfold/huggingface-doc`
+
+### Reindex sanity
+
+```bash
+python -m scholaraio.cli toolref list bioinformatics
+```
+
+Expected:
+
+- active version remains `2026-03-curated`
+- indexed page count remains complete after refresh
+
+Current observed healthy state after the latest manifest/routing fix:
+
+- Bioinformatics `2026-03-curated`: `12` indexed pages
 
 ## Non-Goals
 

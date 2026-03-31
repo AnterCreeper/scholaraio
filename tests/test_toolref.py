@@ -53,6 +53,10 @@ def test_expand_search_query_adds_more_openfoam_aliases():
 def test_expand_search_query_adds_bioinformatics_aliases():
     expanded = _expand_search_query("bioinformatics", "phylogenetic tree")
     assert "iqtree" in expanded
+    expanded = _expand_search_query("bioinformatics", "read mapping nanopore")
+    assert "minimap2" in expanded
+    expanded = _expand_search_query("bioinformatics", "protein structure folding")
+    assert "esmfold" in expanded
 
 
 def test_expand_search_query_adds_qe_aliases():
@@ -100,6 +104,18 @@ def test_build_bioinformatics_manifest_contains_multiple_subtools():
     manifest = _build_bioinformatics_manifest("2026-03-curated")
     programs = {item["program"] for item in manifest}
     assert {"blastn", "minimap2", "samtools", "bcftools", "mafft", "iqtree", "esmfold"} <= programs
+
+
+def test_build_bioinformatics_manifest_includes_high_value_entry_points():
+    manifest = _build_bioinformatics_manifest("2026-03-curated")
+    pages = {item["page_name"]: item for item in manifest}
+
+    assert pages["minimap2/manual"]["url"] == "https://lh3.github.io/minimap2/minimap2.html"
+    assert "fallback_urls" in pages["minimap2/manual"]
+    assert "github.com/lh3/minimap2" in pages["minimap2/manual"]["fallback_urls"][0]
+    assert pages["bcftools/call"]["url"].endswith("/bcftools.html#call")
+    assert pages["bcftools/mpileup"]["url"].endswith("/bcftools.html#mpileup")
+    assert pages["iqtree/ultrafast-bootstrap"]["url"].endswith("/Command-Reference#ultrafast-bootstrap")
 
 
 def test_parse_manifest_html_extracts_main_text(tmp_path):
@@ -450,6 +466,51 @@ def test_toolref_fetch_manifest_force_preserves_failed_pages_from_existing_cache
     assert meta["fetched_pages"] == 2
     assert meta["failed_pages"] == 0
     assert meta["last_fetch_failed_page_names"] == ["openfoam/simpleFoam"]
+
+
+def test_toolref_fetch_manifest_uses_fallback_urls(tmp_path, monkeypatch):
+    from scholaraio import toolref as mod
+
+    class FakeResponse:
+        def __init__(self, text: str):
+            self.text = text
+
+        def raise_for_status(self):
+            return None
+
+    class FakeSession:
+        def __init__(self):
+            self.headers = {}
+            self.calls = []
+
+        def get(self, url, timeout=60):
+            self.calls.append(url)
+            if "primary" in url:
+                raise mod.requests.RequestException("timeout")
+            return FakeResponse("<html><body><main><h1>minimap2 manual</h1></main></body></html>")
+
+    monkeypatch.setattr(mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
+    session = FakeSession()
+    monkeypatch.setattr(mod.requests, "Session", lambda: session)
+    monkeypatch.setattr(
+        mod,
+        "_build_manifest",
+        lambda tool, version: [
+            {
+                "program": "minimap2",
+                "section": "alignment",
+                "page_name": "minimap2/manual",
+                "title": "minimap2 manual",
+                "url": "https://example.org/primary",
+                "fallback_urls": ["https://example.org/fallback"],
+            }
+        ],
+    )
+
+    count = toolref_fetch("bioinformatics", version="2026-03-curated", force=True, cfg=None)
+
+    assert count == 1
+    assert session.calls == ["https://example.org/primary", "https://example.org/fallback"]
 
 
 def test_toolref_show_falls_back_to_program_manual_page(tmp_path, monkeypatch):

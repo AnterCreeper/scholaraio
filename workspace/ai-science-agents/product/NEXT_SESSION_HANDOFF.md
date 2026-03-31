@@ -16,6 +16,7 @@ The following tools were pushed to a much more production-ready state:
 - LAMMPS
 - GROMACS
 - OpenFOAM
+- Bioinformatics
 
 Key outcomes:
 
@@ -43,6 +44,25 @@ Current local OpenFOAM state:
 
 - `python -m scholaraio.cli toolref list openfoam`
 - result: `2312 (current) — 16 页 [16/16 已索引]`
+
+Current local Bioinformatics state:
+
+- `python -m scholaraio.cli toolref list bioinformatics`
+- result: `2026-03-curated (current) — 12 页 [12/12 已索引]`
+
+Bioinformatics upgrades completed in this pass:
+
+- added a fetch fallback path for manifest pages, so a primary upstream URL can fail without losing the page if a secondary official page still works
+- `minimap2/manual` now has a GitHub README fallback
+- added higher-value entry pages for:
+  - `bcftools/call`
+  - `bcftools/mpileup`
+  - `iqtree/ultrafast-bootstrap`
+- improved natural-language routing so these queries now hit useful targets:
+  - `read mapping nanopore -> minimap2/manual`
+  - `ultrafast bootstrap -> iqtree/ultrafast-bootstrap`
+  - `variant calling vcf -> bcftools/mpileup`, `bcftools/call`
+  - `protein structure folding -> esmfold/huggingface-doc`
 
 ### 2. Scientific skill architecture was clarified
 
@@ -88,19 +108,11 @@ Also manually validated:
 - `toolref list/show/search` flows for LAMMPS
 - `toolref list/show/search` flows for GROMACS
 - `toolref list/show/search` flows for OpenFOAM
+- `toolref list/show/search` flows for Bioinformatics
 
 ## What Is Still Not Done
 
-### 1. Bioinformatics `toolref` is still the weakest area
-
-Current limitation:
-
-- it is still more like a curated multi-tool bundle than a mature, high-confidence toolref layer
-- coverage and routing across sub-tools are not yet at the same level as QE / LAMMPS / GROMACS / OpenFOAM
-
-This is the next most important `toolref` gap.
-
-### 2. Scientific runtime protocol is documented, but not yet fully propagated
+### 1. Scientific runtime protocol is documented, but not yet fully propagated
 
 We now have:
 
@@ -110,7 +122,7 @@ We now have:
 
 But not every future scientific skill will automatically inherit this unless we keep enforcing it during onboarding and review.
 
-### 3. Launch readiness still depends on demo execution, not only docs/toolref quality
+### 2. Launch readiness still depends on demo execution, not only docs/toolref quality
 
 The code/documentation/tooling side has moved forward, but launch-prep still needs real execution evidence:
 
@@ -121,13 +133,13 @@ The code/documentation/tooling side has moved forward, but launch-prep still nee
 
 ## Recommended Next Step
 
-Start with **Bioinformatics toolref productionization**.
+Shift from toolref hardening back to **launch execution artifacts**.
 
 Why:
 
-- it is now the least mature scientific toolref layer
-- it affects a multi-tool workflow, so user experience can still fragment badly there
-- the scientific skills and runtime protocol are now strong enough to support a proper cleanup pass
+- the five main scientific toolrefs are now in a usable release state
+- the remaining release risk is no longer mostly docs routing, but real demo evidence and final assets
+- launch-prep still needs frozen logs, plots, and validation notes
 
 ## First Commands For The Next Session
 
@@ -135,24 +147,24 @@ Start here:
 
 ```bash
 git status --short
+python -m scholaraio.cli toolref list qe
+python -m scholaraio.cli toolref list lammps
+python -m scholaraio.cli toolref list gromacs
+python -m scholaraio.cli toolref list openfoam
 python -m scholaraio.cli toolref list bioinformatics
-python -m scholaraio.cli toolref search bioinformatics "bootstrap tree"
-python -m scholaraio.cli toolref search bioinformatics "variant calling"
-python -m scholaraio.cli toolref show bioinformatics iqtree command-reference
-python -m scholaraio.cli toolref show bioinformatics samtools sort
+python -m pytest tests/test_toolref.py tests/test_cli_messages.py -q
 ```
 
 Then inspect:
 
-- `.claude/skills/bioinformatics/SKILL.md`
-- `scholaraio/toolref.py`
-- `tests/test_toolref.py`
+- `workspace/ai-science-agents/launch-prep/STATUS_BOARD.md`
+- `workspace/ai-science-agents/launch-prep/ROADMAP.md`
+- `workspace/ai-science-agents/product/DEMO_SPECS.md`
 
 ## Next Session Goal
 
-Push Bioinformatics to the same standard as the mature toolrefs:
+Use the now-stable scientific toolrefs to unblock launch materials:
 
-- natural-language search should route to the correct sub-tool
-- top queries should hit useful primary pages
-- partial fetch failures should not degrade cached coverage
-- the skill should stay toolchain-aware without becoming a giant manual
+- run or verify the highest-priority demos
+- freeze run logs, validation numbers, and final notes
+- update release-facing docs and assets with real evidence
