@@ -86,7 +86,7 @@ def test_pick_and_write_md_preserves_leading_whitespace(tmp_path):
     assert md.read_text(encoding="utf-8") == "    code block line\n\nparagraph\n"
 
 
-def test_copy_parser_assets_replaces_stale_output_assets(tmp_path):
+def test_copy_parser_assets_replaces_matching_asset_tree_only(tmp_path):
     src_dir = tmp_path / "src"
     src_images = src_dir / "images"
     src_images.mkdir(parents=True)
@@ -102,12 +102,16 @@ def test_copy_parser_assets_replaces_stale_output_assets(tmp_path):
     stale_images.mkdir()
     (stale_images / "old.png").write_bytes(b"old")
     (dst_dir / "stale.txt").write_text("stale\n", encoding="utf-8")
+    (dst_dir / "meta.json").write_text('{"title": "keep"}\n', encoding="utf-8")
+    (dst_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
 
     pdf_fallback.copy_parser_assets(selected, md)
 
     assert (dst_dir / "images" / "new.png").read_bytes() == b"new"
     assert not (dst_dir / "images" / "old.png").exists()
-    assert not (dst_dir / "stale.txt").exists()
+    assert (dst_dir / "stale.txt").read_text(encoding="utf-8") == "stale\n"
+    assert (dst_dir / "meta.json").read_text(encoding="utf-8") == '{"title": "keep"}\n'
+    assert (dst_dir / "source.pdf").read_bytes() == b"%PDF-1.4\n"
 
 
 def test_public_pdf_fallback_helpers_are_available():

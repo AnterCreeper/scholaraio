@@ -180,9 +180,9 @@ def copy_parser_assets(selected_md: Path, md_path: Path) -> None:
     """Copy assets emitted alongside parser markdown output.
 
     Many parsers write markdown plus sibling asset directories (for example
-    ``images/``). Refresh the final output directory so it matches the
-    selected parser run, then copy the sibling asset tree before replacing
-    the markdown file itself.
+    ``images/``). Replace only those emitted asset paths so stale parser
+    outputs get refreshed without deleting unrelated paper files that share
+    the same destination directory.
     """
     src_dir = selected_md.parent
     dst_dir = md_path.parent
@@ -202,16 +202,13 @@ def copy_parser_assets(selected_md: Path, md_path: Path) -> None:
             else:
                 shutil.copy2(item, staged)
 
-        for existing in dst_dir.iterdir():
-            if existing == md_path:
-                continue
-            if existing.is_dir():
-                shutil.rmtree(existing)
-            else:
-                existing.unlink()
-
         for item in staging_dir.iterdir():
             target = dst_dir / item.name
+            if target.exists():
+                if target.is_dir():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
             if item.is_dir():
                 shutil.copytree(item, target)
             else:
