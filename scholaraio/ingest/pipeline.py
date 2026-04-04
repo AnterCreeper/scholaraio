@@ -742,7 +742,7 @@ def step_translate(json_path: Path, cfg: Config, opts: dict) -> StepResult:
     Returns:
         ``StepResult.OK`` 成功, ``StepResult.SKIP`` 跳过。
     """
-    from scholaraio.translate import translate_paper
+    from scholaraio.translate import SKIP_ALL_CHUNKS_FAILED, translate_paper
 
     paper_d = json_path.parent
     md_path = paper_d / "paper.md"
@@ -766,6 +766,9 @@ def step_translate(json_path: Path, cfg: Config, opts: dict) -> StepResult:
     tr = translate_paper(paper_d, cfg, target_lang=target_lang, force=force)
     if tr.partial:
         ui(f"  翻译中断: 已完成 {tr.completed_chunks}/{tr.total_chunks} 块，可稍后继续续翻")
+        return StepResult.FAIL
+    if tr.skip_reason == SKIP_ALL_CHUNKS_FAILED:
+        ui("  翻译失败: 全部分块翻译失败")
         return StepResult.FAIL
     if not tr.ok:
         return StepResult.SKIP

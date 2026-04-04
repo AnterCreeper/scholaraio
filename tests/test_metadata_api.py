@@ -170,3 +170,27 @@ def test_enrich_metadata_normalizes_versioned_arxiv_id_before_arxiv_and_s2_looku
     assert seen == {"arxiv": "hep-th/9901001", "s2": "hep-th/9901001"}
     assert meta.arxiv_id == "hep-th/9901001"
     assert meta.extraction_method == "arxiv_lookup"
+
+
+def test_enrich_metadata_records_arxiv_as_api_source_when_only_arxiv_lookup_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.get_arxiv_paper",
+        lambda arxiv_id: {
+            "title": "Official arXiv only result",
+            "authors": ["Alice Example"],
+            "year": "1999",
+            "abstract": "Official arXiv abstract.",
+            "arxiv_id": arxiv_id,
+            "doi": "",
+        },
+    )
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_crossref", lambda **kwargs: {})
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_openalex", lambda **kwargs: {})
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_semantic_scholar", lambda **kwargs: {})
+
+    meta = PaperMetadata(title="Original OCR Title", arxiv_id="hep-th/9901001v3")
+
+    enrich_metadata(meta)
+
+    assert meta.api_sources == ["arxiv"]
+    assert meta.extraction_method == "arxiv_lookup"

@@ -426,7 +426,10 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
             meta.extraction_method = "title_search_s2"
 
     # ---- Tier 5: local_only ----
-    if not cr_data and not s2_data and not oa_data:
+    if arxiv_metadata_applied and "arxiv" not in meta.api_sources:
+        meta.api_sources.append("arxiv")
+
+    if not cr_data and not s2_data and not oa_data and not arxiv_metadata_applied:
         meta.extraction_method = meta.extraction_method or "local_only"
         return meta
 

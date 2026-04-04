@@ -7,6 +7,7 @@ internal consistency of papers.json is maintained.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
@@ -114,6 +115,25 @@ class TestRemove:
 
         assert [e["dir_name"] for e in removed] == ["Other-Paper"]
         assert read_paper_ids(ws_dir) == {"real-uuid-1"}
+
+    def test_remove_falls_back_when_lookup_raises_sqlite_error(self, tmp_path, monkeypatch):
+        ws_dir = tmp_path / "ws"
+        create(ws_dir)
+        entries = [
+            {"id": "aaaa-1111", "dir_name": "Smith-2023-Test", "added_at": "2024-01-01"},
+            {"id": "bbbb-2222", "dir_name": "Wang-2024-Test", "added_at": "2024-01-01"},
+        ]
+        (ws_dir / "papers.json").write_text(json.dumps(entries), encoding="utf-8")
+
+        def fail_lookup(db_path, ref):
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr("scholaraio.index.lookup_paper", fail_lookup)
+
+        removed = remove(ws_dir, ["Smith-2023-Test"], tmp_path / "index.db")
+
+        assert [e["dir_name"] for e in removed] == ["Smith-2023-Test"]
+        assert read_paper_ids(ws_dir) == {"bbbb-2222"}
 
 
 class TestListWorkspaces:

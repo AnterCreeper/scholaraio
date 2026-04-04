@@ -15,7 +15,9 @@ from scholaraio.ingest.pipeline import (
     step_dedup,
     step_extract,
     step_office_convert,
+    step_translate,
 )
+from scholaraio.translate import SKIP_ALL_CHUNKS_FAILED, TranslateResult
 
 
 class _DummyResponse:
@@ -207,3 +209,28 @@ def test_step_extract_labels_arxiv_id_as_generic_id(tmp_path: Path, monkeypatch)
     assert result == StepResult.OK
     assert any("ID: arXiv:hep-th/9901001" in msg for msg in messages)
     assert all("DOI: arXiv:" not in msg for msg in messages)
+
+
+def test_step_translate_treats_all_chunks_failed_as_failure(tmp_path: Path, monkeypatch):
+    paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+    paper_dir.mkdir(parents=True)
+    json_path = paper_dir / "meta.json"
+    json_path.write_text("{}", encoding="utf-8")
+    (paper_dir / "paper.md").write_text("Original text", encoding="utf-8")
+
+    messages: list[str] = []
+    monkeypatch.setattr("scholaraio.ingest.pipeline.ui", lambda msg="": messages.append(msg))
+    monkeypatch.setattr(
+        "scholaraio.translate.translate_paper",
+        lambda *args, **kwargs: TranslateResult(skip_reason=SKIP_ALL_CHUNKS_FAILED, total_chunks=3),
+    )
+
+    cfg = SimpleNamespace(
+        translate=SimpleNamespace(target_lang="zh", chunk_size=1000, concurrency=1),
+        llm=SimpleNamespace(model="test-model"),
+    )
+
+    result = step_translate(json_path, cfg, {"force": False})
+
+    assert result == StepResult.FAIL
+    assert any("全部分块翻译失败" in msg for msg in messages)

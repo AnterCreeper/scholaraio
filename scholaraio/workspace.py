@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -161,7 +162,11 @@ def remove(ws_dir: Path, paper_refs: list[str], db_path: Path) -> list[dict]:
     entry_ids = {e["id"] for e in entries}
     entry_dir_names = {e.get("dir_name") for e in entries}
     for ref in paper_refs:
-        record = lookup_paper(db_path, ref)
+        try:
+            record = lookup_paper(db_path, ref)
+        except sqlite3.Error as exc:
+            _log.warning("lookup_paper 失败，回退到工作区可见标识: %s", exc)
+            record = None
         if record:
             remove_ids.add(record["id"])
         else:
