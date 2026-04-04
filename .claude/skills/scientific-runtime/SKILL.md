@@ -1,10 +1,6 @@
 ---
 name: scientific-runtime
-description: Shared runtime protocol for scientific CLI tasks. Use alongside tool-specific scientific skills so the agent knows how to route with toolref-first behavior, handle partial coverage, and avoid pushing maintenance work onto end users.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["scientific-computing", "runtime-protocol", "toolref", "agent-behavior"]
+description: Use when serving scientific CLI tasks through ScholarAIO, especially when the agent should prefer scholaraio toolref, handle partial coverage safely, and avoid turning user work into documentation maintenance.
 ---
 
 # Scientific Runtime Protocol
@@ -59,6 +55,20 @@ The agent should prefer:
 - `scholaraio toolref show <tool> ...` for precise lookups
 - `scholaraio toolref search <tool> "..."` for natural-language entry
 
+The stable public surfaces are:
+
+- the `scholaraio toolref ...` CLI
+- the top-level `scholaraio.toolref` package facade
+
+The agent should not route users through internal implementation modules such as:
+
+- `scholaraio.toolref.fetch`
+- `scholaraio.toolref.manifest`
+- `scholaraio.toolref.storage`
+- `scholaraio.toolref.search`
+
+Those internal module boundaries may change during refactors. User-facing guidance should stay anchored to the CLI and the top-level package behavior.
+
 Before writing configuration or scripts, first resolve:
 
 - which program or subcommand is relevant
@@ -72,6 +82,7 @@ If `toolref` does not fully answer the question:
 - continue using the official documentation source
 - clearly separate "task progress" from "maintenance opportunity"
 - do not ask the user to stop and repair the docs layer first
+- do not expose internal refactor details unless they materially affect current behavior
 
 Use this pattern:
 
@@ -94,6 +105,12 @@ If it is a one-off edge case, do not derail the user task.
 - `toolref`: interface and parameter reference
 - scientific runtime: how to behave under uncertainty or partial coverage
 
+When code changes are involved:
+
+- preserve the public `scholaraio.toolref` entry surface
+- treat package-internal reorganizations as an implementation detail
+- if a refactor changes behavior visible through CLI or top-level imports, treat that as a regression until proven otherwise
+
 ## Anti-Patterns
 
 Do not:
@@ -102,6 +119,7 @@ Do not:
 - tell the user to "go improve toolref first"
 - confuse a successful CLI run with a valid scientific result
 - replace scientific judgment with parameter lookup alone
+- instruct the user to use internal module names as if they were the supported interface
 
 ## Output Style
 

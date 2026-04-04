@@ -108,14 +108,23 @@ description: Use when adding or upgrading ScholarAIO support for a new scientifi
 最低应有测试：
 - 解析器能提取 title / synopsis / content
 - 版本或 program 规范化逻辑
+- top-level `scholaraio.toolref` 入口在内部重构后仍保持兼容
 - manifest 工具的“是否完整”判断
 - 失败后残缺目录不会被误判成已完成
 - 用户自然说法对应的 alias / query expansion
 - 缓存保留和 fallback URL 行为（如果是 manifest 工具）
 - 自动发现规则（如果是 discovery-based manifest）
 - anchor / heading 切片逻辑（如果是单页大手册拆分）
+- `meta.json`、manifest 快照、SQLite 索引和 `toolref list` 展示口径一致
 
 如果没有先看到失败场景，就不知道这个工具接入点真正脆不脆。
+
+如果这次工作包含 `toolref` 内部重构或拆包，必须额外补这类兼容测试：
+
+- `import scholaraio.toolref` 后旧调用路径仍可用
+- 顶层兼容 patch 点仍能影响真实行为
+- CLI 不需要知道内部模块名变化
+- 旧缓存数据库在新 schema / trigger 下不会损坏或重复触发
 
 ### 5. 实现 fetch/index/show/search 全链路
 
@@ -132,6 +141,8 @@ description: Use when adding or upgrading ScholarAIO support for a new scientifi
 - 页面命名和用户输入不一致
 - 同一概念的不同人话表达
 - 主入口页失效后没有降级路径
+- 包拆分后顶层兼容 facade 失效
+- `fetch`、`index`、`list` 的计数口径漂移
 
 manifest 工具的额外要求：
 - 对高价值但不稳定的页面，允许配置 `fallback_urls`
@@ -142,6 +153,8 @@ manifest 工具的额外要求：
 - 当外站超时但本地已有种子页缓存时，应该允许“用缓存继续做结构发现”
 - 如果逻辑页来自单页手册的 anchor，正式抓取时要允许 `#anchor` 页面复用其基础 URL 的种子 HTML
 - 预置高价值页名不一定等于真实 heading id；发现阶段要把真实 anchor 元数据回填到这些规范化 `page_name`
+- `toolref list` 不能盲信过期 `meta.json`；必要时要与快照和实际索引自校准
+- `fetch` 返回的索引数量要和最终库里的真实可查询条目数一致，而不是解析中间态数量
 
 ### 6. 必须做“真实使用体验”验证
 
@@ -162,6 +175,9 @@ scholaraio toolref search <tool> "<real query>"
 - 搜索是不是只“有结果”，还是首条结果就是对的
 - 结果标题是不是能让用户一眼知道为什么它是对的
 - 如果是工具链型工具，用户的描述能不能先路由到对的 `program`
+- `fetch` 报的页数/条目数，和 `list` 看到的最终数值是否一致
+- manifest 工具在旧缓存存在时，`list` 会不会出现自相矛盾的显示
+- 对外入口是否仍然只需要 `scholaraio toolref ...`，而不是内部模块命令
 
 如果手感不好，就继续打磨 CLI；不要因为测试是绿的就停。
 
@@ -191,6 +207,12 @@ scholaraio toolref search <tool> "<real query>"
 - `toolref = 官方接口与参数`
 - `scientific-runtime = 运行时退化与用户体验协议`
 
+不要把内部包结构泄漏到 skill：
+
+- skill 和用户文档应该引用 `scholaraio toolref ...`
+- 如果确实需要提 Python API，引用顶层 `scholaraio.toolref`
+- 不要把 `fetch.py` / `manifest.py` / `storage.py` 之类内部模块写成公开入口
+
 ### 8. 最后做发布门槛检查
 
 一个新工具只有同时满足下面几条，才算真正接入完成：
@@ -199,6 +221,7 @@ scholaraio toolref search <tool> "<real query>"
 - 至少有基础 parser 测试
 - 对应 skill 已改成轻量 `toolref-first`
 - 至少手动体验过一次端到端 CLI
+- 如果做过内部重构，顶层兼容入口也已验证
 
 如果你要判断“是否已经够生产，不要再打磨了”，就看这几条：
 - 高频 `show` 查询能直接命中
@@ -206,6 +229,7 @@ scholaraio toolref search <tool> "<real query>"
 - 本地重抓后不会把覆盖率越抓越差
 - agent 不需要再让用户帮它维护文档
 - 即使覆盖有缺口，runtime fallback 也能继续完成任务
+- `fetch/list` 的统计口径不会把用户带沟里
 
 满足这些，就应该把精力转回 demo 和真实科研任务，而不是继续无止境磨 `toolref`
 
@@ -214,6 +238,7 @@ scholaraio toolref search <tool> "<real query>"
 - 只看测试，不自己用 CLI
 - 第一次抓取失败后没处理脏目录
 - `page_name` 为抓取方便而设计，导致 `show` 很难用
+- 内部拆包后忘了保护 `scholaraio.toolref` 顶层兼容面
 - 把 scientific skill 写成超长命令手册
 - 新 skill 没有写清楚覆盖缺口时 agent 应如何继续服务用户
 - 用第三方教程代替官方文档
@@ -221,6 +246,7 @@ scholaraio toolref search <tool> "<real query>"
 - 把“manifest 页数 100%”误当成“用户体验 100%”
 - 忘记给易失联页面准备 fallback
 - 工具链型工具没有先做路由，直接把所有子工具混在一起搜
+- `fetch`、数据库真实条目数、和 `list` 展示数字彼此不一致
 
 ## What The Current Five Tools Taught Us
 
@@ -243,6 +269,7 @@ scholaraio toolref search <tool> "<real query>"
 
 - 不要妄图第一次就镜像整站
 - 先抓高价值入口页，配合好的 search alias，就能把体验快速拉起来
+- 自动发现不应该把 curated 高价值入口覆盖掉；应该是扩充或升级它们
 - 当用户真的要求“主体尽量全量”时，正确升级路径是：
   - 从官方主线文档页自动发现
   - 只保留主体路径
@@ -273,9 +300,11 @@ scholaraio toolref search <tool> "<real query>"
 - 版本策略已确认
 - 解析粒度已确认
 - parser 测试已写
+- 顶层兼容入口已验证
 - `fetch/list/show/search` 已手动体验
 - 残缺目录问题已验证
 - 高价值自然语言查询已验证
+- `fetch`/`list` 计数口径已核对
 - 如果有网络脆弱页面，fallback 已验证
 - 如果是 discovery 型 manifest，快照写入与复用已验证
 - 如果是单页大手册拆分，anchor 页面 `show/search` 已验证
