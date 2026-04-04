@@ -331,7 +331,7 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
     s2_data: dict = {}
     oa_data: dict = {}
     arxiv_data: dict = {}
-    arxiv_lookup_used = False
+    arxiv_metadata_applied = False
 
     if meta.arxiv_id and _is_arxiv_datacite_doi(meta.doi):
         meta.doi = ""
@@ -362,7 +362,7 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
         arxiv_data = get_arxiv_paper(meta.arxiv_id)
         s2_data = query_semantic_scholar(arxiv_id=meta.arxiv_id)
         if arxiv_data or s2_data:
-            arxiv_lookup_used = True
+            arxiv_metadata_applied = bool(arxiv_data)
             _apply_arxiv_metadata(meta, arxiv_data)
             ext_ids = s2_data.get("externalIds") or {}
             if ext_ids.get("DOI") and not meta.doi and not _is_arxiv_datacite_doi(ext_ids["DOI"]):
@@ -490,14 +490,14 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
         if not meta.arxiv_id and ext_ids.get("ArXiv"):
             meta.arxiv_id = ext_ids["ArXiv"]
         # Title: override only if Crossref didn't provide one
-        if not cr_data and not arxiv_lookup_used and s2_data.get("title"):
+        if not cr_data and not arxiv_metadata_applied and s2_data.get("title"):
             meta.title = s2_data["title"]
         if not meta.year and s2_data.get("year"):
             meta.year = s2_data["year"]
         if not meta.journal and s2_data.get("venue"):
             meta.journal = s2_data["venue"]
         # Authors: override only if Crossref didn't provide them
-        if not cr_data and not arxiv_lookup_used and s2_data.get("authors"):
+        if not cr_data and not arxiv_metadata_applied and s2_data.get("authors"):
             meta.authors = [a.get("name", "") for a in s2_data["authors"]]
             if meta.authors:
                 meta.first_author = meta.authors[0]
@@ -506,7 +506,7 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
         if not meta.paper_type and s2_data.get("publicationTypes"):
             meta.paper_type = s2_data["publicationTypes"][0]
         # Abstract — S2 gives clean plain text (preferred)
-        if s2_data.get("abstract") and not (arxiv_lookup_used and arxiv_data.get("abstract")):
+        if s2_data.get("abstract") and not (arxiv_metadata_applied and arxiv_data.get("abstract")):
             meta.abstract = s2_data["abstract"]
         # References — extract DOIs from S2 references list
         if s2_data.get("references"):

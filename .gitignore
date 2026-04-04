@@ -33,6 +33,7 @@ docs-dev/
 docs/issues.md
 docs/internal/
 docs/superpowers/
+site/
 
 # Local agent worktrees
 .claude/worktrees/

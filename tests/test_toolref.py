@@ -26,6 +26,7 @@ from scholaraio.toolref import (
     toolref_list,
     toolref_search,
     toolref_show,
+    toolref_use,
 )
 
 
@@ -186,6 +187,17 @@ def test_ensure_db_drops_legacy_fts_triggers(tmp_path):
         conn.commit()
     finally:
         conn.close()
+
+
+def test_toolref_use_rejects_unsafe_version_path(tmp_path, monkeypatch, toolref_mod):
+    paths_mod = toolref_mod["paths"]
+
+    monkeypatch.setattr(paths_mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
+
+    with pytest.raises(ValueError, match="非法版本号"):
+        toolref_use("qe", "../outside", cfg=None)
+
+    assert not (tmp_path / "qe" / "current").exists()
 
 
 def test_toolref_fetch_refreshes_manifest_meta_when_skipping_existing_docs(tmp_path, monkeypatch, toolref_mod):

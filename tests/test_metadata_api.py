@@ -110,3 +110,31 @@ def test_enrich_metadata_ignores_arxiv_datacite_doi_for_preprint(monkeypatch):
     assert meta.doi == ""
     assert meta.arxiv_id == "2603.25200"
     assert meta.extraction_method == "arxiv_lookup"
+
+
+def test_enrich_metadata_uses_s2_title_and_authors_when_arxiv_lookup_returns_only_s2(monkeypatch):
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.get_arxiv_paper", lambda arxiv_id: {})
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_crossref", lambda **kwargs: {})
+    monkeypatch.setattr("scholaraio.ingest.metadata._api.query_openalex", lambda **kwargs: {})
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_semantic_scholar",
+        lambda **kwargs: {
+            "title": "Recovered from Semantic Scholar",
+            "authors": [{"name": "Alice Example"}, {"name": "Bob Example"}],
+            "year": 2024,
+            "venue": "arXiv",
+            "abstract": "Recovered abstract.",
+            "externalIds": {"ArXiv": "2603.25200"},
+            "references": [],
+            "paperId": "paper-123",
+        },
+    )
+
+    meta = PaperMetadata(title="Original OCR Title", authors=["Wrong Author"], arxiv_id="2603.25200")
+
+    enrich_metadata(meta)
+
+    assert meta.title == "Recovered from Semantic Scholar"
+    assert meta.authors == ["Alice Example", "Bob Example"]
+    assert meta.first_author == "Alice Example"
+    assert meta.extraction_method == "arxiv_lookup"

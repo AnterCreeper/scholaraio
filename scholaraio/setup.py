@@ -295,7 +295,7 @@ def check_dep_group(group: str) -> DepGroupStatus:
                 continue
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 importlib.import_module(import_name)
-        except (ImportError, RuntimeError):
+        except Exception:
             missing.append(pip_name)
     return DepGroupStatus(name=group, installed=not missing, missing=missing)
 

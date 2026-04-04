@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from . import manifest as manifest_mod
 from .constants import TOOL_REGISTRY
-from .paths import _current_link, _toolref_root, _version_dir, validate_tool_name
+from .paths import _current_link, _toolref_root, _validate_version, _version_dir, validate_tool_name
 
 if TYPE_CHECKING:
     from scholaraio.config import Config
@@ -89,6 +89,8 @@ def toolref_use(tool: str, version: str, *, cfg: Config | None = None) -> None:
 
     if not validate_tool_name(tool):
         raise ValueError(f"未知工具：{tool}")
+    if not _validate_version(version):
+        raise ValueError(f"非法版本号：{version}")
     vdir = _version_dir(tool, version, cfg)
     if not vdir.exists():
         raise FileNotFoundError(

@@ -158,6 +158,24 @@ def test_check_dep_group_supports_draw_extra(monkeypatch):
     assert "cli-anything-inkscape" in status.missing
 
 
+def test_check_dep_group_treats_oserror_import_failure_as_missing(monkeypatch):
+    original = importlib.import_module
+
+    def fake_import(name: str, package=None):
+        if name == "bertopic":
+            raise OSError("libstdc++.so missing")
+        if package is None:
+            return original(name)
+        return original(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+
+    status = check_dep_group("topics")
+
+    assert not status.installed
+    assert "bertopic" in status.missing
+
+
 def test_check_dep_group_uses_spec_probe_for_embed_deps(monkeypatch):
     original = importlib.util.find_spec
 
