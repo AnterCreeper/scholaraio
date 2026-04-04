@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scholaraio.ingest.proceedings import detect_proceedings_from_md, looks_like_proceedings_text
+from scholaraio.ingest.proceedings import (
+    detect_proceedings_from_md,
+    ingest_proceedings_markdown,
+    looks_like_proceedings_text,
+)
 from scholaraio.index import build_proceedings_index, search_proceedings
 from scholaraio.proceedings import iter_proceedings_papers
 
@@ -135,3 +139,36 @@ def test_detect_proceedings_rejects_regular_single_paper(tmp_path: Path):
     assert detected is False
     assert reason == ""
     assert looks_like_proceedings_text(md_path.read_text(encoding="utf-8")) is False
+
+
+def test_ingest_proceedings_markdown_writes_volume_and_child_papers(tmp_path: Path):
+    proceedings_root = tmp_path / "data" / "proceedings"
+    proceedings_root.mkdir(parents=True)
+    md_path = tmp_path / "volume.md"
+    md_path.write_text(
+        "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
+        "## Paper: Wave propagation in porous media\n"
+        "Alice Zheng\n"
+        "10.1000/example.1\n"
+        "Wave propagation in porous media with granular damping.\n\n"
+        "## Paper: Shock response of cellular materials\n"
+        "Bo Li\n"
+        "10.1000/example.2\n"
+        "Shock response and collapse under granular impact.\n",
+        encoding="utf-8",
+    )
+
+    proceeding_dir = ingest_proceedings_markdown(
+        proceedings_root,
+        md_path,
+        source_name="Zheng-2024-Proceedings of the IUTAM Symposium.pdf",
+    )
+
+    meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
+    child_dirs = sorted((proceeding_dir / "papers").iterdir())
+    child_meta = json.loads((child_dirs[0] / "meta.json").read_text(encoding="utf-8"))
+
+    assert proceeding_dir.exists()
+    assert meta["child_paper_count"] == 2
+    assert child_meta["proceeding_title"] == meta["title"]
+    assert len(child_dirs) == 2
