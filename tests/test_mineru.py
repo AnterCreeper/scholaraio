@@ -8,6 +8,7 @@ from scholaraio.ingest.mineru import (
     ConvertOptions,
     ConvertResult,
     _convert_long_pdf_cloud,
+    _plan_cloud_chunking,
     _resolve_cloud_model_version,
     convert_pdf_cloud,
     convert_pdfs_cloud_batch,
@@ -258,3 +259,41 @@ def test_convert_pdfs_cloud_batch_splits_into_chunks(tmp_path, monkeypatch):
     assert calls == [["paper-0.pdf", "paper-1.pdf"], ["paper-2.pdf"]]
     assert len(results) == 3
     assert all(result.success for result in results)
+
+
+def test_plan_cloud_chunking_uses_600_page_limit_when_only_page_count_exceeds(tmp_path, monkeypatch):
+    pdf_path = tmp_path / "long.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: 601)
+
+    should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
+
+    assert should_chunk is True
+    assert chunk_size == 600
+    assert "601 pages" in reason
+
+
+def test_plan_cloud_chunking_uses_size_limit_when_file_is_too_large(tmp_path, monkeypatch):
+    pdf_path = tmp_path / "big.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: 400)
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+
+    should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
+
+    assert should_chunk is True
+    assert chunk_size == 320
+    assert "250.0 MB" in reason
+
+
+def test_plan_cloud_chunking_uses_safe_fallback_chunk_size_when_page_count_unknown(tmp_path, monkeypatch):
+    pdf_path = tmp_path / "unknown.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: -1)
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+
+    should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
+
+    assert should_chunk is True
+    assert chunk_size == 100
+    assert "250.0 MB" in reason

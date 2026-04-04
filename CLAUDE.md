@@ -317,7 +317,9 @@ Non-paper document ingest flow:
 - `paper_type` is tagged as `document` (or a more specific type such as `technical-report` / `lecture-notes`)
 - Audit rules do not report `missing_doi` warnings for document / patent types
 
-Very long PDFs (default: more than 100 pages) are automatically split into shorter PDFs, parsed in chunks, and then merged.
+Very long PDFs are split automatically before MinerU conversion when needed:
+- local MinerU follows `chunk_page_limit` (default: more than 100 pages)
+- MinerU cloud follows the stricter of its documented limits (more than 600 pages or 200MB) and estimates a safe chunk size when only the file-size limit is exceeded
 
 ### `data/pending/` Directory
 

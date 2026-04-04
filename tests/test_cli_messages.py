@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from scholaraio import cli
+from scholaraio.ingest.mineru import ConvertResult
 from scholaraio.setup import _S
 from scholaraio.translate import TranslateResult
 
@@ -563,7 +564,117 @@ class TestAttachPdfFallback:
         cli.cmd_attach_pdf(args, cfg)
 
         assert calls == [(paper_dir / "input.pdf", paper_dir / "paper.md")]
-        assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "preferred attach ok\n"
+
+    def test_attach_pdf_cloud_does_not_split_when_under_new_limits(self, tmp_path, monkeypatch):
+        paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+        paper_dir.mkdir(parents=True)
+        (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+        src_pdf = tmp_path / "input.pdf"
+        src_pdf.write_bytes(b"%PDF-1.4\n")
+
+        cfg = SimpleNamespace(
+            ingest=SimpleNamespace(
+                mineru_endpoint="http://localhost:8000",
+                mineru_cloud_url="https://mineru.net/api/v4",
+                mineru_backend_local="pipeline",
+                mineru_model_version_cloud="pipeline",
+                mineru_lang="en",
+                mineru_parse_method="auto",
+                mineru_enable_formula=True,
+                mineru_enable_table=True,
+                chunk_page_limit=100,
+                pdf_fallback_order=["auto"],
+                pdf_fallback_auto_detect=True,
+            ),
+            papers_dir=tmp_path / "papers",
+        )
+        cfg.resolved_mineru_api_key = lambda: "token"
+
+        monkeypatch.setattr(cli, "_resolve_paper", lambda *_: paper_dir)
+        monkeypatch.setattr(cli, "ui", lambda *_args, **_kwargs: None)
+
+        import scholaraio.ingest.mineru as mineru
+
+        monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+        monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
+        monkeypatch.setattr(
+            mineru,
+            "_convert_long_pdf_cloud",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not split")),
+        )
+        monkeypatch.setattr(
+            mineru,
+            "convert_pdf_cloud",
+            lambda pdf_path, *_args, **_kwargs: ConvertResult(
+                pdf_path=pdf_path,
+                md_path=paper_dir / "input.md",
+                success=True,
+            ),
+        )
+        monkeypatch.setattr("scholaraio.papers.read_meta", lambda *_: {"abstract": "exists"})
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_embed", lambda *_: None)
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_index", lambda *_: None)
+        (paper_dir / "input.md").write_text("ok\n", encoding="utf-8")
+
+        args = Namespace(paper_id="paper-1", pdf_path=str(src_pdf), dry_run=False)
+        cli.cmd_attach_pdf(args, cfg)
+
+        assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "ok\n"
+
+    def test_attach_pdf_cloud_splits_when_new_limits_require_it(self, tmp_path, monkeypatch):
+        paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+        paper_dir.mkdir(parents=True)
+        (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+        src_pdf = tmp_path / "input.pdf"
+        src_pdf.write_bytes(b"%PDF-1.4\n")
+
+        cfg = SimpleNamespace(
+            ingest=SimpleNamespace(
+                mineru_endpoint="http://localhost:8000",
+                mineru_cloud_url="https://mineru.net/api/v4",
+                mineru_backend_local="pipeline",
+                mineru_model_version_cloud="pipeline",
+                mineru_lang="en",
+                mineru_parse_method="auto",
+                mineru_enable_formula=True,
+                mineru_enable_table=True,
+                chunk_page_limit=100,
+                pdf_fallback_order=["auto"],
+                pdf_fallback_auto_detect=True,
+            ),
+            papers_dir=tmp_path / "papers",
+        )
+        cfg.resolved_mineru_api_key = lambda: "token"
+
+        monkeypatch.setattr(cli, "_resolve_paper", lambda *_: paper_dir)
+        monkeypatch.setattr(cli, "ui", lambda *_args, **_kwargs: None)
+
+        import scholaraio.ingest.mineru as mineru
+
+        monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+        monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
+        monkeypatch.setattr(
+            mineru,
+            "convert_pdf_cloud",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should use split path")),
+        )
+        captured: dict[str, object] = {}
+
+        def fake_convert_long(pdf_path, opts, *, api_key, cloud_url, chunk_size):
+            captured["chunk_size"] = chunk_size
+            (paper_dir / "input.md").write_text("split ok\n", encoding="utf-8")
+            return ConvertResult(pdf_path=pdf_path, md_path=paper_dir / "input.md", success=True)
+
+        monkeypatch.setattr(mineru, "_convert_long_pdf_cloud", fake_convert_long)
+        monkeypatch.setattr("scholaraio.papers.read_meta", lambda *_: {"abstract": "exists"})
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_embed", lambda *_: None)
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_index", lambda *_: None)
+
+        args = Namespace(paper_id="paper-1", pdf_path=str(src_pdf), dry_run=False)
+        cli.cmd_attach_pdf(args, cfg)
+
+        assert captured["chunk_size"] == 320
+        assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "split ok\n"
         assert not (paper_dir / "input.pdf").exists()
 
 

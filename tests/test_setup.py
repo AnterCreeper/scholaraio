@@ -234,7 +234,9 @@ def test_wizard_parser_auto_choice_shows_advisory_not_override(monkeypatch, caps
     cfg = Config()
     answers = iter(["3", "n"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None)
+    monkeypatch.setattr(
+        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+    )
     monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
 
     choice = _wizard_parser(cfg, "zh")
@@ -251,7 +253,9 @@ def test_wizard_parser_auto_prefers_configured_mineru_before_probe(monkeypatch, 
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "mineru-key")
     answers = iter(["3", "n"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None)
+    monkeypatch.setattr(
+        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+    )
     monkeypatch.setattr("scholaraio.setup._probe_url", lambda *_args, **_kwargs: False)
 
     choice = _wizard_parser(cfg, "zh")
@@ -274,7 +278,9 @@ def test_wizard_parser_auto_choice_defaults_to_cloud_key_on_eof(monkeypatch):
     cfg = Config()
     answers = iter(["3", ""])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None)
+    monkeypatch.setattr(
+        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+    )
     monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
 
     choice = _wizard_parser(cfg, "zh")

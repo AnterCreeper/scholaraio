@@ -163,6 +163,79 @@ def test_batch_convert_pdfs_fallback_cleans_noncanonical_source_pdf(tmp_path, mo
     assert not pdf.exists()
 
 
+def test_batch_convert_pdfs_cloud_splits_items_that_exceed_new_limits(tmp_path, monkeypatch):
+    paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+    paper_dir.mkdir(parents=True)
+    (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+    pdf = paper_dir / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.paths.papers_dir = "papers"
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pipeline as pipeline
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(pipeline, "_batch_postprocess", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdfs_cloud_batch",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should use split path")),
+    )
+    captured: dict[str, object] = {}
+
+    def fake_convert_long(pdf_path, opts, *, api_key, cloud_url, chunk_size):
+        captured["chunk_size"] = chunk_size
+        (paper_dir / "paper.md").write_text("split batch ok\n", encoding="utf-8")
+        return ConvertResult(pdf_path=pdf_path, md_path=paper_dir / "paper.md", success=True)
+
+    monkeypatch.setattr(mineru, "_convert_long_pdf_cloud", fake_convert_long)
+
+    stats = batch_convert_pdfs(cfg, enrich=False)
+
+    assert stats == {"converted": 1, "failed": 0, "skipped": 0}
+    assert captured["chunk_size"] == 320
+    assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "split batch ok\n"
+
+
+def test_batch_convert_pdfs_cloud_batch_success_counts_each_result(tmp_path, monkeypatch):
+    paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+    paper_dir.mkdir(parents=True)
+    (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+    pdf = paper_dir / "source.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    tmp_md = tmp_path / "batch-out" / "source.md"
+    tmp_md.parent.mkdir(parents=True)
+    tmp_md.write_text("batch ok\n", encoding="utf-8")
+
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.paths.papers_dir = "papers"
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pipeline as pipeline
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(pipeline, "_batch_postprocess", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdfs_cloud_batch",
+        lambda *_args, **_kwargs: [ConvertResult(pdf_path=pdf, md_path=tmp_md, success=True)],
+    )
+
+    stats = batch_convert_pdfs(cfg, enrich=False)
+
+    assert stats == {"converted": 1, "failed": 0, "skipped": 0}
+    assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "batch ok\n"
+    assert not pdf.exists()
+
+
 def test_step_mineru_prefers_docling_when_configured(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
@@ -252,4 +325,84 @@ def test_step_mineru_skips_page_count_when_preferred_parser_bypasses_mineru(tmp_
     result = step_mineru(ctx)
 
     assert result == StepResult.OK
+    assert ctx.md_path == tmp_path / "paper.md"
+
+
+def test_step_mineru_cloud_does_not_split_pdf_below_new_cloud_limits(tmp_path, monkeypatch):
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    ctx = InboxCtx(
+        pdf_path=pdf,
+        inbox_dir=tmp_path,
+        papers_dir=tmp_path / "papers",
+        existing_dois={},
+        cfg=cfg,
+        opts={},
+    )
+
+    import scholaraio.ingest.mineru as mineru
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdf_cloud",
+        lambda pdf_path, *_args, **_kwargs: ConvertResult(
+            pdf_path=pdf_path, md_path=tmp_path / "paper.md", success=True
+        ),
+    )
+    monkeypatch.setattr(
+        mineru,
+        "_convert_long_pdf_cloud",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not split")),
+    )
+
+    result = step_mineru(ctx)
+
+    assert result == StepResult.OK
+    assert ctx.md_path == tmp_path / "paper.md"
+
+
+def test_step_mineru_cloud_splits_when_new_cloud_limits_require_it(tmp_path, monkeypatch):
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    ctx = InboxCtx(
+        pdf_path=pdf,
+        inbox_dir=tmp_path,
+        papers_dir=tmp_path / "papers",
+        existing_dois={},
+        cfg=cfg,
+        opts={},
+    )
+
+    import scholaraio.ingest.mineru as mineru
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdf_cloud",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should use split path")),
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_convert_long(pdf_path, opts, *, api_key, cloud_url, chunk_size):
+        captured["chunk_size"] = chunk_size
+        return ConvertResult(pdf_path=pdf_path, md_path=tmp_path / "paper.md", success=True)
+
+    monkeypatch.setattr(mineru, "_convert_long_pdf_cloud", fake_convert_long)
+
+    result = step_mineru(ctx)
+
+    assert result == StepResult.OK
+    assert captured["chunk_size"] == 320
     assert ctx.md_path == tmp_path / "paper.md"

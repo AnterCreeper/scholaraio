@@ -184,8 +184,9 @@ class IngestConfig:
         contact_email: Crossref polite pool 联系邮箱（User-Agent），建议放 config.local.yaml。
         s2_api_key: Semantic Scholar API 密钥，有 key 可大幅提升限速（1 req/s vs 100 req/5min）。
             建议放 config.local.yaml 或环境变量 ``S2_API_KEY``。
-        chunk_page_limit: 超长 PDF 自动切分的页数阈值。超过此值的 PDF 在 MinerU
-            转换前自动拆分为多个短 PDF，转换后合并为单个 Markdown。
+        chunk_page_limit: 本地 MinerU 对超长 PDF 的自动切分页数阈值。超过此值
+            的 PDF 在转换前自动拆分为多个短 PDF，转换后合并为单个 Markdown。
+            云端 MinerU 另外还会遵循 600 页 / 200MB 的官方单文件限制。
         mineru_batch_size: `mineru-open-api` 兼容层的分块大小，默认 20。
         mineru_upload_workers: 旧云 API 并发配置；为兼容保留。
         mineru_upload_retries: 旧云 API 上传重试配置；为兼容保留。
@@ -211,7 +212,7 @@ class IngestConfig:
     abstract_llm_mode: str = "verify"  # off | fallback | verify
     contact_email: str = ""
     s2_api_key: str = ""  # Semantic Scholar API key for higher rate limits
-    chunk_page_limit: int = 100  # auto-split PDFs exceeding this page count
+    chunk_page_limit: int = 100  # local MinerU auto-split threshold in pages
     mineru_batch_size: int = 20  # cloud batch size per request
     mineru_upload_workers: int = 4
     mineru_upload_retries: int = 3

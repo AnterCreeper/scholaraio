@@ -109,7 +109,7 @@ cp ~/.codex/scholaraio/config.yaml ~/.scholaraio/config.yaml
 
 |  | 功能 | 说明 |
 |--|------|------|
-| **PDF 解析** | 深度结构提取 | 优先使用 [MinerU](https://github.com/opendatalab/MinerU) 或 [Docling](https://github.com/docling-project/docling) 输出结构化 Markdown；若两者都不可用，ScholarAIO 会回退到 PyMuPDF 文本提取。使用 MinerU 时，超长 PDF（>100 页）会自动切分再合并 |
+| **PDF 解析** | 深度结构提取 | 优先使用 [MinerU](https://github.com/opendatalab/MinerU) 或 [Docling](https://github.com/docling-project/docling) 输出结构化 Markdown；若两者都不可用，ScholarAIO 会回退到 PyMuPDF 文本提取。使用 MinerU 时，本地后端会按 `chunk_page_limit`（默认 >100 页）自动切分，云端后端则同时遵循 `>600 页` 与 `>200MB` 两个限制并自动估算安全分片大小 |
 | **不只是论文** | 各种文档都能入 | 期刊论文、学位论文、专利、技术报告、标准、讲义——四种 inbox 分类入库，各有针对性的元数据处理 |
 | **融合检索** | 关键词 + 语义 | FTS5 + Qwen3 嵌入 + FAISS → RRF 排序融合 |
 | **主题发现** | 自动聚类 | BERTopic + 6 种交互式 HTML 可视化——同时支持主库和 explore 数据集 |

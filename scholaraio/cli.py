@@ -2653,7 +2653,15 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
     ui(f"已复制 PDF: {dest_pdf.name}")
 
     # Convert PDF → markdown via MinerU
-    from scholaraio.ingest.mineru import ConvertOptions, check_server, convert_pdf
+    from scholaraio.ingest.mineru import (
+        ConvertOptions,
+        _convert_long_pdf,
+        _convert_long_pdf_cloud,
+        _get_pdf_page_count,
+        _plan_cloud_chunking,
+        check_server,
+        convert_pdf,
+    )
     from scholaraio.ingest.pdf_fallback import (
         convert_pdf_with_fallback,
         preferred_parser_order,
@@ -2679,6 +2687,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         getattr(cfg.ingest, "pdf_fallback_order", None),
         auto_detect=fallback_auto_detect,
     )
+    local_chunk_limit = getattr(cfg.ingest, "chunk_page_limit", 100)
     if prefers_fallback_parser(getattr(cfg.ingest, "pdf_preferred_parser", "mineru")):
         ok, parser_name, fallback_err = convert_pdf_with_fallback(
             dest_pdf,
@@ -2692,7 +2701,12 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         ui(f"已按配置优先使用 {parser_name} 生成 paper.md")
         preferred_done = True
     elif check_server(cfg.ingest.mineru_endpoint):
-        result = convert_pdf(dest_pdf, mineru_opts)
+        page_count = _get_pdf_page_count(dest_pdf)
+        if page_count > local_chunk_limit:
+            ui(f"检测到长 PDF（{page_count} 页，超过 {local_chunk_limit} 页限制），正在分片处理...")
+            result = _convert_long_pdf(dest_pdf, mineru_opts, chunk_size=local_chunk_limit)
+        else:
+            result = convert_pdf(dest_pdf, mineru_opts)
     else:
         api_key = cfg.resolved_mineru_api_key()
         if not api_key:
@@ -2700,12 +2714,26 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         else:
             from scholaraio.ingest.mineru import convert_pdf_cloud
 
-            result = convert_pdf_cloud(
+            should_chunk, chunk_size, reason = _plan_cloud_chunking(
                 dest_pdf,
-                mineru_opts,
-                api_key=api_key,
-                cloud_url=cfg.ingest.mineru_cloud_url,
+                default_chunk_size=local_chunk_limit,
             )
+            if should_chunk:
+                ui(f"检测到云端需分片 PDF（{reason}），正在分片处理...")
+                result = _convert_long_pdf_cloud(
+                    dest_pdf,
+                    mineru_opts,
+                    api_key=api_key,
+                    cloud_url=cfg.ingest.mineru_cloud_url,
+                    chunk_size=chunk_size,
+                )
+            else:
+                result = convert_pdf_cloud(
+                    dest_pdf,
+                    mineru_opts,
+                    api_key=api_key,
+                    cloud_url=cfg.ingest.mineru_cloud_url,
+                )
 
     if not preferred_done and (result is None or not result.success):
         err = result.error if result is not None else "MinerU unavailable"

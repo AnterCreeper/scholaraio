@@ -317,7 +317,9 @@ data/inbox-doc/
 - paper_type 标记为 `document`（或 `technical-report` / `lecture-notes` 等具体类型）
 - 审计规则对 document / patent 类型不报 missing_doi 警告
 
-超长 PDF（默认 >100 页）自动切分为多个短 PDF 分段解析后合并。
+超长 PDF 会在 MinerU 转换前按需自动切分：
+- 本地 MinerU 遵循 `chunk_page_limit`（默认 >100 页）
+- MinerU 云端同时遵循其官方约束（>600 页或 >200MB），若仅超出文件大小限制，会根据平均每页大小估算更安全的分片页数
 
 ### data/pending/ 目录
 

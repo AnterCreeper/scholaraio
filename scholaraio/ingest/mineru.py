@@ -584,6 +584,59 @@ def _find_pdfs(dirpath: Path, recursive: bool = False) -> list[Path]:
 # ============================================================================
 
 DEFAULT_CHUNK_PAGES = 100
+MINERU_CLOUD_MAX_PAGES = 600
+MINERU_CLOUD_MAX_BYTES = 200 * 1024 * 1024
+
+
+def _get_pdf_size_bytes(pdf_path: Path) -> int:
+    """Return file size in bytes, or -1 when unavailable."""
+    try:
+        return pdf_path.stat().st_size
+    except OSError:
+        return -1
+
+
+def _fmt_mb(nbytes: int) -> str:
+    """Format bytes as MB with one decimal place."""
+    return f"{nbytes / (1024 * 1024):.1f} MB"
+
+
+def _plan_cloud_chunking(
+    pdf_path: Path,
+    *,
+    default_chunk_size: int = DEFAULT_CHUNK_PAGES,
+    max_pages: int = MINERU_CLOUD_MAX_PAGES,
+    max_bytes: int = MINERU_CLOUD_MAX_BYTES,
+) -> tuple[bool, int, str]:
+    """Decide whether MinerU cloud CLI should split a PDF and choose a chunk size.
+
+    Cloud extraction supports up to ``max_pages`` pages and ``max_bytes`` per document.
+    When only the file size is too large, estimate a page-based chunk size from the
+    average bytes per page. If page count is unavailable, fall back to
+    ``default_chunk_size``.
+    """
+    page_count = _get_pdf_page_count(pdf_path)
+    size_bytes = _get_pdf_size_bytes(pdf_path)
+
+    reasons: list[str] = []
+    if page_count > max_pages:
+        reasons.append(f"{page_count} pages > {max_pages}")
+    if size_bytes > max_bytes:
+        reasons.append(f"{_fmt_mb(size_bytes)} > {_fmt_mb(max_bytes)}")
+
+    if not reasons:
+        return False, max_pages, ""
+
+    chunk_size = max_pages
+    if size_bytes > max_bytes and page_count > 0:
+        avg_bytes_per_page = size_bytes / page_count
+        if avg_bytes_per_page > 0:
+            size_bound_pages = max(1, int(max_bytes // avg_bytes_per_page))
+            chunk_size = min(chunk_size, size_bound_pages)
+    elif size_bytes > max_bytes:
+        chunk_size = max(1, default_chunk_size)
+
+    return True, max(1, chunk_size), "; ".join(reasons)
 
 
 def _get_pdf_page_count(pdf_path: Path) -> int:
