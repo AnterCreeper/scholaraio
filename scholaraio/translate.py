@@ -351,7 +351,8 @@ class TranslateResult:
         path: Path to the translated file, or ``None`` if skipped/failed.
         skip_reason: Why the translation was skipped (one of ``SKIP_*`` constants),
             or empty string if translated successfully.
-        partial: ``True`` when some chunks failed and the output is mixed-language.
+        partial: ``True`` when translation was interrupted after some chunks were
+            written, so the output is resumable but incomplete.
     """
 
     path: Path | None = None
