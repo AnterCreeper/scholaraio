@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 
 import defusedxml.ElementTree as ET
 import requests
-from bs4 import BeautifulSoup
 from urllib3.util.retry import Retry
 
 _log = logging.getLogger(__name__)
@@ -156,6 +155,15 @@ def _guess_year_from_arxiv_id(arxiv_id: str) -> str:
     return ""
 
 
+def _load_beautiful_soup():
+    try:
+        from bs4 import BeautifulSoup
+    except ModuleNotFoundError as e:
+        _log.warning("缺少 beautifulsoup4，无法解析 arXiv recent 页面: %s", e)
+        return None
+    return BeautifulSoup
+
+
 def _search_arxiv_recent_page(query: str, category: str, top_k: int) -> list[dict]:
     if not category:
         return []
@@ -166,7 +174,11 @@ def _search_arxiv_recent_page(query: str, category: str, top_k: int) -> list[dic
         _log.warning("arXiv recent 页面不可用: %s", e)
         return []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    beautiful_soup = _load_beautiful_soup()
+    if beautiful_soup is None:
+        return []
+
+    soup = beautiful_soup(resp.text, "html.parser")
     items: list[dict] = []
     for dt, dd in zip(soup.find_all("dt"), soup.find_all("dd"), strict=False):
         id_link = dt.find("a", href=re.compile(r"^/abs/"))
@@ -300,6 +312,7 @@ def download_arxiv_pdf(arxiv_ref: str, dest_dir: str | Path, *, overwrite: bool 
     dest_root = Path(dest_dir)
     dest_root.mkdir(parents=True, exist_ok=True)
     out_path = dest_root / f"{canonical_id}.pdf"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists() and not overwrite:
         raise FileExistsError(f"文件已存在: {out_path}")
 

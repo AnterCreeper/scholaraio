@@ -5,6 +5,9 @@ All tests stub requests.get so no network access is required.
 
 from __future__ import annotations
 
+import builtins
+import importlib
+import sys
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
@@ -112,6 +115,21 @@ def _mock_response(xml_text: str, status_code: int = 200) -> MagicMock:
 
 
 class TestSearchArxivParsing:
+    def test_module_import_does_not_require_bs4(self, monkeypatch):
+        real_import = builtins.__import__
+        sys.modules.pop("scholaraio.sources.arxiv", None)
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "bs4":
+                raise ModuleNotFoundError("No module named 'bs4'")
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        module = importlib.import_module("scholaraio.sources.arxiv")
+
+        assert hasattr(module, "search_arxiv")
+
     def test_full_entry_fields(self):
         with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)):
             from scholaraio.sources.arxiv import search_arxiv
@@ -246,6 +264,29 @@ class TestSearchArxivParsing:
         assert results[0]["arxiv_id"] == "2603.25200"
         assert results[0]["year"] == "2026"
 
+    def test_search_recent_without_bs4_returns_empty(self, monkeypatch):
+        real_import = builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "bs4":
+                raise ModuleNotFoundError("No module named 'bs4'")
+            return real_import(name, globals, locals, fromlist, level)
+
+        responses = [
+            _mock_response("", status_code=429),
+            _mock_response(_RECENT_LIST_HTML),
+        ]
+        responses[0].raise_for_status.side_effect = Exception("429")
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", side_effect=responses):
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv("direct numerical", top_k=5, category="physics.flu-dyn", sort="recent")
+
+        assert results == []
+
 
 class TestNormalizeArxivRef:
     def test_accepts_bare_id(self):
@@ -320,3 +361,17 @@ class TestDownloadArxivPdf:
         args, kwargs = mocked_get.call_args
         assert args[0] == "https://arxiv.org/pdf/2603.25200.pdf"
         assert kwargs["stream"] is True
+
+    def test_download_old_style_id_creates_parent_dirs(self, tmp_path):
+        pdf_bytes = b"%PDF-1.4 old-style"
+        resp = MagicMock()
+        resp.iter_content.return_value = [pdf_bytes]
+        resp.raise_for_status = MagicMock()
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=resp):
+            from scholaraio.sources.arxiv import download_arxiv_pdf
+
+            out = download_arxiv_pdf("hep-th/9901001v1", tmp_path)
+
+        assert out == tmp_path / "hep-th" / "9901001.pdf"
+        assert out.read_bytes() == pdf_bytes
