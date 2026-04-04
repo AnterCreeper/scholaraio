@@ -24,11 +24,25 @@ LLM API key 查找顺序：
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+_log = logging.getLogger(__name__)
+
+VALID_LOCAL_MINERU_BACKENDS = {
+    "pipeline",
+    "vlm-auto-engine",
+    "vlm-http-client",
+    "hybrid-auto-engine",
+    "hybrid-http-client",
+}
+VALID_PDF_CLOUD_MODEL_VERSIONS = {"pipeline", "vlm"}
+VALID_MINERU_PARSE_METHODS = {"auto", "txt", "ocr"}
+VALID_PDF_PREFERRED_PARSERS = {"mineru", "docling", "pymupdf"}
 
 # ============================================================================
 #  Config dataclasses
@@ -153,12 +167,12 @@ class IngestConfig:
         mineru_api_key: MinerU 云 API 密钥，建议放 config.local.yaml 或环境变量。
         mineru_backend_local: 本地 MinerU backend（``pipeline`` | ``vlm-auto-engine`` |
             ``vlm-http-client`` | ``hybrid-auto-engine`` | ``hybrid-http-client``）。
-        mineru_model_version_cloud: 云端 MinerU model_version（``pipeline`` | ``vlm`` |
-            ``MinerU-HTML``）。
+        mineru_model_version_cloud: 云端 PDF 解析 model_version（``pipeline`` | ``vlm``）。
         mineru_lang: MinerU OCR 语言（``ch`` | ``en`` | ``latin`` 等）。
-        mineru_parse_method: 本地 MinerU 解析方式（``auto`` | ``txt`` | ``ocr``）。
-        mineru_enable_formula: 是否启用公式解析。
-        mineru_enable_table: 是否启用表格解析。
+        mineru_parse_method: 解析方式（``auto`` | ``txt`` | ``ocr``）。对云端精确解析 API，
+            仅 ``ocr`` 会映射为 ``file.is_ocr=true``。
+        mineru_enable_formula: 是否启用公式解析。仅对云端 ``pipeline``/``vlm`` 生效。
+        mineru_enable_table: 是否启用表格解析。仅对云端 ``pipeline``/``vlm`` 生效。
         abstract_llm_mode: abstract 提取时的 LLM 介入模式：
 
             - ``"off"``：纯正则，不使用 LLM。
@@ -170,7 +184,12 @@ class IngestConfig:
             建议放 config.local.yaml 或环境变量 ``S2_API_KEY``。
         chunk_page_limit: 超长 PDF 自动切分的页数阈值。超过此值的 PDF 在 MinerU
             转换前自动拆分为多个短 PDF，转换后合并为单个 Markdown。
-        mineru_batch_size: MinerU 云 API 每批提交文件数上限，默认 20。
+        mineru_batch_size: MinerU 云 API 每批提交文件数上限，范围 1-200，默认 20。
+        pdf_preferred_parser: 首选 PDF 解析器。默认优先 ``mineru``，也可显式设为
+            ``docling`` 或 ``pymupdf`` 跳过 MinerU。
+        pdf_fallback_order: MinerU 不可用或解析失败时的替代解析器顺序。
+            支持 ``docling`` / ``pymupdf`` / ``auto``。
+        pdf_fallback_auto_detect: 是否启用自动检测本机已安装的 fallback 解析器。
     """
 
     extractor: str = "robust"  # regex | auto | llm | robust
@@ -188,6 +207,9 @@ class IngestConfig:
     s2_api_key: str = ""  # Semantic Scholar API key for higher rate limits
     chunk_page_limit: int = 100  # auto-split PDFs exceeding this page count
     mineru_batch_size: int = 20  # cloud batch size per request
+    pdf_preferred_parser: str = "mineru"
+    pdf_fallback_order: list[str] = field(default_factory=lambda: ["auto"])
+    pdf_fallback_auto_detect: bool = True
 
 
 @dataclass
@@ -459,6 +481,54 @@ def _bool_or_default(value: object, default: bool) -> bool:
     return bool(value)
 
 
+def _normalize_choice(value: object, *, default: str, valid: set[str], field_name: str) -> str:
+    """Normalize a string choice with safe fallback."""
+    text = str(value or "").strip().lower()
+    if not text:
+        return default
+    if text in valid:
+        return text
+    _log.warning("invalid %s=%r, fallback to %s", field_name, value, default)
+    return default
+
+
+def _normalize_mineru_pdf_cloud_model_version(value: object) -> str:
+    """Normalize MinerU cloud model_version for ScholarAIO's PDF-only ingest flow."""
+    raw_text = str(value or "").strip()
+    if not raw_text:
+        return "pipeline"
+    text = raw_text.lower()
+    if text == "mineru-html":
+        _log.warning("MinerU-HTML is for HTML parsing, not PDF ingest; fallback to pipeline")
+        return "pipeline"
+    valid_versions = {version.lower() for version in VALID_PDF_CLOUD_MODEL_VERSIONS}
+    if text in valid_versions:
+        return text
+    _log.warning("invalid ingest.mineru_model_version_cloud=%r, fallback to pipeline", value)
+    return "pipeline"
+
+
+def _normalize_mineru_lang(value: object) -> str:
+    """Normalize MinerU language with a safe default."""
+    text = str(value or "").strip().lower()
+    return text or "ch"
+
+
+def _normalize_mineru_batch_size(value: object) -> int:
+    """Normalize MinerU cloud batch size to the official 1-200 range."""
+    try:
+        size = int(str(value or 20).strip())
+    except (TypeError, ValueError):
+        _log.warning("invalid ingest.mineru_batch_size=%r, fallback to 20", value)
+        return 20
+    if size <= 0:
+        return 20
+    if size > 200:
+        _log.warning("ingest.mineru_batch_size=%s exceeds MinerU limit 200, clamp to 200", size)
+        return 200
+    return size
+
+
 def _build_config(data: dict, root: Path) -> Config:
     """Build Config dataclass from raw dict."""
     paths_data = data.get("paths", {}) or {}
@@ -486,17 +556,37 @@ def _build_config(data: dict, root: Path) -> Config:
         mineru_endpoint=ingest_data.get("mineru_endpoint", "http://localhost:8000"),
         mineru_cloud_url=ingest_data.get("mineru_cloud_url", "https://mineru.net/api/v4"),
         mineru_api_key=ingest_data.get("mineru_api_key") or "",
-        mineru_backend_local=ingest_data.get("mineru_backend_local", "pipeline"),
-        mineru_model_version_cloud=ingest_data.get("mineru_model_version_cloud", "pipeline"),
-        mineru_lang=ingest_data.get("mineru_lang", "ch"),
-        mineru_parse_method=ingest_data.get("mineru_parse_method", "auto"),
+        mineru_backend_local=_normalize_choice(
+            ingest_data.get("mineru_backend_local", "pipeline"),
+            default="pipeline",
+            valid=VALID_LOCAL_MINERU_BACKENDS,
+            field_name="ingest.mineru_backend_local",
+        ),
+        mineru_model_version_cloud=_normalize_mineru_pdf_cloud_model_version(
+            ingest_data.get("mineru_model_version_cloud", "pipeline")
+        ),
+        mineru_lang=_normalize_mineru_lang(ingest_data.get("mineru_lang", "ch")),
+        mineru_parse_method=_normalize_choice(
+            ingest_data.get("mineru_parse_method", "auto"),
+            default="auto",
+            valid=VALID_MINERU_PARSE_METHODS,
+            field_name="ingest.mineru_parse_method",
+        ),
         mineru_enable_formula=_bool_or_default(ingest_data.get("mineru_enable_formula"), True),
         mineru_enable_table=_bool_or_default(ingest_data.get("mineru_enable_table"), True),
         abstract_llm_mode=ingest_data.get("abstract_llm_mode", "verify"),
         contact_email=ingest_data.get("contact_email") or "",
         s2_api_key=ingest_data.get("s2_api_key") or "",
-        mineru_batch_size=int(ingest_data.get("mineru_batch_size") or 20),
+        mineru_batch_size=_normalize_mineru_batch_size(ingest_data.get("mineru_batch_size")),
         chunk_page_limit=int(ingest_data.get("chunk_page_limit") or 100),
+        pdf_preferred_parser=_normalize_choice(
+            ingest_data.get("pdf_preferred_parser", "mineru"),
+            default="mineru",
+            valid=VALID_PDF_PREFERRED_PARSERS,
+            field_name="ingest.pdf_preferred_parser",
+        ),
+        pdf_fallback_order=_coerce_str_list(ingest_data.get("pdf_fallback_order"), default=["auto"]),
+        pdf_fallback_auto_detect=_bool_or_default(ingest_data.get("pdf_fallback_auto_detect"), True),
     )
 
     embed_data = data.get("embed", {}) or {}
@@ -565,3 +655,28 @@ def _build_config(data: dict, root: Path) -> Config:
         zotero=zotero,
         _root=root,
     )
+
+
+def _coerce_str_list(value, *, default: list[str]) -> list[str]:
+    """Normalize config values that accept either a string or a list of strings."""
+    if value is None:
+        return list(default)
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else list(default)
+    if isinstance(value, (list, tuple)):
+        result = []
+        for item in value:
+            if item is None or not isinstance(item, str):
+                continue
+            text = item.strip()
+            if text:
+                result.append(text)
+        return result or list(default)
+    _log.warning(
+        "invalid string-list config value %r (type=%s), fallback to default %r",
+        value,
+        type(value).__name__,
+        default,
+    )
+    return list(default)

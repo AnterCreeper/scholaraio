@@ -10,10 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **Semantic Scholar API key support**: Configure `ingest.s2_api_key` (or env var `S2_API_KEY`) to authenticate Semantic Scholar requests, increasing rate limits from 100 req/5min (public) to 1 req/s (authenticated); polite delay automatically reduced from 3s to 1s when key is present
+- **PDF parser benchmark harness**: Added `scholaraio/ingest/parser_matrix_benchmark.py` plus tests for comparing Docling / MinerU / PyMuPDF parser runs and configuration matrices
+- **Parser-aware setup guidance**: `scholaraio setup` and the setup skill now explain MinerU vs Docling selection, provide official deployment links, note that MinerU cloud API keys are free to apply for, and warn agent users about sandbox/network mis-detection
 
 ### Fixed
 
 - **Zotero LaTeX filename too long** ([#32](https://github.com/ZimoLiao/scholaraio/issues/32)): Titles containing LaTeX math (e.g. `$\mathrm{La}{\mathrm{BH}}_8$`) or HTML/MathML entities now get properly cleaned before directory naming; added 255-byte filename length limit as safety net
+- **PDF parser fallback flow**: Batch conversion and `attach-pdf` now follow the same MinerU → fallback behavior as the main ingest path; fallback assets are preserved; unsupported parser options from the previous broader design were removed so the active chain matches the current MinerU / Docling / PyMuPDF strategy
+- **Setup robustness for agents**: `setup` / `setup check` no longer fail hard when `metrics.db` is locked, parser recommendations honor an already-configured MinerU key before network probing, and interactive prompts treat EOF as empty input so agent-driven stdin does not crash the wizard
+- **Docs consistency**: README, README_CN, AGENTS, and CLAUDE now describe the current parser stack and setup behavior consistently
 
 ### Removed
 

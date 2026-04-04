@@ -2485,6 +2485,11 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
 
     # Convert PDF → markdown via MinerU
     from scholaraio.ingest.mineru import ConvertOptions, check_server, convert_pdf
+    from scholaraio.ingest.pdf_fallback import (
+        convert_pdf_with_fallback,
+        preferred_parser_order,
+        prefers_fallback_parser,
+    )
 
     mineru_opts = ConvertOptions(
         api_url=cfg.ingest.mineru_endpoint,
@@ -2497,31 +2502,61 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         table_enable=cfg.ingest.mineru_enable_table,
     )
 
-    if check_server(cfg.ingest.mineru_endpoint):
+    result = None
+    preferred_done = False
+    fallback_auto_detect = getattr(cfg.ingest, "pdf_fallback_auto_detect", True)
+    fallback_order = preferred_parser_order(
+        getattr(cfg.ingest, "pdf_preferred_parser", "mineru"),
+        getattr(cfg.ingest, "pdf_fallback_order", None),
+        auto_detect=fallback_auto_detect,
+    )
+    if prefers_fallback_parser(getattr(cfg.ingest, "pdf_preferred_parser", "mineru")):
+        ok, parser_name, fallback_err = convert_pdf_with_fallback(
+            dest_pdf,
+            existing_md,
+            parser_order=fallback_order,
+            auto_detect=fallback_auto_detect,
+        )
+        if not ok:
+            ui(f"首选解析器失败: {fallback_err}")
+            sys.exit(1)
+        ui(f"已按配置优先使用 {parser_name} 生成 paper.md")
+        preferred_done = True
+    elif check_server(cfg.ingest.mineru_endpoint):
         result = convert_pdf(dest_pdf, mineru_opts)
     else:
         api_key = cfg.resolved_mineru_api_key()
         if not api_key:
-            ui("错误：MinerU 不可达且无云 API key")
-            sys.exit(1)
-        from scholaraio.ingest.mineru import convert_pdf_cloud
+            ui("MinerU 不可达且无云 API key，改用 fallback 解析器")
+        else:
+            from scholaraio.ingest.mineru import convert_pdf_cloud
 
-        result = convert_pdf_cloud(
+            result = convert_pdf_cloud(
+                dest_pdf,
+                mineru_opts,
+                api_key=api_key,
+                cloud_url=cfg.ingest.mineru_cloud_url,
+            )
+
+    if not preferred_done and (result is None or not result.success):
+        err = result.error if result is not None else "MinerU unavailable"
+        ui(f"MinerU 转换失败，尝试 fallback: {err}")
+        ok, parser_name, fallback_err = convert_pdf_with_fallback(
             dest_pdf,
-            mineru_opts,
-            api_key=api_key,
-            cloud_url=cfg.ingest.mineru_cloud_url,
+            existing_md,
+            parser_order=fallback_order,
+            auto_detect=fallback_auto_detect,
         )
-
-    if not result.success:
-        ui(f"MinerU 转换失败: {result.error}")
-        sys.exit(1)
-
-    # Move/rename output to paper.md
-    if result.md_path and result.md_path != existing_md:
-        if existing_md.exists():
-            existing_md.unlink()
-        shutil.move(str(result.md_path), str(existing_md))
+        if not ok:
+            ui(f"fallback 解析失败: {fallback_err}")
+            sys.exit(1)
+        ui(f"已降级使用 {parser_name} 生成 paper.md")
+    elif result is not None:
+        # Move/rename output to paper.md
+        if result.md_path and result.md_path != existing_md:
+            if existing_md.exists():
+                existing_md.unlink()
+            shutil.move(str(result.md_path), str(existing_md))
 
     # Clean up MinerU artifacts (keep images/)
     for pattern in ["*_layout.json", "*_content_list.json", "*_origin.pdf"]:
@@ -3082,7 +3117,12 @@ def main() -> None:
     p_cc.add_argument("--ws", type=str, default=None, help="在指定工作区范围内验证")
 
     # --- setup ---
-    p_setup = sub.add_parser("setup", help="环境检测与安装向导 / Setup wizard")
+    p_setup = sub.add_parser(
+        "setup",
+        help="环境检测与安装向导 / Setup wizard",
+        description="默认进入交互式安装向导；使用 `check` 子命令仅做环境诊断。\n"
+        "Start the interactive setup wizard by default; use `check` for diagnostics only.",
+    )
     p_setup.set_defaults(func=cmd_setup)
     p_setup_sub = p_setup.add_subparsers(dest="setup_action")
     p_setup_check = p_setup_sub.add_parser("check", help="检查环境状态 / Check environment status")
@@ -3171,7 +3211,13 @@ def main() -> None:
     from scholaraio.ingest.metadata._models import configure_s2_session, configure_session
 
     session_id = _log.setup(cfg)
-    _metrics.init(cfg.metrics_db_path, session_id)
+    is_setup_cmd = args.command == "setup"
+    try:
+        _metrics.init(cfg.metrics_db_path, session_id)
+    except Exception as exc:
+        if not is_setup_cmd:
+            raise
+        ui(f"警告：metrics 初始化失败，已跳过，不影响 setup: {exc}")
     configure_session(cfg.ingest.contact_email)
     configure_s2_session(cfg.resolved_s2_api_key())
 
