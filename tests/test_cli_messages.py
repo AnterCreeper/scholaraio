@@ -49,6 +49,14 @@ class TestCliHelpLocalization:
         assert "实际执行迁移（默认先预览）" in migrate_help
         assert "dry-run" not in migrate_help
 
+    def test_toolref_fetch_help_uses_prefix_free_version_example(self):
+        parser = cli._build_parser()
+        toolref_parser = parser._subparsers._group_actions[0].choices["toolref"]
+        toolref_fetch = toolref_parser._subparsers._group_actions[0].choices["fetch"].format_help()
+
+        assert "版本号（如 7.5, 22Jul2025_update3）" in toolref_fetch
+        assert "stable_22Jul2025_update3" not in toolref_fetch
+
 
 class TestShowLayer4Headings:
     def test_translated_full_text_heading_uses_consistent_spacing(self, tmp_papers, monkeypatch):
@@ -165,6 +173,34 @@ class TestSearchResultFormatting:
 
         assert messages
         assert "( [])" not in messages[0]
+
+
+class TestToolrefCliMessages:
+    def test_toolref_show_output_is_localized(self, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+        monkeypatch.setattr(
+            "scholaraio.toolref.toolref_show",
+            lambda tool, *path, cfg=None: [
+                {
+                    "page_name": "pw.x/SYSTEM/ecutwfc",
+                    "section": "SYSTEM",
+                    "program": "pw.x",
+                    "synopsis": "wavefunction cutoff",
+                    "content": "content body",
+                }
+            ],
+        )
+
+        args = Namespace(toolref_action="show", tool="qe", path=["pw", "ecutwfc"])
+
+        cli.cmd_toolref(args, SimpleNamespace())
+
+        assert any("pw.x/SYSTEM/ecutwfc" in m for m in messages)
+        assert any("段落：" in m and "程序：" in m for m in messages)
+        assert all("📖" not in m for m in messages)
+        assert all("Namelist:" not in m for m in messages)
+        assert all("Program:" not in m for m in messages)
 
 
 class TestArxivCommands:

@@ -808,9 +808,9 @@ def cmd_toolref(args: argparse.Namespace, cfg) -> None:
                 return
             for r in results:
                 ui(f"\n{'=' * 60}")
-                ui(f"📖 {r['page_name']}")
+                ui(r["page_name"])
                 if r.get("section"):
-                    ui(f"   Namelist: {r['section']}  |  Program: {r.get('program', '')}")
+                    ui(f"   段落：{r['section']}  |  程序：{r.get('program', '')}")
                 if r.get("synopsis"):
                     ui(f"   {r['synopsis']}")
                 ui(f"{'─' * 60}")
@@ -3233,7 +3233,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_trf = p_tr_sub.add_parser("fetch", help="拉取工具文档（git clone → 提取 → 索引）")
     p_trf.add_argument("tool", help="工具名（qe/lammps/gromacs/openfoam/bioinformatics）")
-    p_trf.add_argument("--version", default=None, help="版本号（如 7.5, stable_22Jul2025_update3）")
+    p_trf.add_argument("--version", default=None, help="版本号（如 7.5, 22Jul2025_update3）")
     p_trf.add_argument("--force", action="store_true", help="强制重新拉取并覆盖本地缓存")
 
     p_trs = p_tr_sub.add_parser("show", help="查看指定命令/参数的文档")

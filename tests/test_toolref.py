@@ -1398,6 +1398,51 @@ def test_toolref_search_fallback_keeps_version_program_and_section_filters(tmp_p
     assert {row["section"] for row in rows} == {"SYSTEM"}
 
 
+def test_toolref_search_scores_each_row_once(tmp_path, monkeypatch, toolref_mod):
+    import sqlite3
+
+    from scholaraio import toolref as mod
+
+    paths_mod = toolref_mod["paths"]
+    search_mod = toolref_mod["search"]
+
+    monkeypatch.setattr(paths_mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
+    tdir = tmp_path / "lammps"
+    vdir = tdir / "stable"
+    vdir.mkdir(parents=True)
+    (tdir / "current").symlink_to(vdir, target_is_directory=True)
+
+    db = tdir / "toolref.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(mod._PAGES_SCHEMA)
+    conn.executescript(mod._FTS_SCHEMA)
+    conn.executescript(mod._FTS_TRIGGERS)
+    conn.executemany(
+        """INSERT INTO toolref_pages
+           (tool, version, program, section, page_name, title, synopsis, content)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            ("lammps", "stable", "lammps", "fix", "lammps/fix_nh", "fix nvt command", "alias", "fix npt"),
+            ("lammps", "stable", "lammps", "howto", "lammps/Howto_barostat", "Howto barostat", "notes", "npt"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    seen: list[str] = []
+
+    def fake_score(tool: str, normalized_query: str, expanded_query: str, row: sqlite3.Row) -> tuple[int, float]:
+        seen.append(row["page_name"])
+        return (10 if row["page_name"].endswith("fix_nh") else 5, float(row["rank"] or 0.0))
+
+    monkeypatch.setattr(search_mod, "_score_search_result", fake_score)
+
+    rows = search_mod.toolref_search("lammps", "fix npt", cfg=None)
+
+    assert rows
+    assert seen == ["lammps/fix_nh", "lammps/Howto_barostat"]
+
+
 def test_parse_gromacs_mdp_block_keeps_option_descriptions(tmp_path):
     rst = tmp_path / "mdp-options.rst"
     rst.write_text(

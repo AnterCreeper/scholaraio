@@ -2420,11 +2420,8 @@ def toolref_search(
             rows = []
 
     conn.close()
-    ranked_rows = sorted(
-        rows,
-        key=lambda row: (
-            -_score_search_result(tool, normalized_query.lower(), expanded_query.lower(), row)[0],
-            _score_search_result(tool, normalized_query.lower(), expanded_query.lower(), row)[1],
-        ),
-    )
-    return [dict(r) for r in ranked_rows[:top_k]]
+    scored_rows = [
+        (_score_search_result(tool, normalized_query.lower(), expanded_query.lower(), row), row) for row in rows
+    ]
+    scored_rows.sort(key=lambda item: (-item[0][0], item[0][1]))
+    return [dict(row) for _, row in scored_rows[:top_k]]
