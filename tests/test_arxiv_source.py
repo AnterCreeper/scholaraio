@@ -362,7 +362,7 @@ class TestDownloadArxivPdf:
         assert args[0] == "https://arxiv.org/pdf/2603.25200.pdf"
         assert kwargs["stream"] is True
 
-    def test_download_old_style_id_creates_parent_dirs(self, tmp_path):
+    def test_download_old_style_id_uses_flat_sanitized_filename(self, tmp_path):
         pdf_bytes = b"%PDF-1.4 old-style"
         resp = MagicMock()
         resp.iter_content.return_value = [pdf_bytes]
@@ -373,5 +373,5 @@ class TestDownloadArxivPdf:
 
             out = download_arxiv_pdf("hep-th/9901001v1", tmp_path)
 
-        assert out == tmp_path / "hep-th" / "9901001.pdf"
+        assert out == tmp_path / "hep-th_9901001.pdf"
         assert out.read_bytes() == pdf_bytes

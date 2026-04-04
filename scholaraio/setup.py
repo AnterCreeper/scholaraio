@@ -10,8 +10,9 @@ setup.py — ScholarAIO 环境检测与交互式安装向导
 from __future__ import annotations
 
 import contextlib
-import io
 import importlib
+import importlib.util
+import io
 import shutil
 import subprocess
 import sys

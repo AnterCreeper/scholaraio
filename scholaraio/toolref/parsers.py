@@ -86,7 +86,12 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
         if options_text:
             content_parts.append(options_text)
         content = "\n\n".join(content_parts)
-        return {"var_type": vtype, "default_val": default_val, "synopsis": synopsis, "content": content if content else f"{var_name}: {vtype}"}
+        return {
+            "var_type": vtype,
+            "default_val": default_val,
+            "synopsis": synopsis,
+            "content": content if content else f"{var_name}: {vtype}",
+        }
 
     pos = 0
     while pos < len(text):
@@ -102,7 +107,16 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
             block, end = _extract_braced(text, brace_start)
             parsed = _parse_var_block(f"-type {vm.group(2)} " + block if vm.group(2) else block, var_name)
             page_name = f"{program}/{current_namelist}/{var_name}".strip("/")
-            records.append({"program": program, "section": current_namelist, "page_name": page_name, "title": var_name, "category": "variable", **parsed})
+            records.append(
+                {
+                    "program": program,
+                    "section": current_namelist,
+                    "page_name": page_name,
+                    "title": var_name,
+                    "category": "variable",
+                    **parsed,
+                }
+            )
             pos = end
             continue
         dm = re.match(r"\s*dimension\s+([\w()]+)\s+.*?-type\s+(\S+)\s*\{", text[pos:])
@@ -112,7 +126,16 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
             block, end = _extract_braced(text, brace_start)
             parsed = _parse_var_block(f"-type {dm.group(2)} " + block, var_name)
             page_name = f"{program}/{current_namelist}/{var_name}".strip("/")
-            records.append({"program": program, "section": current_namelist, "page_name": page_name, "title": var_name, "category": "dimension", **parsed})
+            records.append(
+                {
+                    "program": program,
+                    "section": current_namelist,
+                    "page_name": page_name,
+                    "title": var_name,
+                    "category": "dimension",
+                    **parsed,
+                }
+            )
             pos = end
             continue
         vgm = re.match(r"\s*vargroup\s+.*?-type\s+(\S+)\s*\{", text[pos:])
@@ -124,7 +147,16 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
                 parsed = _parse_var_block(f"-type {vgm.group(1)} " + block, ", ".join(vg_vars))
                 for vn in vg_vars:
                     page_name = f"{program}/{current_namelist}/{vn}".strip("/")
-                    records.append({"program": program, "section": current_namelist, "page_name": page_name, "title": vn, "category": "vargroup", **parsed})
+                    records.append(
+                        {
+                            "program": program,
+                            "section": current_namelist,
+                            "page_name": page_name,
+                            "title": vn,
+                            "category": "vargroup",
+                            **parsed,
+                        }
+                    )
             pos = end
             continue
         cm = re.match(r"\s*card\s+([\w_]+)\s*\{", text[pos:])
@@ -133,7 +165,19 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
             brace_start = pos + cm.end() - 1
             block, end = _extract_braced(text, brace_start)
             page_name = f"{program}/card/{card_name}"
-            records.append({"program": program, "section": "card", "page_name": page_name, "title": card_name, "category": "card", "var_type": "", "default_val": "", "synopsis": f"Input card: {card_name}", "content": _clean_text(block)[:4000]})
+            records.append(
+                {
+                    "program": program,
+                    "section": "card",
+                    "page_name": page_name,
+                    "title": card_name,
+                    "category": "card",
+                    "var_type": "",
+                    "default_val": "",
+                    "synopsis": f"Input card: {card_name}",
+                    "content": _clean_text(block)[:4000],
+                }
+            )
             pos = end
             continue
         pos += 1
@@ -143,7 +187,11 @@ def _parse_qe_def(filepath: Path) -> list[dict]:
 def _parse_lammps_rst(filepath: Path) -> list[dict]:
     text = filepath.read_text(encoding="utf-8", errors="replace")
     stem = filepath.stem
-    commands = [c.strip() for c in re.findall(r"\.\.\s+index::\s+(.+)", text) if all(x not in c for x in ("/gpu", "/intel", "/kk", "/omp", "/opt"))]
+    commands = [
+        c.strip()
+        for c in re.findall(r"\.\.\s+index::\s+(.+)", text)
+        if all(x not in c for x in ("/gpu", "/intel", "/kk", "/omp", "/opt"))
+    ]
     alias_commands: list[str] = []
     for command in commands:
         normalized_command = _normalize_alias_phrase(command)
@@ -152,7 +200,18 @@ def _parse_lammps_rst(filepath: Path) -> list[dict]:
     title_match = re.search(r"^(.+?)\n={3,}", text, re.MULTILINE)
     title = title_match.group(1).strip() if title_match else stem
     category = "other"
-    for prefix in ("fix_", "compute_", "pair_", "bond_", "angle_", "dihedral_", "improper_", "dump_", "region_", "group_"):
+    for prefix in (
+        "fix_",
+        "compute_",
+        "pair_",
+        "bond_",
+        "angle_",
+        "dihedral_",
+        "improper_",
+        "dump_",
+        "region_",
+        "group_",
+    ):
         if stem.startswith(prefix):
             category = prefix.rstrip("_")
             break
@@ -185,7 +244,19 @@ def _parse_lammps_rst(filepath: Path) -> list[dict]:
     if "default" in sections:
         content_parts.append("Default:\n" + sections["default"][:300])
     content = "\n\n".join(content_parts) if content_parts else text[:2000]
-    return [{"program": "lammps", "section": category, "page_name": f"lammps/{stem}", "title": title, "category": category, "var_type": "", "default_val": sections.get("default", "")[:200].strip(), "synopsis": synopsis, "content": content}]
+    return [
+        {
+            "program": "lammps",
+            "section": category,
+            "page_name": f"lammps/{stem}",
+            "title": title,
+            "category": category,
+            "var_type": "",
+            "default_val": sections.get("default", "")[:200].strip(),
+            "synopsis": synopsis,
+            "content": content,
+        }
+    ]
 
 
 def _parse_gromacs_rst(filepath: Path) -> list[dict]:
@@ -215,7 +286,19 @@ def _parse_gromacs_rst(filepath: Path) -> list[dict]:
             synopsis = "MDP parameter"
             if values:
                 synopsis += f" | Options: {', '.join(values[:8])}"
-            records.append({"program": "gromacs", "section": "mdp", "page_name": f"gromacs/mdp/{param_name}", "title": param_name, "category": "mdp", "var_type": "", "default_val": "", "synopsis": synopsis, "content": f"{param_name}\n\n{cleaned[:3000]}"})
+            records.append(
+                {
+                    "program": "gromacs",
+                    "section": "mdp",
+                    "page_name": f"gromacs/mdp/{param_name}",
+                    "title": param_name,
+                    "category": "mdp",
+                    "var_type": "",
+                    "default_val": "",
+                    "synopsis": synopsis,
+                    "content": f"{param_name}\n\n{cleaned[:3000]}",
+                }
+            )
         return records
     title_match = re.search(r"^(.+?)\n={3,}", text, re.MULTILINE)
     title = title_match.group(1).strip() if title_match else stem
@@ -226,7 +309,19 @@ def _parse_gromacs_rst(filepath: Path) -> list[dict]:
         section = "reference-manual"
     elif "how-to" in str(filepath):
         section = "how-to"
-    records.append({"program": "gromacs", "section": section, "page_name": f"gromacs/{section}/{stem}", "title": title, "category": section, "var_type": "", "default_val": "", "synopsis": title, "content": text[:5000]})
+    records.append(
+        {
+            "program": "gromacs",
+            "section": section,
+            "page_name": f"gromacs/{section}/{stem}",
+            "title": title,
+            "category": section,
+            "var_type": "",
+            "default_val": "",
+            "synopsis": title,
+            "content": text[:5000],
+        }
+    )
     return records
 
 
@@ -316,7 +411,14 @@ def _clean_manifest_text(text: str, title: str, program: str) -> str:
 
 def _pick_manifest_synopsis(lines: list[str], title: str) -> str:
     for line in lines:
-        if not line or line == title or line.startswith("-") or line.startswith("/*") or line.startswith("|") or line.startswith("\\"):
+        if (
+            not line
+            or line == title
+            or line.startswith("-")
+            or line.startswith("/*")
+            or line.startswith("|")
+            or line.startswith("\\")
+        ):
             continue
         if line in {"Overview", "Usage", "Further information", "Input requirements", "Boundary conditions"}:
             continue
@@ -337,6 +439,20 @@ def _parse_manifest_html(filepath: Path) -> list[dict]:
     text = _clean_manifest_text(text, title, meta.get("program", ""))
     lines = [line for line in text.splitlines() if line.strip()]
     synopsis = _pick_manifest_synopsis(lines, title)
-    if meta.get("section") == "dictionary" and (not synopsis or synopsis in {"FoamFile"} or synopsis.startswith("/*") or synopsis.startswith("FoamFile")):
+    if meta.get("section") == "dictionary" and (
+        not synopsis or synopsis in {"FoamFile"} or synopsis.startswith("/*") or synopsis.startswith("FoamFile")
+    ):
         synopsis = f"{title} dictionary"
-    return [{"program": meta.get("program", ""), "section": meta.get("section", ""), "page_name": meta["page_name"], "title": title, "category": meta.get("section", ""), "var_type": "", "default_val": "", "synopsis": synopsis, "content": text[:5000]}]
+    return [
+        {
+            "program": meta.get("program", ""),
+            "section": meta.get("section", ""),
+            "page_name": meta["page_name"],
+            "title": title,
+            "category": meta.get("section", ""),
+            "var_type": "",
+            "default_val": "",
+            "synopsis": synopsis,
+            "content": text[:5000],
+        }
+    ]

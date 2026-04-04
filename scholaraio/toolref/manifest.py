@@ -129,41 +129,182 @@ def _load_manifest_cached_html(vdir: Path, page_name: str) -> str | None:
 def _build_openfoam_manifest(version: str) -> list[dict]:
     base = f"https://doc.openfoam.com/{version}"
     return [
-        {"program": "simpleFoam", "section": "solver", "page_name": "openfoam/simpleFoam", "title": "simpleFoam", "url": f"{base}/tools/processing/solvers/rtm/incompressible/simpleFoam/"},
-        {"program": "pimpleFoam", "section": "solver", "page_name": "openfoam/pimpleFoam", "title": "pimpleFoam", "url": f"{base}/tools/processing/solvers/rtm/incompressible/pimpleFoam/"},
-        {"program": "rhoSimpleFoam", "section": "solver", "page_name": "openfoam/rhoSimpleFoam", "title": "rhoSimpleFoam", "url": f"{base}/tools/processing/solvers/rtm/compressible/rhoSimpleFoam/"},
-        {"program": "blockMesh", "section": "mesh", "page_name": "openfoam/blockMesh", "title": "blockMesh", "url": f"{base}/tools/pre-processing/mesh/generation/blockMesh/blockmesh/"},
-        {"program": "snappyHexMesh", "section": "mesh", "page_name": "openfoam/snappyHexMesh", "title": "snappyHexMesh", "url": f"{base}/tools/pre-processing/mesh/generation/snappyhexmesh/"},
-        {"program": "controlDict", "section": "dictionary", "page_name": "openfoam/controlDict", "title": "controlDict", "url": f"{base}/fundamentals/case-structure/controldict/"},
-        {"program": "fvSchemes", "section": "dictionary", "page_name": "openfoam/fvSchemes", "title": "fvSchemes", "url": f"{base}/fundamentals/case-structure/fvschemes/"},
-        {"program": "fvSolution", "section": "dictionary", "page_name": "openfoam/fvSolution", "title": "fvSolution", "url": f"{base}/fundamentals/case-structure/fvsolution/"},
-        {"program": "kOmegaSST", "section": "model", "page_name": "openfoam/kOmegaSST", "title": "kOmegaSST", "url": f"{base}/tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/"},
-        {"program": "functionObjects", "section": "post-processing", "page_name": "openfoam/functionObjects", "title": "function objects", "url": f"{base}/tools/post-processing/function-objects/"},
-        {"program": "forces", "section": "post-processing", "page_name": "openfoam/forces", "title": "forces", "url": f"{base}/tools/post-processing/function-objects/forces/"},
-        {"program": "forceCoeffs", "section": "post-processing", "page_name": "openfoam/forceCoeffs", "title": "forceCoeffs", "url": f"{base}/tools/post-processing/function-objects/forces/forceCoeffs/"},
-        {"program": "Q", "section": "post-processing", "page_name": "openfoam/Q", "title": "Q", "url": f"{base}/tools/post-processing/function-objects/field/Q/"},
-        {"program": "yPlus", "section": "post-processing", "page_name": "openfoam/yPlus", "title": "yPlus", "url": f"{base}/tools/post-processing/function-objects/field/yPlus/"},
-        {"program": "wallShearStress", "section": "post-processing", "page_name": "openfoam/wallShearStress", "title": "wallShearStress", "url": f"{base}/tools/post-processing/function-objects/field/wallShearStress/"},
-        {"program": "residuals", "section": "solver-control", "page_name": "openfoam/residuals", "title": "Residuals", "url": f"{base}/tools/processing/numerics/solvers/residuals/"},
+        {
+            "program": "simpleFoam",
+            "section": "solver",
+            "page_name": "openfoam/simpleFoam",
+            "title": "simpleFoam",
+            "url": f"{base}/tools/processing/solvers/rtm/incompressible/simpleFoam/",
+        },
+        {
+            "program": "pimpleFoam",
+            "section": "solver",
+            "page_name": "openfoam/pimpleFoam",
+            "title": "pimpleFoam",
+            "url": f"{base}/tools/processing/solvers/rtm/incompressible/pimpleFoam/",
+        },
+        {
+            "program": "rhoSimpleFoam",
+            "section": "solver",
+            "page_name": "openfoam/rhoSimpleFoam",
+            "title": "rhoSimpleFoam",
+            "url": f"{base}/tools/processing/solvers/rtm/compressible/rhoSimpleFoam/",
+        },
+        {
+            "program": "blockMesh",
+            "section": "mesh",
+            "page_name": "openfoam/blockMesh",
+            "title": "blockMesh",
+            "url": f"{base}/tools/pre-processing/mesh/generation/blockMesh/blockmesh/",
+        },
+        {
+            "program": "snappyHexMesh",
+            "section": "mesh",
+            "page_name": "openfoam/snappyHexMesh",
+            "title": "snappyHexMesh",
+            "url": f"{base}/tools/pre-processing/mesh/generation/snappyhexmesh/",
+        },
+        {
+            "program": "controlDict",
+            "section": "dictionary",
+            "page_name": "openfoam/controlDict",
+            "title": "controlDict",
+            "url": f"{base}/fundamentals/case-structure/controldict/",
+        },
+        {
+            "program": "fvSchemes",
+            "section": "dictionary",
+            "page_name": "openfoam/fvSchemes",
+            "title": "fvSchemes",
+            "url": f"{base}/fundamentals/case-structure/fvschemes/",
+        },
+        {
+            "program": "fvSolution",
+            "section": "dictionary",
+            "page_name": "openfoam/fvSolution",
+            "title": "fvSolution",
+            "url": f"{base}/fundamentals/case-structure/fvsolution/",
+        },
+        {
+            "program": "kOmegaSST",
+            "section": "model",
+            "page_name": "openfoam/kOmegaSST",
+            "title": "kOmegaSST",
+            "url": f"{base}/tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/",
+        },
+        {
+            "program": "functionObjects",
+            "section": "post-processing",
+            "page_name": "openfoam/functionObjects",
+            "title": "function objects",
+            "url": f"{base}/tools/post-processing/function-objects/",
+        },
+        {
+            "program": "forces",
+            "section": "post-processing",
+            "page_name": "openfoam/forces",
+            "title": "forces",
+            "url": f"{base}/tools/post-processing/function-objects/forces/",
+        },
+        {
+            "program": "forceCoeffs",
+            "section": "post-processing",
+            "page_name": "openfoam/forceCoeffs",
+            "title": "forceCoeffs",
+            "url": f"{base}/tools/post-processing/function-objects/forces/forceCoeffs/",
+        },
+        {
+            "program": "Q",
+            "section": "post-processing",
+            "page_name": "openfoam/Q",
+            "title": "Q",
+            "url": f"{base}/tools/post-processing/function-objects/field/Q/",
+        },
+        {
+            "program": "yPlus",
+            "section": "post-processing",
+            "page_name": "openfoam/yPlus",
+            "title": "yPlus",
+            "url": f"{base}/tools/post-processing/function-objects/field/yPlus/",
+        },
+        {
+            "program": "wallShearStress",
+            "section": "post-processing",
+            "page_name": "openfoam/wallShearStress",
+            "title": "wallShearStress",
+            "url": f"{base}/tools/post-processing/function-objects/field/wallShearStress/",
+        },
+        {
+            "program": "residuals",
+            "section": "solver-control",
+            "page_name": "openfoam/residuals",
+            "title": "Residuals",
+            "url": f"{base}/tools/processing/numerics/solvers/residuals/",
+        },
     ]
 
 
 _OPENFOAM_CORE_PAGE_MAP: dict[str, tuple[str, str, str, str]] = {
-    "tools/processing/solvers/rtm/incompressible/simpleFoam/": ("openfoam/simpleFoam", "simpleFoam", "simpleFoam", "solver"),
-    "tools/processing/solvers/rtm/incompressible/pimpleFoam/": ("openfoam/pimpleFoam", "pimpleFoam", "pimpleFoam", "solver"),
-    "tools/processing/solvers/rtm/compressible/rhoSimpleFoam/": ("openfoam/rhoSimpleFoam", "rhoSimpleFoam", "rhoSimpleFoam", "solver"),
-    "tools/pre-processing/mesh/generation/blockMesh/blockmesh/": ("openfoam/blockMesh", "blockMesh", "blockMesh", "mesh"),
-    "tools/pre-processing/mesh/generation/snappyhexmesh/": ("openfoam/snappyHexMesh", "snappyHexMesh", "snappyHexMesh", "mesh"),
+    "tools/processing/solvers/rtm/incompressible/simpleFoam/": (
+        "openfoam/simpleFoam",
+        "simpleFoam",
+        "simpleFoam",
+        "solver",
+    ),
+    "tools/processing/solvers/rtm/incompressible/pimpleFoam/": (
+        "openfoam/pimpleFoam",
+        "pimpleFoam",
+        "pimpleFoam",
+        "solver",
+    ),
+    "tools/processing/solvers/rtm/compressible/rhoSimpleFoam/": (
+        "openfoam/rhoSimpleFoam",
+        "rhoSimpleFoam",
+        "rhoSimpleFoam",
+        "solver",
+    ),
+    "tools/pre-processing/mesh/generation/blockMesh/blockmesh/": (
+        "openfoam/blockMesh",
+        "blockMesh",
+        "blockMesh",
+        "mesh",
+    ),
+    "tools/pre-processing/mesh/generation/snappyhexmesh/": (
+        "openfoam/snappyHexMesh",
+        "snappyHexMesh",
+        "snappyHexMesh",
+        "mesh",
+    ),
     "fundamentals/case-structure/controldict/": ("openfoam/controlDict", "controlDict", "controlDict", "dictionary"),
     "fundamentals/case-structure/fvschemes/": ("openfoam/fvSchemes", "fvSchemes", "fvSchemes", "dictionary"),
     "fundamentals/case-structure/fvsolution/": ("openfoam/fvSolution", "fvSolution", "fvSolution", "dictionary"),
-    "tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/": ("openfoam/kOmegaSST", "kOmegaSST", "kOmegaSST", "model"),
-    "tools/post-processing/function-objects/": ("openfoam/functionObjects", "functionObjects", "function objects", "post-processing"),
+    "tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/": (
+        "openfoam/kOmegaSST",
+        "kOmegaSST",
+        "kOmegaSST",
+        "model",
+    ),
+    "tools/post-processing/function-objects/": (
+        "openfoam/functionObjects",
+        "functionObjects",
+        "function objects",
+        "post-processing",
+    ),
     "tools/post-processing/function-objects/forces/": ("openfoam/forces", "forces", "forces", "post-processing"),
-    "tools/post-processing/function-objects/forces/forceCoeffs/": ("openfoam/forceCoeffs", "forceCoeffs", "forceCoeffs", "post-processing"),
+    "tools/post-processing/function-objects/forces/forceCoeffs/": (
+        "openfoam/forceCoeffs",
+        "forceCoeffs",
+        "forceCoeffs",
+        "post-processing",
+    ),
     "tools/post-processing/function-objects/field/Q/": ("openfoam/Q", "Q", "Q", "post-processing"),
     "tools/post-processing/function-objects/field/yPlus/": ("openfoam/yPlus", "yPlus", "yPlus", "post-processing"),
-    "tools/post-processing/function-objects/field/wallShearStress/": ("openfoam/wallShearStress", "wallShearStress", "wallShearStress", "post-processing"),
+    "tools/post-processing/function-objects/field/wallShearStress/": (
+        "openfoam/wallShearStress",
+        "wallShearStress",
+        "wallShearStress",
+        "post-processing",
+    ),
     "tools/processing/numerics/solvers/residuals/": ("openfoam/residuals", "residuals", "Residuals", "solver-control"),
 }
 
@@ -197,7 +338,7 @@ def _is_openfoam_doc_path_allowed(rel_path: str) -> bool:
 
 def _extract_openfoam_doc_links(html: str, version: str, *, base_url: str = "https://doc.openfoam.com") -> list[str]:
     links: list[str] = []
-    for match in re.finditer(r'''href=["\']([^"\'#?]+(?:/)?(?:#[^"\']*)?)["\']''', html, re.IGNORECASE):
+    for match in re.finditer(r"""href=["\']([^"\'#?]+(?:/)?(?:#[^"\']*)?)["\']""", html, re.IGNORECASE):
         normalized = _normalize_openfoam_doc_url(match.group(1), version, base_url=base_url)
         if not normalized:
             continue
@@ -294,19 +435,99 @@ def _discover_openfoam_manifest(version: str, session: requests.Session) -> list
 
 def _build_bioinformatics_manifest(_version: str) -> list[dict]:
     return [
-        {"program": "blastn", "section": "alignment", "page_name": "blast/blastn", "title": "BLAST+ user manual", "url": "https://www.ncbi.nlm.nih.gov/books/NBK279690/"},
-        {"program": "minimap2", "section": "alignment", "page_name": "minimap2/manual", "title": "minimap2 manual", "url": "https://lh3.github.io/minimap2/minimap2.html", "fallback_urls": ["https://github.com/lh3/minimap2#readme"]},
-        {"program": "samtools", "section": "alignment", "page_name": "samtools/manual", "title": "samtools manual", "url": "https://www.htslib.org/doc/samtools.html"},
-        {"program": "samtools", "section": "alignment", "page_name": "samtools/sort", "title": "samtools sort", "url": "https://www.htslib.org/doc/samtools-sort.html"},
-        {"program": "samtools", "section": "alignment", "page_name": "samtools/view", "title": "samtools view", "url": "https://www.htslib.org/doc/samtools-view.html"},
-        {"program": "samtools", "section": "alignment", "page_name": "samtools/index", "title": "samtools index", "url": "https://www.htslib.org/doc/samtools-index.html"},
-        {"program": "bcftools", "section": "variant-calling", "page_name": "bcftools/manual", "title": "bcftools manual", "url": "https://samtools.github.io/bcftools/bcftools.html"},
-        {"program": "bcftools", "section": "variant-calling", "page_name": "bcftools/call", "title": "bcftools call", "url": "https://samtools.github.io/bcftools/bcftools.html#call"},
-        {"program": "bcftools", "section": "variant-calling", "page_name": "bcftools/mpileup", "title": "bcftools mpileup", "url": "https://samtools.github.io/bcftools/bcftools.html#mpileup"},
-        {"program": "mafft", "section": "phylogenetics", "page_name": "mafft/manual", "title": "MAFFT manual", "url": "https://mafft.cbrc.jp/alignment/software/multithreading.html"},
-        {"program": "iqtree", "section": "phylogenetics", "page_name": "iqtree/command-reference", "title": "IQ-TREE command reference", "url": "https://iqtree.github.io/doc/Command-Reference"},
-        {"program": "iqtree", "section": "phylogenetics", "page_name": "iqtree/ultrafast-bootstrap", "title": "IQ-TREE ultrafast bootstrap", "url": "https://iqtree.github.io/doc/Command-Reference#ultrafast-bootstrap-parameters", "anchor": "ultrafast-bootstrap-parameters"},
-        {"program": "esmfold", "section": "protein-structure", "page_name": "esmfold/huggingface-doc", "title": "ESM / ESMFold documentation", "url": "https://huggingface.co/docs/transformers/model_doc/esm"},
+        {
+            "program": "blastn",
+            "section": "alignment",
+            "page_name": "blast/blastn",
+            "title": "BLAST+ user manual",
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK279690/",
+        },
+        {
+            "program": "minimap2",
+            "section": "alignment",
+            "page_name": "minimap2/manual",
+            "title": "minimap2 manual",
+            "url": "https://lh3.github.io/minimap2/minimap2.html",
+            "fallback_urls": ["https://github.com/lh3/minimap2#readme"],
+        },
+        {
+            "program": "samtools",
+            "section": "alignment",
+            "page_name": "samtools/manual",
+            "title": "samtools manual",
+            "url": "https://www.htslib.org/doc/samtools.html",
+        },
+        {
+            "program": "samtools",
+            "section": "alignment",
+            "page_name": "samtools/sort",
+            "title": "samtools sort",
+            "url": "https://www.htslib.org/doc/samtools-sort.html",
+        },
+        {
+            "program": "samtools",
+            "section": "alignment",
+            "page_name": "samtools/view",
+            "title": "samtools view",
+            "url": "https://www.htslib.org/doc/samtools-view.html",
+        },
+        {
+            "program": "samtools",
+            "section": "alignment",
+            "page_name": "samtools/index",
+            "title": "samtools index",
+            "url": "https://www.htslib.org/doc/samtools-index.html",
+        },
+        {
+            "program": "bcftools",
+            "section": "variant-calling",
+            "page_name": "bcftools/manual",
+            "title": "bcftools manual",
+            "url": "https://samtools.github.io/bcftools/bcftools.html",
+        },
+        {
+            "program": "bcftools",
+            "section": "variant-calling",
+            "page_name": "bcftools/call",
+            "title": "bcftools call",
+            "url": "https://samtools.github.io/bcftools/bcftools.html#call",
+        },
+        {
+            "program": "bcftools",
+            "section": "variant-calling",
+            "page_name": "bcftools/mpileup",
+            "title": "bcftools mpileup",
+            "url": "https://samtools.github.io/bcftools/bcftools.html#mpileup",
+        },
+        {
+            "program": "mafft",
+            "section": "phylogenetics",
+            "page_name": "mafft/manual",
+            "title": "MAFFT manual",
+            "url": "https://mafft.cbrc.jp/alignment/software/multithreading.html",
+        },
+        {
+            "program": "iqtree",
+            "section": "phylogenetics",
+            "page_name": "iqtree/command-reference",
+            "title": "IQ-TREE command reference",
+            "url": "https://iqtree.github.io/doc/Command-Reference",
+        },
+        {
+            "program": "iqtree",
+            "section": "phylogenetics",
+            "page_name": "iqtree/ultrafast-bootstrap",
+            "title": "IQ-TREE ultrafast bootstrap",
+            "url": "https://iqtree.github.io/doc/Command-Reference#ultrafast-bootstrap-parameters",
+            "anchor": "ultrafast-bootstrap-parameters",
+        },
+        {
+            "program": "esmfold",
+            "section": "protein-structure",
+            "page_name": "esmfold/huggingface-doc",
+            "title": "ESM / ESMFold documentation",
+            "url": "https://huggingface.co/docs/transformers/model_doc/esm",
+        },
     ]
 
 
@@ -338,7 +559,11 @@ def _has_local_docs(tool: str, version: str, cfg: Config | None = None) -> bool:
     if info["format"] == "rst":
         return any((vdir / "src").rglob("*.rst"))
     if info["format"] == "html":
-        page_count = _manifest_page_count(vdir) if info.get("source_type") == "manifest" else len(list((vdir / "pages").glob("*.html")))
+        page_count = (
+            _manifest_page_count(vdir)
+            if info.get("source_type") == "manifest"
+            else len(list((vdir / "pages").glob("*.html")))
+        )
         if not page_count:
             return False
         if info.get("source_type") == "manifest":
@@ -392,7 +617,9 @@ def _extract_html_anchor_fragment(html: str, anchor: str) -> str:
     return body
 
 
-def _discover_bioinformatics_manifest(version: str, session: requests.Session, base_manifest: list[dict], *, cache_vdir: Path | None = None) -> tuple[list[dict], dict[str, str]]:
+def _discover_bioinformatics_manifest(
+    version: str, session: requests.Session, base_manifest: list[dict], *, cache_vdir: Path | None = None
+) -> tuple[list[dict], dict[str, str]]:
     del version
     prefetched_html: dict[str, str] = {}
     manifest_by_page = {item["page_name"]: dict(item) for item in base_manifest}
@@ -420,18 +647,39 @@ def _discover_bioinformatics_manifest(version: str, session: requests.Session, b
             seen_links.add(rel)
             subcmd = rel.removeprefix("samtools-").removesuffix(".html")
             page_name = f"samtools/{subcmd}"
-            manifest_by_page.setdefault(page_name, {"program": "samtools", "section": "alignment", "page_name": page_name, "title": f"samtools {subcmd}", "url": f"https://www.htslib.org/doc/{rel}"})
+            manifest_by_page.setdefault(
+                page_name,
+                {
+                    "program": "samtools",
+                    "section": "alignment",
+                    "page_name": page_name,
+                    "title": f"samtools {subcmd}",
+                    "url": f"https://www.htslib.org/doc/{rel}",
+                },
+            )
     bcftools_html = prefetched_html.get("https://samtools.github.io/bcftools/bcftools.html")
     if bcftools_html:
         for heading in _extract_html_headings_with_ids(bcftools_html):
             hid = heading["id"]
             if hid.startswith("_"):
                 continue
-            if not (heading["title"].lower().startswith("bcftools ") or hid in {"common_options", "expressions", "terminology"}):
+            if not (
+                heading["title"].lower().startswith("bcftools ")
+                or hid in {"common_options", "expressions", "terminology"}
+            ):
                 continue
             page_name = f"bcftools/{hid.replace('_', '-')}"
             item = manifest_by_page.get(page_name, {})
-            item.update({"program": "bcftools", "section": "variant-calling", "page_name": page_name, "title": heading["title"], "url": f"https://samtools.github.io/bcftools/bcftools.html#{hid}", "anchor": hid})
+            item.update(
+                {
+                    "program": "bcftools",
+                    "section": "variant-calling",
+                    "page_name": page_name,
+                    "title": heading["title"],
+                    "url": f"https://samtools.github.io/bcftools/bcftools.html#{hid}",
+                    "anchor": hid,
+                }
+            )
             manifest_by_page[page_name] = item
     iqtree_html = prefetched_html.get("https://iqtree.github.io/doc/Command-Reference")
     if iqtree_html:
@@ -441,7 +689,16 @@ def _discover_bioinformatics_manifest(version: str, session: requests.Session, b
                 continue
             page_name = f"iqtree/{hid.replace('_', '-').replace(' ', '-')}"
             item = manifest_by_page.get(page_name, {})
-            item.update({"program": "iqtree", "section": "phylogenetics", "page_name": page_name, "title": heading["title"], "url": f"https://iqtree.github.io/doc/Command-Reference#{hid}", "anchor": hid})
+            item.update(
+                {
+                    "program": "iqtree",
+                    "section": "phylogenetics",
+                    "page_name": page_name,
+                    "title": heading["title"],
+                    "url": f"https://iqtree.github.io/doc/Command-Reference#{hid}",
+                    "anchor": hid,
+                }
+            )
             manifest_by_page[page_name] = item
     for page_name, alias in _BIO_DISCOVERED_PAGE_ALIASES.items():
         if page_name not in manifest_by_page or alias["source_page"] not in manifest_by_page:

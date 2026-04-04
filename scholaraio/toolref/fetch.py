@@ -115,7 +115,9 @@ def _fetch_manifest_docs(tool: str, info: dict, version: str, force: bool, cfg: 
     prefetched_manifest_pages: dict[str, str] = {}
 
     if tool == "openfoam" and manifest == manifest_mod._build_openfoam_manifest(version):
-        discovered_manifest, prefetched_manifest_pages = manifest_mod._discover_openfoam_manifest_bundle(version, session)
+        discovered_manifest, prefetched_manifest_pages = manifest_mod._discover_openfoam_manifest_bundle(
+            version, session
+        )
         if discovered_manifest:
             manifest = discovered_manifest
     elif tool == "bioinformatics" and manifest == manifest_mod._build_bioinformatics_manifest(version):
@@ -140,7 +142,9 @@ def _fetch_manifest_docs(tool: str, info: dict, version: str, force: bool, cfg: 
             urls = [item["url"], *item.get("fallback_urls", [])]
             primary_url = item["url"]
             base_url = primary_url.split("#", 1)[0]
-            body_text: str | None = prefetched_manifest_pages.get(primary_url) or prefetched_manifest_pages.get(base_url)
+            body_text: str | None = prefetched_manifest_pages.get(primary_url) or prefetched_manifest_pages.get(
+                base_url
+            )
             successful_url = primary_url if body_text is not None else None
             last_error: Exception | None = None
 

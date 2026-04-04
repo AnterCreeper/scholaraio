@@ -58,7 +58,7 @@ def test_toolref_package_compat_for_default_dir_and_requests(tmp_path, toolref_m
     original_root = paths_mod._DEFAULT_TOOLREF_DIR
     try:
         mod._DEFAULT_TOOLREF_DIR = tmp_path
-        assert paths_mod._DEFAULT_TOOLREF_DIR == tmp_path
+        assert tmp_path == paths_mod._DEFAULT_TOOLREF_DIR
         assert mod._db_path("qe") == tmp_path / "qe" / "toolref.db"
         assert mod.requests is fetch_mod.requests
     finally:
@@ -173,9 +173,7 @@ def test_ensure_db_drops_legacy_fts_triggers(tmp_path):
     try:
         trigger_names = {
             row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY name"
-            ).fetchall()
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()
         }
         assert "toolref_ai" not in trigger_names
         assert "toolref_ad" not in trigger_names
@@ -582,7 +580,6 @@ def test_discover_bioinformatics_manifest_reuses_cached_seed_pages(tmp_path):
 
 
 def test_toolref_fetch_bioinformatics_reuses_prefetched_seed_html_for_anchor_pages(tmp_path, monkeypatch, toolref_mod):
-    mod = toolref_mod["api"]
     paths_mod = toolref_mod["paths"]
     fetch_mod = toolref_mod["fetch"]
 
@@ -752,7 +749,6 @@ def test_parse_manifest_html_uses_dictionary_synopsis(tmp_path):
 
 
 def test_toolref_fetch_manifest_force_rebuilds_pages(tmp_path, monkeypatch, toolref_mod):
-    mod = toolref_mod["api"]
     paths_mod = toolref_mod["paths"]
     fetch_mod = toolref_mod["fetch"]
 
@@ -869,7 +865,6 @@ def test_toolref_list_reconciles_stale_manifest_meta_with_snapshot(tmp_path, mon
 
 
 def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkeypatch, toolref_mod):
-    mod = toolref_mod["api"]
     paths_mod = toolref_mod["paths"]
     fetch_mod = toolref_mod["fetch"]
 
@@ -937,7 +932,9 @@ def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkey
         encoding="utf-8",
     )
     monkeypatch.setattr(fetch_mod.requests, "Session", FakeSession)
-    monkeypatch.setattr(fetch_mod, "_index_tool", lambda tool, version, cfg=None: fetch_mod.manifest_mod._manifest_page_count(vdir))
+    monkeypatch.setattr(
+        fetch_mod, "_index_tool", lambda tool, version, cfg=None: fetch_mod.manifest_mod._manifest_page_count(vdir)
+    )
     monkeypatch.setattr(fetch_mod.storage_mod, "_set_current", lambda tool, version, cfg=None: None)
 
     count = toolref_fetch("bioinformatics", version="2026-03-curated", force=True, cfg=None)
@@ -950,7 +947,6 @@ def test_toolref_fetch_manifest_force_keeps_more_complete_cache(tmp_path, monkey
 
 
 def test_toolref_fetch_manifest_force_preserves_failed_pages_from_existing_cache(tmp_path, monkeypatch, toolref_mod):
-    mod = toolref_mod["api"]
     paths_mod = toolref_mod["paths"]
     fetch_mod = toolref_mod["fetch"]
 
@@ -1039,7 +1035,6 @@ def test_toolref_fetch_manifest_force_preserves_failed_pages_from_existing_cache
 
 
 def test_toolref_fetch_manifest_uses_fallback_urls(tmp_path, monkeypatch, toolref_mod):
-    mod = toolref_mod["api"]
     paths_mod = toolref_mod["paths"]
     fetch_mod = toolref_mod["fetch"]
 
@@ -1324,6 +1319,85 @@ def test_toolref_search_lammps_boosts_exact_alias_match(tmp_path, monkeypatch, t
     assert rows[0]["page_name"] == "lammps/fix_nh"
 
 
+def test_toolref_search_fallback_keeps_version_program_and_section_filters(tmp_path, monkeypatch, toolref_mod):
+    import sqlite3
+
+    from scholaraio import toolref as mod
+
+    paths_mod = toolref_mod["paths"]
+
+    monkeypatch.setattr(paths_mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
+    tdir = tmp_path / "qe"
+    vdir = tdir / "7.5"
+    other_vdir = tdir / "7.4"
+    vdir.mkdir(parents=True)
+    other_vdir.mkdir(parents=True)
+    (tdir / "current").symlink_to(vdir, target_is_directory=True)
+
+    db = tdir / "toolref.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(mod._PAGES_SCHEMA)
+    conn.executescript(mod._FTS_SCHEMA)
+    conn.executescript(mod._FTS_TRIGGERS)
+    conn.executemany(
+        """INSERT INTO toolref_pages
+           (tool, version, program, section, page_name, title, synopsis, content)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            (
+                "qe",
+                "7.5",
+                "pw.x",
+                "SYSTEM",
+                "pw.x/SYSTEM/ecutwfc",
+                "pw.x ecutwfc",
+                "pw.x system cutoff",
+                "pw.x cutoff variable",
+            ),
+            (
+                "qe",
+                "7.4",
+                "pw.x",
+                "SYSTEM",
+                "pw.x/SYSTEM/legacy",
+                "pw.x legacy",
+                "pw.x old version",
+                "pw.x legacy variable",
+            ),
+            (
+                "qe",
+                "7.5",
+                "cp.x",
+                "SYSTEM",
+                "cp.x/SYSTEM/other",
+                "cp.x mentions pw.x",
+                "cp.x unrelated page",
+                "pw.x appears here but should be filtered out",
+            ),
+            (
+                "qe",
+                "7.5",
+                "pw.x",
+                "ELECTRONS",
+                "pw.x/ELECTRONS/conv_thr",
+                "pw.x conv_thr",
+                "pw.x wrong section",
+                "pw.x wrong section result",
+            ),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    rows = toolref_search("qe", "pw.x", program="pw.x", section="SYSTEM", cfg=None)
+
+    assert rows
+    assert [row["page_name"] for row in rows] == ["pw.x/SYSTEM/ecutwfc"]
+    assert {row["version"] for row in rows} == {"7.5"}
+    assert {row["program"] for row in rows} == {"pw.x"}
+    assert {row["section"] for row in rows} == {"SYSTEM"}
+
+
 def test_parse_gromacs_mdp_block_keeps_option_descriptions(tmp_path):
     rst = tmp_path / "mdp-options.rst"
     rst.write_text(
@@ -1389,9 +1463,9 @@ def test_score_search_result_matches_legacy_for_lammps_alias_row(toolref_mod):
         "rank": -4.8,
     }
 
-    assert search_mod._score_search_result("lammps", normalized_query, expanded_query, row) == legacy_mod._score_search_result(
+    assert search_mod._score_search_result(
         "lammps", normalized_query, expanded_query, row
-    )
+    ) == legacy_mod._score_search_result("lammps", normalized_query, expanded_query, row)
 
 
 def test_score_search_result_matches_legacy_for_openfoam_row(toolref_mod):
@@ -1411,9 +1485,9 @@ def test_score_search_result_matches_legacy_for_openfoam_row(toolref_mod):
         "rank": -7.1,
     }
 
-    assert search_mod._score_search_result("openfoam", normalized_query, expanded_query, row) == legacy_mod._score_search_result(
+    assert search_mod._score_search_result(
         "openfoam", normalized_query, expanded_query, row
-    )
+    ) == legacy_mod._score_search_result("openfoam", normalized_query, expanded_query, row)
 
 
 def test_toolref_search_matches_legacy_tie_break_order(tmp_path, monkeypatch, toolref_mod):

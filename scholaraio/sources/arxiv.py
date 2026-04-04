@@ -83,6 +83,11 @@ def normalize_arxiv_ref(ref: str) -> str:
     return ""
 
 
+def _pdf_filename_for_arxiv_id(arxiv_id: str) -> str:
+    """Map a canonical arXiv ID to a flat PDF filename."""
+    return arxiv_id.replace("/", "_") + ".pdf"
+
+
 def _parse_entry(entry: ET.Element) -> dict:
     title_el = entry.find("atom:title", _NS)
     title = (title_el.text or "").strip().replace("\n", " ") if title_el is not None else ""
@@ -311,7 +316,7 @@ def download_arxiv_pdf(arxiv_ref: str, dest_dir: str | Path, *, overwrite: bool 
 
     dest_root = Path(dest_dir)
     dest_root.mkdir(parents=True, exist_ok=True)
-    out_path = dest_root / f"{canonical_id}.pdf"
+    out_path = dest_root / _pdf_filename_for_arxiv_id(canonical_id)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists() and not overwrite:
         raise FileExistsError(f"文件已存在: {out_path}")

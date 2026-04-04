@@ -164,10 +164,14 @@ def _score_search_result(tool: str, normalized_query: str, expanded_query: str, 
         if normalized_query == "temperature coupling" and page_name.endswith("/tcoupl"):
             score += 90
     if tool == "bioinformatics":
-        if ("multiple sequence alignment" in normalized_query or normalized_query.startswith("msa")) and program == "mafft":
+        if (
+            "multiple sequence alignment" in normalized_query or normalized_query.startswith("msa")
+        ) and program == "mafft":
             score += 140
         if (
-            "bam indexing" in normalized_query or "samtools index" in normalized_query or "index bam" in normalized_query
+            "bam indexing" in normalized_query
+            or "samtools index" in normalized_query
+            or "index bam" in normalized_query
         ) and page_name.endswith("/index"):
             score += 140
         if (
@@ -176,10 +180,67 @@ def _score_search_result(tool: str, normalized_query: str, expanded_query: str, 
             score += 120
         if ("variant calling" in normalized_query or "vcf" in normalized_query) and program == "bcftools":
             score += 110
-        if ("phylogenetic tree" in normalized_query or "ultrafast bootstrap" in normalized_query) and program == "iqtree":
+        if (
+            "phylogenetic tree" in normalized_query or "ultrafast bootstrap" in normalized_query
+        ) and program == "iqtree":
             score += 120
 
     return score, rank
+
+
+def _build_toolref_search_sql(
+    match_query: str,
+    tool: str,
+    version: str | None,
+    program: str | None,
+    section: str | None,
+    normalized_query: str,
+    alias_phrase: str,
+    top_k: int,
+) -> tuple[str, list]:
+    sql = """
+        SELECT p.*, rank
+        FROM toolref_fts f
+        JOIN toolref_pages p ON f.rowid = p.id
+        WHERE toolref_fts MATCH ?
+          AND p.tool = ?
+    """
+    params: list = [match_query, tool]
+
+    if version:
+        sql += " AND p.version = ?"
+        params.append(version)
+    if program:
+        prog = _normalize_program_filter(tool, program)
+        sql += " AND LOWER(p.program) = ?"
+        params.append(prog)
+    if section:
+        sql += " AND LOWER(p.section) = ?"
+        params.append(section.lower())
+
+    sql += """
+        ORDER BY
+          CASE
+            WHEN LOWER(p.title) = ? THEN 0
+            WHEN LOWER(p.content) LIKE ? THEN 1
+            WHEN LOWER(p.page_name) = ? OR LOWER(p.page_name) LIKE ? THEN 2
+            WHEN LOWER(p.synopsis) LIKE ? THEN 3
+            ELSE 4
+          END,
+          rank
+        LIMIT ?
+    """
+    params.extend(
+        [
+            normalized_query.lower(),
+            f"%|{alias_phrase}|%",
+            normalized_query.lower(),
+            f"%/{normalized_query.lower().replace(' ', '_')}",
+            f"%{alias_phrase}%",
+            top_k,
+        ]
+    )
+    return sql, params
 
 
 def toolref_show(tool: str, *args: str, cfg: Config | None = None) -> list[dict]:
@@ -329,71 +390,37 @@ def toolref_search(
 
     # build FTS5 query — auto-convert spaces to OR for better recall
     fts_query = expanded_query
-    if (
-        " " in expanded_query
-        and not any(kw in expanded_query.upper() for kw in ("OR", "AND", "NOT", '"'))
-    ):
+    if " " in expanded_query and not any(kw in expanded_query.upper() for kw in ("OR", "AND", "NOT", '"')):
         words = expanded_query.split()
         fts_query = " OR ".join(words)
 
     try:
-        sql = """
-            SELECT p.*, rank
-            FROM toolref_fts f
-            JOIN toolref_pages p ON f.rowid = p.id
-            WHERE toolref_fts MATCH ?
-              AND p.tool = ?
-        """
-        params: list = [fts_query, tool]
-
-        if version:
-            sql += " AND p.version = ?"
-            params.append(version)
-        if program:
-            prog = _normalize_program_filter(tool, program)
-            sql += " AND LOWER(p.program) = ?"
-            params.append(prog)
-        if section:
-            sql += " AND LOWER(p.section) = ?"
-            params.append(section.lower())
-
-        sql += """
-            ORDER BY
-              CASE
-                WHEN LOWER(p.title) = ? THEN 0
-                WHEN LOWER(p.content) LIKE ? THEN 1
-                WHEN LOWER(p.page_name) = ? OR LOWER(p.page_name) LIKE ? THEN 2
-                WHEN LOWER(p.synopsis) LIKE ? THEN 3
-                ELSE 4
-              END,
-              rank
-            LIMIT ?
-        """
-        params.extend(
-            [
-                normalized_query.lower(),
-                f"%|{alias_phrase}|%",
-                normalized_query.lower(),
-                f"%/{normalized_query.lower().replace(' ', '_')}",
-                f"%{alias_phrase}%",
-            ]
+        sql, params = _build_toolref_search_sql(
+            fts_query,
+            tool,
+            version,
+            program,
+            section,
+            normalized_query,
+            alias_phrase,
+            top_k,
         )
-        params.append(top_k)
-
         rows = conn.execute(sql, params).fetchall()
     except Exception:
         # FTS query syntax error — try quoting
         safe_query = '"' + normalized_query.replace('"', "") + '"'
         try:
-            rows = conn.execute(
-                """SELECT p.*, rank
-                   FROM toolref_fts f
-                   JOIN toolref_pages p ON f.rowid = p.id
-                   WHERE toolref_fts MATCH ?
-                     AND p.tool = ?
-                   ORDER BY rank LIMIT ?""",
-                (safe_query, tool, top_k),
-            ).fetchall()
+            sql, params = _build_toolref_search_sql(
+                safe_query,
+                tool,
+                version,
+                program,
+                section,
+                normalized_query,
+                alias_phrase,
+                top_k,
+            )
+            rows = conn.execute(sql, params).fetchall()
         except Exception:
             rows = []
 

@@ -245,9 +245,7 @@ class TestImportEndnoteOptionalDeps:
         monkeypatch.setattr(cli._log, "error", lambda msg, *args: errors.append(msg % args if args else msg))
         monkeypatch.setattr(
             "scholaraio.sources.endnote._load_endnote_core",
-            lambda: (_ for _ in ()).throw(
-                ModuleNotFoundError("No module named 'endnote_utils'", name="endnote_utils")
-            ),
+            lambda: (_ for _ in ()).throw(ModuleNotFoundError("No module named 'endnote_utils'", name="endnote_utils")),
         )
 
         cfg = SimpleNamespace()

@@ -136,7 +136,9 @@ def test_step_office_convert_reports_scholaraio_office_extra(tmp_path: Path, mon
     office_path.write_text("dummy", encoding="utf-8")
 
     errors: list[str] = []
-    monkeypatch.setattr("scholaraio.ingest.pipeline._log.error", lambda msg, *args: errors.append(msg % args if args else msg))
+    monkeypatch.setattr(
+        "scholaraio.ingest.pipeline._log.error", lambda msg, *args: errors.append(msg % args if args else msg)
+    )
 
     import builtins
 

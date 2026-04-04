@@ -230,15 +230,25 @@ def _score_search_result(
         if normalized_query == "temperature coupling" and page_name.endswith("/tcoupl"):
             score += 90
     if tool == "bioinformatics":
-        if ("multiple sequence alignment" in normalized_query or normalized_query.startswith("msa")) and program == "mafft":
+        if (
+            "multiple sequence alignment" in normalized_query or normalized_query.startswith("msa")
+        ) and program == "mafft":
             score += 140
-        if ("bam indexing" in normalized_query or "samtools index" in normalized_query or "index bam" in normalized_query) and page_name.endswith("/index"):
+        if (
+            "bam indexing" in normalized_query
+            or "samtools index" in normalized_query
+            or "index bam" in normalized_query
+        ) and page_name.endswith("/index"):
             score += 140
-        if ("read mapping" in normalized_query or "nanopore" in normalized_query or "long read" in normalized_query) and program == "minimap2":
+        if (
+            "read mapping" in normalized_query or "nanopore" in normalized_query or "long read" in normalized_query
+        ) and program == "minimap2":
             score += 120
         if ("variant calling" in normalized_query or "vcf" in normalized_query) and program == "bcftools":
             score += 110
-        if ("phylogenetic tree" in normalized_query or "ultrafast bootstrap" in normalized_query) and program == "iqtree":
+        if (
+            "phylogenetic tree" in normalized_query or "ultrafast bootstrap" in normalized_query
+        ) and program == "iqtree":
             score += 120
 
     return score, rank
@@ -254,7 +264,11 @@ def _has_local_docs(tool: str, version: str, cfg: Config | None = None) -> bool:
     if info["format"] == "rst":
         return any((vdir / "src").rglob("*.rst"))
     if info["format"] == "html":
-        page_count = _manifest_page_count(vdir) if info.get("source_type") == "manifest" else len(list((vdir / "pages").glob("*.html")))
+        page_count = (
+            _manifest_page_count(vdir)
+            if info.get("source_type") == "manifest"
+            else len(list((vdir / "pages").glob("*.html")))
+        )
         if not page_count:
             return False
         if info.get("source_type") == "manifest":
@@ -565,21 +579,66 @@ def _build_openfoam_manifest(version: str) -> list[dict]:
 
 
 _OPENFOAM_CORE_PAGE_MAP: dict[str, tuple[str, str, str, str]] = {
-    "tools/processing/solvers/rtm/incompressible/simpleFoam/": ("openfoam/simpleFoam", "simpleFoam", "simpleFoam", "solver"),
-    "tools/processing/solvers/rtm/incompressible/pimpleFoam/": ("openfoam/pimpleFoam", "pimpleFoam", "pimpleFoam", "solver"),
-    "tools/processing/solvers/rtm/compressible/rhoSimpleFoam/": ("openfoam/rhoSimpleFoam", "rhoSimpleFoam", "rhoSimpleFoam", "solver"),
-    "tools/pre-processing/mesh/generation/blockMesh/blockmesh/": ("openfoam/blockMesh", "blockMesh", "blockMesh", "mesh"),
-    "tools/pre-processing/mesh/generation/snappyhexmesh/": ("openfoam/snappyHexMesh", "snappyHexMesh", "snappyHexMesh", "mesh"),
+    "tools/processing/solvers/rtm/incompressible/simpleFoam/": (
+        "openfoam/simpleFoam",
+        "simpleFoam",
+        "simpleFoam",
+        "solver",
+    ),
+    "tools/processing/solvers/rtm/incompressible/pimpleFoam/": (
+        "openfoam/pimpleFoam",
+        "pimpleFoam",
+        "pimpleFoam",
+        "solver",
+    ),
+    "tools/processing/solvers/rtm/compressible/rhoSimpleFoam/": (
+        "openfoam/rhoSimpleFoam",
+        "rhoSimpleFoam",
+        "rhoSimpleFoam",
+        "solver",
+    ),
+    "tools/pre-processing/mesh/generation/blockMesh/blockmesh/": (
+        "openfoam/blockMesh",
+        "blockMesh",
+        "blockMesh",
+        "mesh",
+    ),
+    "tools/pre-processing/mesh/generation/snappyhexmesh/": (
+        "openfoam/snappyHexMesh",
+        "snappyHexMesh",
+        "snappyHexMesh",
+        "mesh",
+    ),
     "fundamentals/case-structure/controldict/": ("openfoam/controlDict", "controlDict", "controlDict", "dictionary"),
     "fundamentals/case-structure/fvschemes/": ("openfoam/fvSchemes", "fvSchemes", "fvSchemes", "dictionary"),
     "fundamentals/case-structure/fvsolution/": ("openfoam/fvSolution", "fvSolution", "fvSolution", "dictionary"),
-    "tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/": ("openfoam/kOmegaSST", "kOmegaSST", "kOmegaSST", "model"),
-    "tools/post-processing/function-objects/": ("openfoam/functionObjects", "functionObjects", "function objects", "post-processing"),
+    "tools/processing/models/turbulence/ras/linear-evm/rtm/kOmegaSST/": (
+        "openfoam/kOmegaSST",
+        "kOmegaSST",
+        "kOmegaSST",
+        "model",
+    ),
+    "tools/post-processing/function-objects/": (
+        "openfoam/functionObjects",
+        "functionObjects",
+        "function objects",
+        "post-processing",
+    ),
     "tools/post-processing/function-objects/forces/": ("openfoam/forces", "forces", "forces", "post-processing"),
-    "tools/post-processing/function-objects/forces/forceCoeffs/": ("openfoam/forceCoeffs", "forceCoeffs", "forceCoeffs", "post-processing"),
+    "tools/post-processing/function-objects/forces/forceCoeffs/": (
+        "openfoam/forceCoeffs",
+        "forceCoeffs",
+        "forceCoeffs",
+        "post-processing",
+    ),
     "tools/post-processing/function-objects/field/Q/": ("openfoam/Q", "Q", "Q", "post-processing"),
     "tools/post-processing/function-objects/field/yPlus/": ("openfoam/yPlus", "yPlus", "yPlus", "post-processing"),
-    "tools/post-processing/function-objects/field/wallShearStress/": ("openfoam/wallShearStress", "wallShearStress", "wallShearStress", "post-processing"),
+    "tools/post-processing/function-objects/field/wallShearStress/": (
+        "openfoam/wallShearStress",
+        "wallShearStress",
+        "wallShearStress",
+        "post-processing",
+    ),
     "tools/processing/numerics/solvers/residuals/": ("openfoam/residuals", "residuals", "Residuals", "solver-control"),
 }
 
@@ -910,7 +969,10 @@ def _discover_bioinformatics_manifest(
             hid = heading["id"]
             if hid.startswith("_"):
                 continue
-            if not (heading["title"].lower().startswith("bcftools ") or hid in {"common_options", "expressions", "terminology"}):
+            if not (
+                heading["title"].lower().startswith("bcftools ")
+                or hid in {"common_options", "expressions", "terminology"}
+            ):
                 continue
             page_name = f"bcftools/{hid.replace('_', '-')}"
             item = manifest_by_page.get(page_name, {})
@@ -1575,12 +1637,7 @@ def _clean_manifest_text(text: str, title: str, program: str) -> str:
             continue
         if line in {"- navigation", "- solvers", "- system", "- incompressible", "- compressible"}:
             continue
-        line = (
-            line.replace("ð", "")
-            .replace("Â©", "©")
-            .replace("â", "")
-            .strip()
-        )
+        line = line.replace("ð", "").replace("Â©", "©").replace("â", "").strip()
         cleaned_lines.append(line)
 
     compact: list[str] = []
@@ -1790,7 +1847,9 @@ def toolref_fetch(
                 urls = [item["url"], *item.get("fallback_urls", [])]
                 primary_url = item["url"]
                 base_url = primary_url.split("#", 1)[0]
-                body_text: str | None = prefetched_manifest_pages.get(primary_url) or prefetched_manifest_pages.get(base_url)
+                body_text: str | None = prefetched_manifest_pages.get(primary_url) or prefetched_manifest_pages.get(
+                    base_url
+                )
                 successful_url = primary_url if body_text is not None else None
                 last_error: Exception | None = None
                 if body_text is None:
@@ -2299,14 +2358,11 @@ def toolref_search(
 
     # build FTS5 query — auto-convert spaces to OR for better recall
     fts_query = expanded_query
-    if (
-        " " in expanded_query
-        and not any(kw in expanded_query.upper() for kw in ("OR", "AND", "NOT", '"'))
-    ):
+    if " " in expanded_query and not any(kw in expanded_query.upper() for kw in ("OR", "AND", "NOT", '"')):
         words = expanded_query.split()
         fts_query = " OR ".join(words)
 
-    try:
+    def _build_search_sql(match_query: str) -> tuple[str, list]:
         sql = """
             SELECT p.*, rank
             FROM toolref_fts f
@@ -2314,7 +2370,7 @@ def toolref_search(
             WHERE toolref_fts MATCH ?
               AND p.tool = ?
         """
-        params: list = [fts_query, tool]
+        params: list = [match_query, tool]
 
         if version:
             sql += " AND p.version = ?"
@@ -2346,24 +2402,20 @@ def toolref_search(
                 normalized_query.lower(),
                 f"%/{normalized_query.lower().replace(' ', '_')}",
                 f"%{alias_phrase}%",
+                top_k,
             ]
         )
-        params.append(top_k)
+        return sql, params
 
+    try:
+        sql, params = _build_search_sql(fts_query)
         rows = conn.execute(sql, params).fetchall()
     except Exception:
         # FTS query syntax error — try quoting
         safe_query = '"' + normalized_query.replace('"', "") + '"'
         try:
-            rows = conn.execute(
-                """SELECT p.*, rank
-                   FROM toolref_fts f
-                   JOIN toolref_pages p ON f.rowid = p.id
-                   WHERE toolref_fts MATCH ?
-                     AND p.tool = ?
-                   ORDER BY rank LIMIT ?""",
-                (safe_query, tool, top_k),
-            ).fetchall()
+            sql, params = _build_search_sql(safe_query)
+            rows = conn.execute(sql, params).fetchall()
         except Exception:
             rows = []
 
