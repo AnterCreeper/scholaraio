@@ -116,7 +116,7 @@ def test_convert_pdf_cloud_sends_official_cloud_payload_shape(tmp_path, monkeypa
             }
         )
 
-    def fake_download(item, out_dir):
+    def fake_download(item, out_dir, download_retries=3):
         return "# ok"
 
     monkeypatch.setattr(requests, "post", fake_post)
@@ -192,7 +192,7 @@ def test_convert_pdfs_cloud_batch_sends_is_ocr_per_file(tmp_path, monkeypatch):
             }
         )
 
-    def fake_download(item, out_dir):
+    def fake_download(item, out_dir, download_retries=3):
         return "# ok"
 
     monkeypatch.setattr(requests, "post", fake_post)
@@ -225,6 +225,162 @@ def test_convert_pdfs_cloud_batch_sends_is_ocr_per_file(tmp_path, monkeypatch):
         "enable_table": True,
         "language": "ch",
     }
+
+
+def test_convert_pdfs_cloud_batch_retries_upload_timeout_then_succeeds(tmp_path, monkeypatch):
+    pdf_path = tmp_path / "paper.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+
+    put_calls = {"count": 0}
+
+    class DummyResponse:
+        def __init__(self, payload: dict, status_code: int = 200):
+            self._payload = payload
+            self.status_code = status_code
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return DummyResponse({"code": 0, "data": {"batch_id": "b1", "file_urls": ["https://upload.example/file.pdf"]}})
+
+    def fake_put(url, data=None, timeout=None):
+        put_calls["count"] += 1
+        if put_calls["count"] < 3:
+            raise requests.ConnectTimeout("connect timeout")
+        return DummyResponse({}, status_code=200)
+
+    def fake_get(url, headers=None, timeout=None):
+        return DummyResponse(
+            {
+                "code": 0,
+                "data": {"extract_result": [{"data_id": "paper", "state": "done", "md_url": "https://download"}]},
+            }
+        )
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(requests, "put", fake_put)
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(
+        "scholaraio.ingest.mineru._download_cloud_result", lambda item, out_dir, download_retries=3: "# ok"
+    )
+    monkeypatch.setattr("scholaraio.ingest.mineru.time.sleep", lambda _x: None)
+
+    results = convert_pdfs_cloud_batch(
+        [pdf_path],
+        ConvertOptions(output_dir=tmp_path / "out", upload_retries=3),
+        api_key="test-key",
+        cloud_url="https://mineru.example/api/v4",
+    )
+
+    assert results[0].success is True
+    assert put_calls["count"] == 3
+
+
+def test_download_cloud_result_retries_md_url(tmp_path, monkeypatch):
+    calls = {"count": 0}
+
+    class DummyResponse:
+        def __init__(self, text: str = "", status_code: int = 200):
+            self.text = text
+            self.status_code = status_code
+            self.content = b""
+
+    def fake_get(url, timeout=None, proxies=None):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise requests.ConnectTimeout("connect timeout")
+        return DummyResponse("# recovered", status_code=200)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr("scholaraio.ingest.mineru.time.sleep", lambda _x: None)
+
+    from scholaraio.ingest.mineru import _download_cloud_result
+
+    md = _download_cloud_result({"md_url": "https://download.example/full.md"}, tmp_path, download_retries=3)
+
+    assert md == "# recovered"
+    assert calls["count"] == 3
+
+
+def test_convert_pdfs_cloud_batch_uses_configured_upload_workers(tmp_path, monkeypatch):
+    pdf_paths = []
+    for idx in range(2):
+        pdf_path = tmp_path / f"paper-{idx}.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4")
+        pdf_paths.append(pdf_path)
+
+    captured = {"max_workers": None}
+
+    class DummyResponse:
+        def __init__(self, payload: dict, status_code: int = 200):
+            self._payload = payload
+            self.status_code = status_code
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    class DummyPool:
+        def __init__(self, max_workers):
+            captured["max_workers"] = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def map(self, func, iterable):
+            return [func(item) for item in iterable]
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return DummyResponse(
+            {
+                "code": 0,
+                "data": {
+                    "batch_id": "b1",
+                    "file_urls": ["https://upload.example/file-0.pdf", "https://upload.example/file-1.pdf"],
+                },
+            }
+        )
+
+    def fake_put(url, data=None, timeout=None):
+        return DummyResponse({}, status_code=200)
+
+    def fake_get(url, headers=None, timeout=None):
+        return DummyResponse(
+            {
+                "code": 0,
+                "data": {
+                    "extract_result": [
+                        {"data_id": "paper-0", "state": "done", "md_url": "https://download/0"},
+                        {"data_id": "paper-1", "state": "done", "md_url": "https://download/1"},
+                    ]
+                },
+            }
+        )
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(requests, "put", fake_put)
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(
+        "scholaraio.ingest.mineru._download_cloud_result", lambda item, out_dir, download_retries=3: "# ok"
+    )
+    monkeypatch.setattr("scholaraio.ingest.mineru.time.sleep", lambda _x: None)
+    monkeypatch.setattr("concurrent.futures.ThreadPoolExecutor", DummyPool)
+
+    results = convert_pdfs_cloud_batch(
+        pdf_paths,
+        ConvertOptions(output_dir=tmp_path / "out", upload_workers=3),
+        api_key="test-key",
+        cloud_url="https://mineru.example/api/v4",
+    )
+
+    assert len(results) == 2
+    assert all(result.success for result in results)
+    assert captured["max_workers"] == 3
 
 
 def test_convert_pdf_cloud_omits_pdf_only_flags_for_html_model(tmp_path, monkeypatch):
@@ -269,7 +425,10 @@ def test_convert_pdf_cloud_omits_pdf_only_flags_for_html_model(tmp_path, monkeyp
     monkeypatch.setattr(requests, "post", fake_post)
     monkeypatch.setattr(requests, "put", fake_put)
     monkeypatch.setattr(requests, "get", fake_get)
-    monkeypatch.setattr("scholaraio.ingest.mineru._download_cloud_result", lambda item, out_dir: "# ok")
+    monkeypatch.setattr(
+        "scholaraio.ingest.mineru._download_cloud_result",
+        lambda item, out_dir, download_retries=3: "# ok",
+    )
     monkeypatch.setattr("scholaraio.ingest.mineru.time.sleep", lambda _x: None)
 
     opts = ConvertOptions(

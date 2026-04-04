@@ -203,7 +203,7 @@ Full config reference → [`config.yaml`](config.yaml)
 scholaraio search QUERY       Keyword search
 scholaraio vsearch QUERY      Semantic vector search
 scholaraio usearch QUERY      Unified search (keyword + semantic fusion)
-scholaraio fsearch QUERY      Federated search (main / explore / arXiv)
+scholaraio fsearch QUERY      Federated search (main / proceedings / explore / arXiv)
 scholaraio search-author NAME Search by author
 scholaraio top-cited          Rank by citation count
 scholaraio show PAPER         View paper content (L1-L4)
@@ -279,7 +279,9 @@ scholaraio/          # Python package — CLI and all core modules
 .claude/skills/      # Agent skills (AgentSkills.io format)
 .agents/skills/      # ↑ symlink for cross-agent discovery
 data/papers/         # Your paper library (gitignored)
+data/proceedings/    # Proceedings library (gitignored)
 data/inbox/          # Drop PDFs here for ingestion
+data/inbox-proceedings/ # Drop proceedings volumes here for dedicated ingest
 ```
 
 Full module reference → [`CLAUDE.md`](CLAUDE.md) or [`AGENTS.md`](AGENTS.md)

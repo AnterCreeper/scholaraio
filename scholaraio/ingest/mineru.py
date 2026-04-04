@@ -110,6 +110,12 @@ PDF_CLOUD_MODEL_VERSIONS = {"pipeline", "vlm"}
 DEFAULT_BACKEND = "pipeline"
 DEFAULT_LANG = "ch"
 API_TIMEOUT = 600  # PDF parsing can take a long time
+DEFAULT_UPLOAD_TIMEOUT = 120
+DEFAULT_DOWNLOAD_TIMEOUT = 120
+DEFAULT_UPLOAD_RETRIES = 3
+DEFAULT_DOWNLOAD_RETRIES = 3
+DEFAULT_UPLOAD_WORKERS = 4
+DEFAULT_POLL_TIMEOUT = 900
 
 
 # ============================================================================
@@ -174,6 +180,10 @@ class ConvertOptions:
     save_content_list: bool = False
     force: bool = False
     dry_run: bool = False
+    upload_workers: int = DEFAULT_UPLOAD_WORKERS
+    upload_retries: int = DEFAULT_UPLOAD_RETRIES
+    download_retries: int = DEFAULT_DOWNLOAD_RETRIES
+    poll_timeout: int = DEFAULT_POLL_TIMEOUT
 
 
 # ============================================================================
@@ -365,7 +375,50 @@ def _extract_field(data, field_name):
 
 CLOUD_API_URL = "https://mineru.net/api/v4"
 CLOUD_POLL_INTERVAL = 5  # seconds between status checks
-CLOUD_TIMEOUT = 600  # max wait time for cloud parsing
+CLOUD_TIMEOUT = 600  # backward-compatible fallback
+
+
+def _is_retriable_request_error(exc: Exception) -> bool:
+    """Return whether a requests exception is worth retrying."""
+    if isinstance(exc, (requests.ConnectTimeout, requests.ReadTimeout, requests.Timeout, requests.ConnectionError)):
+        return True
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        status = exc.response.status_code
+        return status in {408, 429} or status >= 500
+    return False
+
+
+def _sleep_backoff(attempt: int) -> None:
+    time.sleep(min(2 ** max(0, attempt - 1), 8))
+
+
+def _put_with_retry(url: str, pdf_path: Path, *, timeout: int, max_retries: int) -> str | None:
+    """Upload a PDF with retry for transient failures."""
+    attempts = max(1, max_retries)
+    last_error: str | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with open(pdf_path, "rb") as f:
+                try:
+                    put_resp = requests.put(url, data=f, timeout=timeout)
+                except requests.RequestException as exc:
+                    last_error = str(exc)
+                    if attempt < attempts and _is_retriable_request_error(exc):
+                        _sleep_backoff(attempt)
+                        continue
+                    return str(exc)
+        except OSError as exc:
+            return str(exc)
+
+        if put_resp.status_code in (200, 201):
+            return None
+        if put_resp.status_code in {408, 429} or put_resp.status_code >= 500:
+            last_error = f"HTTP {put_resp.status_code}"
+            if attempt < attempts:
+                _sleep_backoff(attempt)
+                continue
+        return f"HTTP {put_resp.status_code}"
+    return last_error
 
 
 def convert_pdf_cloud(
@@ -464,17 +517,17 @@ def convert_pdf_cloud(
 
     # Step 2: upload PDF via PUT
     try:
-        with open(pdf_path, "rb") as f:
-            put_resp = requests.put(
-                upload_url,
-                data=f,
-                timeout=120,
-            )
-        if put_resp.status_code not in (200, 201):
-            result.error = f"PDF 上传失败: HTTP {put_resp.status_code}"
+        upload_error = _put_with_retry(
+            upload_url,
+            pdf_path,
+            timeout=DEFAULT_UPLOAD_TIMEOUT,
+            max_retries=max(1, opts.upload_retries),
+        )
+        if upload_error:
+            result.error = f"PDF 上传失败: {upload_error}"
             result.elapsed_seconds = time.time() - t0
             return result
-    except requests.RequestException as e:
+    except (OSError, requests.RequestException) as e:
         result.error = f"PDF 上传失败: {e}"
         result.elapsed_seconds = time.time() - t0
         return result
@@ -483,7 +536,7 @@ def convert_pdf_cloud(
 
     # Step 3: poll for results
     poll_headers = {"Authorization": f"Bearer {api_key}"}
-    deadline = time.time() + CLOUD_TIMEOUT
+    deadline = time.time() + max(1, opts.poll_timeout or CLOUD_TIMEOUT)
 
     while time.time() < deadline:
         time.sleep(CLOUD_POLL_INTERVAL)
@@ -519,7 +572,7 @@ def convert_pdf_cloud(
             return result
 
         if state == "done":
-            md_content = _download_cloud_result(item, out_dir)
+            md_content = _download_cloud_result(item, out_dir, download_retries=max(1, opts.download_retries))
             if md_content is None:
                 result.error = f"无法从云端结果提取 Markdown。响应键: {list(item.keys())}"
                 result.elapsed_seconds = time.time() - t0
@@ -542,7 +595,7 @@ def convert_pdf_cloud(
             total = item.get("total_pages", "?")
             _log.debug("cloud parsing... %s/%s pages", extracted, total)
 
-    result.error = f"云端解析超时（{CLOUD_TIMEOUT}s）"
+    result.error = f"云端解析超时（{max(1, opts.poll_timeout or CLOUD_TIMEOUT)}s）"
     result.elapsed_seconds = time.time() - t0
     return result
 
@@ -681,17 +734,15 @@ def _convert_chunk_cloud(
         did = ordered_data_ids[idx]
         url = file_urls[idx] if isinstance(file_urls[idx], str) else file_urls[idx].get("url", "")
         pdf_path = data_id_to_path[did]
-        try:
-            with open(pdf_path, "rb") as f:
-                put_resp = requests.put(url, data=f, timeout=120)
-            if put_resp.status_code not in (200, 201):
-                return f"HTTP {put_resp.status_code}"
-        except requests.RequestException as e:
-            return str(e)
-        return None
+        return _put_with_retry(
+            url,
+            pdf_path,
+            timeout=DEFAULT_UPLOAD_TIMEOUT,
+            max_retries=max(1, opts.upload_retries),
+        )
 
     _log.info("Uploading %d PDFs to MinerU cloud (batch %s)...", len(files_payload), batch_id[:12])
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, opts.upload_workers)) as pool:
         upload_errors = list(pool.map(_upload_one, range(len(files_payload))))
 
     for idx, err in enumerate(upload_errors):
@@ -708,7 +759,7 @@ def _convert_chunk_cloud(
 
     # Step 3: poll for all results
     poll_headers = {"Authorization": f"Bearer {api_key}"}
-    deadline = time.time() + CLOUD_TIMEOUT
+    deadline = time.time() + max(1, opts.poll_timeout or CLOUD_TIMEOUT)
     done_ids: set[str] = set()
 
     while time.time() < deadline and done_ids != pending_ids:
@@ -743,7 +794,11 @@ def _convert_chunk_cloud(
                 # Per-file output dir for images etc.
                 file_out_dir = out_dir / did
                 file_out_dir.mkdir(parents=True, exist_ok=True)
-                md_content = _download_cloud_result(item, file_out_dir)
+                md_content = _download_cloud_result(
+                    item,
+                    file_out_dir,
+                    download_retries=max(1, opts.download_retries),
+                )
                 if md_content is None:
                     results[did].error = "无法从云端结果提取 Markdown"
                 else:
@@ -775,7 +830,7 @@ def _convert_chunk_cloud(
 
     # Mark timed-out files
     for did in pending_ids - done_ids:
-        results[did].error = f"云端解析超时（{CLOUD_TIMEOUT}s）"
+        results[did].error = f"云端解析超时（{max(1, opts.poll_timeout or CLOUD_TIMEOUT)}s）"
         results[did].elapsed_seconds = time.time() - t0
 
     elapsed = time.time() - t0
@@ -810,11 +865,13 @@ def _flatten_assets(src_dir: Path, out_dir: Path, data_id: str) -> None:
         pass
 
 
-def _download_cloud_result(item: dict, out_dir: Path) -> str | None:
+def _download_cloud_result(
+    item: dict, out_dir: Path, *, download_retries: int = DEFAULT_DOWNLOAD_RETRIES
+) -> str | None:
     """Download markdown (and images) from cloud API result.
 
     Tries multiple response formats: direct md_content field,
-    full_zip_url (download zip and extract all files), or md_url.
+    full_zip_url (download zip and extract all files), or markdown URLs.
 
     CDN download bypasses HTTP proxy (domestic CDN + proxy = SSL errors).
 
@@ -833,38 +890,54 @@ def _download_cloud_result(item: dict, out_dir: Path) -> str | None:
     # Download zip and extract all files (md + images/)
     zip_url = item.get("full_zip_url")
     if zip_url:
-        try:
-            import io
-            import zipfile
+        attempts = max(1, download_retries)
+        for attempt in range(1, attempts + 1):
+            try:
+                import io
+                import zipfile
 
-            # Bypass proxy for CDN downloads (domestic CDN through proxy causes SSL errors)
-            resp = requests.get(zip_url, timeout=120, proxies={"http": None, "https": None})
-            if resp.status_code == 200:
-                md_content = None
-                with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-                    for name in zf.namelist():
-                        if name.endswith("/"):
-                            continue
-                        if name.endswith(".md"):
-                            md_content = zf.read(name).decode("utf-8")
-                        else:
-                            # Extract all assets (images/, layout.json, etc.)
-                            dest = out_dir / name
-                            dest.parent.mkdir(parents=True, exist_ok=True)
-                            dest.write_bytes(zf.read(name))
-                return md_content
-        except Exception as e:
-            _log.debug("failed to download/extract zip result: %s", e)
+                resp = requests.get(zip_url, timeout=DEFAULT_DOWNLOAD_TIMEOUT, proxies={"http": None, "https": None})
+                if resp.status_code == 200:
+                    md_content = None
+                    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                        for name in zf.namelist():
+                            if name.endswith("/"):
+                                continue
+                            if name.endswith(".md"):
+                                md_content = zf.read(name).decode("utf-8")
+                            else:
+                                dest = out_dir / name
+                                dest.parent.mkdir(parents=True, exist_ok=True)
+                                dest.write_bytes(zf.read(name))
+                    return md_content
+                if attempt < attempts and (resp.status_code in {408, 429} or resp.status_code >= 500):
+                    _sleep_backoff(attempt)
+                    continue
+            except Exception as e:
+                if attempt < attempts and _is_retriable_request_error(e):
+                    _sleep_backoff(attempt)
+                    continue
+                _log.debug("failed to download/extract zip result: %s", e)
+                break
 
-    # Direct markdown URL
-    md_url = item.get("md_url")
+    # Direct markdown URL (`md_url` or fallback `full_md_url`)
+    md_url = item.get("md_url") or item.get("full_md_url")
     if md_url:
-        try:
-            resp = requests.get(md_url, timeout=60, proxies={"http": None, "https": None})
-            if resp.status_code == 200:
-                return resp.text
-        except Exception as e:
-            _log.debug("failed to download markdown from %s: %s", md_url, e)
+        attempts = max(1, download_retries)
+        for attempt in range(1, attempts + 1):
+            try:
+                resp = requests.get(md_url, timeout=60, proxies={"http": None, "https": None})
+                if resp.status_code == 200:
+                    return resp.text
+                if attempt < attempts and (resp.status_code in {408, 429} or resp.status_code >= 500):
+                    _sleep_backoff(attempt)
+                    continue
+            except Exception as e:
+                if attempt < attempts and _is_retriable_request_error(e):
+                    _sleep_backoff(attempt)
+                    continue
+                _log.debug("failed to download markdown from %s: %s", md_url, e)
+                break
 
     return None
 
@@ -1129,6 +1202,10 @@ def _convert_long_pdf(pdf_path: Path, opts: ConvertOptions, chunk_size: int = DE
             save_content_list=opts.save_content_list,
             force=opts.force,
             dry_run=opts.dry_run,
+            upload_workers=opts.upload_workers,
+            upload_retries=opts.upload_retries,
+            download_retries=opts.download_retries,
+            poll_timeout=opts.poll_timeout,
         )
         cr = convert_pdf(chunk_pdf, chunk_opts)
         chunk_results.append(cr)
@@ -1165,6 +1242,10 @@ def _convert_long_pdf_cloud(
         formula_enable=opts.formula_enable,
         table_enable=opts.table_enable,
         save_content_list=opts.save_content_list,
+        upload_workers=opts.upload_workers,
+        upload_retries=opts.upload_retries,
+        download_retries=opts.download_retries,
+        poll_timeout=opts.poll_timeout,
     )
     batch_results = convert_pdfs_cloud_batch(
         chunk_paths,

@@ -33,6 +33,14 @@ docs-dev/
 docs/issues.md
 docs/internal/
 docs/superpowers/
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
+docs/superpowers/specs/*
+!docs/superpowers/specs/*.md
+!docs/superpowers/plans/
+docs/superpowers/plans/*
+!docs/superpowers/plans/*.md
 site/
 
 # Local agent worktrees

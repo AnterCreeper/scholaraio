@@ -79,6 +79,10 @@ class TestBuildConfig:
         assert cfg.ingest.extractor == "robust"
         assert cfg.ingest.chunk_page_limit == 100
         assert cfg.ingest.mineru_batch_size == 20
+        assert cfg.ingest.mineru_upload_workers == 4
+        assert cfg.ingest.mineru_upload_retries == 3
+        assert cfg.ingest.mineru_download_retries == 3
+        assert cfg.ingest.mineru_poll_timeout == 900
         assert cfg.ingest.pdf_preferred_parser == "mineru"
         assert cfg.ingest.pdf_fallback_order == ["auto"]
         assert cfg.ingest.pdf_fallback_auto_detect is True
@@ -277,9 +281,11 @@ class TestEnsureDirs:
         cfg.ensure_dirs()
         assert cfg.papers_dir.exists()
         assert (tmp_path / "data" / "inbox").exists()
+        assert (tmp_path / "data" / "inbox-proceedings").exists()
         assert (tmp_path / "data" / "inbox-thesis").exists()
         assert (tmp_path / "data" / "inbox-doc").exists()
         assert (tmp_path / "data" / "pending").exists()
+        assert (tmp_path / "data" / "proceedings").exists()
         assert (tmp_path / "workspace").exists()
 
     def test_idempotent(self, tmp_path):

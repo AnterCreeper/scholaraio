@@ -221,6 +221,10 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
         parse_method=ctx.cfg.ingest.mineru_parse_method,
         formula_enable=ctx.cfg.ingest.mineru_enable_formula,
         table_enable=ctx.cfg.ingest.mineru_enable_table,
+        upload_workers=ctx.cfg.ingest.mineru_upload_workers,
+        upload_retries=ctx.cfg.ingest.mineru_upload_retries,
+        download_retries=ctx.cfg.ingest.mineru_download_retries,
+        poll_timeout=ctx.cfg.ingest.mineru_poll_timeout,
     )
 
     result = None
@@ -930,6 +934,7 @@ def _process_inbox(
     *,
     is_thesis: bool = False,
     is_patent: bool = False,
+    is_proceedings: bool = False,
     existing_pub_nums: dict[str, Path] | None = None,
     existing_arxiv_ids: dict[str, Path] | None = None,
 ) -> None:
@@ -953,7 +958,7 @@ def _process_inbox(
     if not inbox_dir.exists():
         return
 
-    label_prefix = "[thesis] " if is_thesis else ""
+    label_prefix = "[thesis] " if is_thesis else ("[proceedings] " if is_proceedings else "")
 
     entries: dict[str, dict[str, Path | None]] = {}
     for pdf in sorted(inbox_dir.glob("*.pdf")):
@@ -1029,6 +1034,10 @@ def _process_inbox(
                 parse_method=cfg.ingest.mineru_parse_method,
                 formula_enable=cfg.ingest.mineru_enable_formula,
                 table_enable=cfg.ingest.mineru_enable_table,
+                upload_workers=cfg.ingest.mineru_upload_workers,
+                upload_retries=cfg.ingest.mineru_upload_retries,
+                download_retries=cfg.ingest.mineru_download_retries,
+                poll_timeout=cfg.ingest.mineru_poll_timeout,
             )
             t_batch_start = time.time()
             batch_results = convert_pdfs_cloud_batch(
@@ -1114,11 +1123,24 @@ def _process_inbox(
             existing_pub_nums=existing_pub_nums,
             existing_arxiv_ids=existing_arxiv_ids,
         )
+        if is_proceedings and ctx.md_path and _ingest_proceedings_ctx(ctx, force=True):
+            final_status = ctx.status if ctx.status != "pending" else "skipped"
+            stats[final_status] += 1
+            continue
         for step_name in file_steps:
             with timer(f"pipeline.inbox.{step_name}", "step") as t:
                 result = STEPS[step_name].fn(ctx)
             step_times[step_name] = step_times.get(step_name, 0) + t.elapsed
             _log.debug("%s: %.1fs", step_name, t.elapsed)
+            if is_proceedings and step_name == "mineru" and result == StepResult.OK and ctx.md_path:
+                if _ingest_proceedings_ctx(ctx, force=True):
+                    result = StepResult.FAIL
+                    break
+            if step_name == "extract" and not (is_thesis or is_patent or is_proceedings):
+                detected, _reason = _detect_proceedings(ctx)
+                if detected and _ingest_proceedings_ctx(ctx, force=False):
+                    result = StepResult.FAIL
+                    break
             if result != StepResult.OK:
                 break
 
@@ -1282,6 +1304,23 @@ def run_pipeline(
                 dry_run,
                 ingested_jsons,
                 is_thesis=False,
+                existing_pub_nums=existing_pub_nums,
+                existing_arxiv_ids=existing_arxiv_ids,
+            )
+
+        proceedings_inbox = cfg._root / "data" / "inbox-proceedings"
+        if include_aux_inboxes and proceedings_inbox.exists():
+            _process_inbox(
+                proceedings_inbox,
+                papers_dir,
+                pending_dir,
+                existing_dois,
+                inbox_steps,
+                cfg,
+                opts,
+                dry_run,
+                ingested_jsons,
+                is_proceedings=True,
                 existing_pub_nums=existing_pub_nums,
                 existing_arxiv_ids=existing_arxiv_ids,
             )
@@ -1636,6 +1675,10 @@ def batch_convert_pdfs(
                 parse_method=cfg.ingest.mineru_parse_method,
                 formula_enable=cfg.ingest.mineru_enable_formula,
                 table_enable=cfg.ingest.mineru_enable_table,
+                upload_workers=cfg.ingest.mineru_upload_workers,
+                upload_retries=cfg.ingest.mineru_upload_retries,
+                download_retries=cfg.ingest.mineru_download_retries,
+                poll_timeout=cfg.ingest.mineru_poll_timeout,
             )
 
             batch_results = convert_pdfs_cloud_batch(
@@ -1966,6 +2009,40 @@ def _detect_thesis(ctx: InboxCtx) -> bool:
         _log.debug("thesis detection LLM call failed: %s", e)
 
     return False
+
+
+def _detect_proceedings(ctx: InboxCtx, *, force: bool = False) -> tuple[bool, str]:
+    """Check whether the current markdown looks like a proceedings volume."""
+    from scholaraio.ingest.proceedings import detect_proceedings_from_md
+
+    if not ctx.md_path or not ctx.md_path.exists():
+        return False, ""
+    return detect_proceedings_from_md(ctx.md_path, force=force)
+
+
+def _ingest_proceedings_ctx(ctx: InboxCtx, *, force: bool) -> bool:
+    """Route a markdown entry into the proceedings library."""
+    from scholaraio.ingest.proceedings import ingest_proceedings_markdown
+
+    if not ctx.md_path or not ctx.md_path.exists():
+        return False
+
+    dry_run = bool(ctx.opts.get("dry_run", False))
+    proceedings_root = ctx.cfg._root / "data" / "proceedings"
+    source_name = ctx.pdf_path.name if ctx.pdf_path else ctx.md_path.name
+    if dry_run:
+        ctx.status = "skipped"
+        ui(f"检测为论文集；dry-run 模式下跳过写入 {proceedings_root}。")
+        ui("预览模式不会生成 proceeding.md 和 split_candidates.json。")
+        ui("退出 dry-run 后重新执行，可生成待审阅的论文集拆分文件。")
+        return True
+
+    ingest_proceedings_markdown(proceedings_root, ctx.md_path, source_name=source_name)
+    _cleanup_inbox(ctx.pdf_path, ctx.md_path, dry_run=dry_run)
+    ctx.status = "ingested"
+    ui("检测为论文集，已生成 proceeding.md 和 split_candidates.json。")
+    ui("等待 agent 审阅 split_candidates.json 并生成 split_plan.json，然后再执行后续拆分入库。")
+    return True
 
 
 def _detect_book(ctx: InboxCtx) -> bool:

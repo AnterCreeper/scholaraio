@@ -16,13 +16,25 @@ This will:
 4. Deduplicate by DOI
 5. Move to `data/papers/` and update indexes
 
-## Three Inboxes
+## Five Inboxes
 
 | Inbox | Path | Behavior |
 |-------|------|----------|
 | Papers | `data/inbox/` | Standard pipeline with DOI dedup |
+| Proceedings | `data/inbox-proceedings/` | Two-stage proceedings pipeline; first ingest creates `data/proceedings/<Volume>/` with `proceeding.md` + `split_candidates.json` and marks `split_status=pending_review` |
 | Theses | `data/inbox-thesis/` | Skips DOI check, marks as thesis |
+| Patents | `data/inbox-patent/` | Extracts publication number and deduplicates as patent |
 | Documents | `data/inbox-doc/` | Skips DOI check, LLM-generated title/abstract |
+
+Proceedings are also auto-detected conservatively from the regular `data/inbox/` path. When that happens, ScholarAIO routes the volume into `data/proceedings/` for review instead of `data/papers/`. Child papers are written under `data/proceedings/<Volume>/papers/` only after you review the split and run `scholaraio proceedings apply-split`.
+
+## Proceedings Search
+
+Proceedings child papers are not included in default main-library search. Use federated search when you want them:
+
+```bash
+scholaraio fsearch granular damping --scope proceedings
+```
 
 ## Skip MinerU
 

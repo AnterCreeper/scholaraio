@@ -185,6 +185,10 @@ class IngestConfig:
         chunk_page_limit: 超长 PDF 自动切分的页数阈值。超过此值的 PDF 在 MinerU
             转换前自动拆分为多个短 PDF，转换后合并为单个 Markdown。
         mineru_batch_size: MinerU 云 API 每批提交文件数上限，范围 1-200，默认 20。
+        mineru_upload_workers: MinerU 云端上传并发数，默认 4。
+        mineru_upload_retries: MinerU 云端上传失败时的最大重试次数，默认 3。
+        mineru_download_retries: MinerU 云端结果下载失败时的最大重试次数，默认 3。
+        mineru_poll_timeout: MinerU 云端轮询超时（秒），默认 900。
         pdf_preferred_parser: 首选 PDF 解析器。默认优先 ``mineru``，也可显式设为
             ``docling`` 或 ``pymupdf`` 跳过 MinerU。
         pdf_fallback_order: MinerU 不可用或解析失败时的替代解析器顺序。
@@ -207,6 +211,10 @@ class IngestConfig:
     s2_api_key: str = ""  # Semantic Scholar API key for higher rate limits
     chunk_page_limit: int = 100  # auto-split PDFs exceeding this page count
     mineru_batch_size: int = 20  # cloud batch size per request
+    mineru_upload_workers: int = 4
+    mineru_upload_retries: int = 3
+    mineru_download_retries: int = 3
+    mineru_poll_timeout: int = 900
     pdf_preferred_parser: str = "mineru"
     pdf_fallback_order: list[str] = field(default_factory=lambda: ["auto"])
     pdf_fallback_auto_detect: bool = True
@@ -303,10 +311,12 @@ class Config:
         for d in (
             self.papers_dir,
             self._root / "data" / "inbox",
+            self._root / "data" / "inbox-proceedings",
             self._root / "data" / "inbox-thesis",
             self._root / "data" / "inbox-patent",
             self._root / "data" / "inbox-doc",
             self._root / "data" / "pending",
+            self._root / "data" / "proceedings",
             self._root / "workspace",
             self.log_file.parent,
             self.metrics_db_path.parent,
@@ -530,6 +540,18 @@ def _normalize_mineru_batch_size(value: object) -> int:
     return size
 
 
+def _normalize_positive_int(value: object, *, default: int, field_name: str, minimum: int = 1) -> int:
+    """Normalize a positive integer config field."""
+    try:
+        parsed = int(str(value if value is not None else default).strip())
+    except (TypeError, ValueError):
+        _log.warning("invalid %s=%r, fallback to %s", field_name, value, default)
+        return default
+    if parsed < minimum:
+        return default
+    return parsed
+
+
 def _build_config(data: dict, root: Path) -> Config:
     """Build Config dataclass from raw dict."""
     paths_data = data.get("paths", {}) or {}
@@ -579,6 +601,27 @@ def _build_config(data: dict, root: Path) -> Config:
         contact_email=ingest_data.get("contact_email") or "",
         s2_api_key=ingest_data.get("s2_api_key") or "",
         mineru_batch_size=_normalize_mineru_batch_size(ingest_data.get("mineru_batch_size")),
+        mineru_upload_workers=_normalize_positive_int(
+            ingest_data.get("mineru_upload_workers"),
+            default=4,
+            field_name="ingest.mineru_upload_workers",
+        ),
+        mineru_upload_retries=_normalize_positive_int(
+            ingest_data.get("mineru_upload_retries"),
+            default=3,
+            field_name="ingest.mineru_upload_retries",
+        ),
+        mineru_download_retries=_normalize_positive_int(
+            ingest_data.get("mineru_download_retries"),
+            default=3,
+            field_name="ingest.mineru_download_retries",
+        ),
+        mineru_poll_timeout=_normalize_positive_int(
+            ingest_data.get("mineru_poll_timeout"),
+            default=900,
+            field_name="ingest.mineru_poll_timeout",
+            minimum=60,
+        ),
         chunk_page_limit=int(ingest_data.get("chunk_page_limit") or 100),
         pdf_preferred_parser=_normalize_choice(
             ingest_data.get("pdf_preferred_parser", "mineru"),

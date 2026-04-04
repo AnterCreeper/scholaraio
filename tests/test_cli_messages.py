@@ -59,6 +59,12 @@ class TestCliHelpLocalization:
         assert "版本号（如 7.5, 22Jul2025_update3）" in toolref_fetch
         assert "stable_22Jul2025_update3" not in toolref_fetch
 
+    def test_fsearch_help_mentions_proceedings_scope(self):
+        parser = cli._build_parser()
+        fsearch_help = parser._subparsers._group_actions[0].choices["fsearch"].format_help()
+
+        assert "proceedings" in fsearch_help
+
 
 class TestShowLayer4Headings:
     def test_translated_full_text_heading_uses_consistent_spacing(self, tmp_papers, monkeypatch):
