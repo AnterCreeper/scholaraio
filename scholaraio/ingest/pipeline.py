@@ -270,7 +270,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
     is_long = page_count > chunk_limit
 
     if is_long:
-        ui(f"Long PDF detected ({page_count} pages > {chunk_limit} limit), splitting...")
+        ui(f"检测到长 PDF（{page_count} 页，超过 {chunk_limit} 页限制），正在分片处理...")
 
     # Try local MinerU first, fallback to cloud API
     if local_mineru_available:
