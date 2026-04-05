@@ -107,7 +107,7 @@ Without one of those two options, running `scholaraio` from another project may 
 
 |  | Feature | Details |
 |--|---------|---------|
-| **PDF Parsing** | Deep structure extraction | Prefer [MinerU](https://github.com/opendatalab/MinerU) or [Docling](https://github.com/docling-project/docling) for structured Markdown. If neither is available, ScholarAIO falls back to PyMuPDF text extraction. Long PDFs (>100 pp) are auto-split and merged when MinerU is used |
+| **PDF Parsing** | Deep structure extraction | Prefer [MinerU](https://github.com/opendatalab/MinerU) or [Docling](https://github.com/docling-project/docling) for structured Markdown. If neither is available, ScholarAIO falls back to PyMuPDF text extraction. With MinerU, local parsing follows `chunk_page_limit` (default: >100 pages), while cloud parsing also respects the documented `>600 pages` and `>200MB` limits and estimates a safe chunk size when only the file-size limit is exceeded |
 | **Not Just Papers** | Any document goes in | Journal articles, theses, patents, technical reports, standards, lecture notes — four inboxes with tailored metadata handling |
 | **Hybrid Search** | Keyword + semantic fusion | Keyword + semantic embeddings → RRF ranking |
 | **Topic Discovery** | Auto-clustering | BERTopic + 6 interactive HTML visualizations — works on both your library and explore datasets |
