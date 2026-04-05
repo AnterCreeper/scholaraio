@@ -239,14 +239,14 @@ def test_convert_pdfs_cloud_batch_splits_into_chunks(tmp_path, monkeypatch):
     calls: list[list[str]] = []
 
     def fake_convert_chunk_cloud(
-        chunk: list[Path],
+        chunk: list[tuple[int, Path]],
         opts: ConvertOptions,
         *,
         api_key: str,
         cloud_url: str,
     ) -> list[ConvertResult]:
-        calls.append([path.name for path in chunk])
-        return [ConvertResult(pdf_path=path, md_path=tmp_path / f"{path.stem}.md", success=True) for path in chunk]
+        calls.append([f"{idx}:{path.name}" for idx, path in chunk])
+        return [ConvertResult(pdf_path=path, md_path=tmp_path / f"{path.stem}.md", success=True) for idx, path in chunk]
 
     monkeypatch.setattr("scholaraio.ingest.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
 
@@ -258,9 +258,52 @@ def test_convert_pdfs_cloud_batch_splits_into_chunks(tmp_path, monkeypatch):
         batch_size=2,
     )
 
-    assert calls == [["paper-0.pdf", "paper-1.pdf"], ["paper-2.pdf"]]
+    assert calls == [["0:paper-0.pdf", "1:paper-1.pdf"], ["2:paper-2.pdf"]]
     assert len(results) == 3
     assert all(result.success for result in results)
+
+
+def test_convert_pdfs_cloud_batch_preserves_global_unique_indexes_across_chunks(tmp_path, monkeypatch):
+    pdf_paths: list[Path] = []
+    for subdir in ("a", "b", "c", "d"):
+        pdf_path = tmp_path / subdir / "paper.pdf"
+        pdf_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf_path.write_bytes(b"%PDF-1.4")
+        pdf_paths.append(pdf_path)
+
+    seen_dirs: list[Path] = []
+
+    def fake_convert_chunk_cloud(
+        chunk: list[tuple[int, Path]],
+        opts: ConvertOptions,
+        *,
+        api_key: str,
+        cloud_url: str,
+    ) -> list[ConvertResult]:
+        results: list[ConvertResult] = []
+        for global_idx, path in chunk:
+            out_dir = opts.output_dir / f"{global_idx:04d}_{path.stem}"
+            seen_dirs.append(out_dir)
+            results.append(ConvertResult(pdf_path=path, md_path=out_dir / "index.md", success=True))
+        return results
+
+    monkeypatch.setattr("scholaraio.ingest.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
+
+    convert_pdfs_cloud_batch(
+        pdf_paths,
+        ConvertOptions(output_dir=tmp_path / "out"),
+        api_key="test-key",
+        cloud_url="https://mineru.example/api",
+        batch_size=2,
+    )
+
+    assert [path.name for path in seen_dirs] == [
+        "0000_paper",
+        "0001_paper",
+        "0002_paper",
+        "0003_paper",
+    ]
+    assert len(set(seen_dirs)) == 4
 
 
 def test_convert_chunk_cloud_uses_bounded_parallel_workers(tmp_path, monkeypatch):
@@ -303,7 +346,7 @@ def test_convert_chunk_cloud_uses_bounded_parallel_workers(tmp_path, monkeypatch
     )
 
     results = _convert_chunk_cloud(
-        pdf_paths,
+        list(enumerate(pdf_paths)),
         ConvertOptions(output_dir=tmp_path / "out", upload_workers=2),
         api_key="token",
         cloud_url="https://mineru.example/api",
@@ -333,7 +376,7 @@ def test_convert_chunk_cloud_isolates_duplicate_stems_into_unique_output_dirs(tm
     )
 
     results = _convert_chunk_cloud(
-        [pdf_a, pdf_b],
+        list(enumerate([pdf_a, pdf_b])),
         ConvertOptions(output_dir=tmp_path / "out", upload_workers=2),
         api_key="token",
         cloud_url="https://mineru.example/api",

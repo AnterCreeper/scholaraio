@@ -481,31 +481,31 @@ def convert_pdfs_cloud_batch(
     # Split into chunks
     all_results: list[ConvertResult] = []
     for chunk_start in range(0, len(pdf_paths), batch_size):
-        chunk = pdf_paths[chunk_start : chunk_start + batch_size]
-        chunk_results = _convert_chunk_cloud(chunk, opts, api_key=api_key, cloud_url=cloud_url)
+        indexed_chunk = list(enumerate(pdf_paths[chunk_start : chunk_start + batch_size], start=chunk_start))
+        chunk_results = _convert_chunk_cloud(indexed_chunk, opts, api_key=api_key, cloud_url=cloud_url)
         all_results.extend(chunk_results)
     return all_results
 
 
 def _convert_chunk_cloud(
-    pdf_paths: list[Path],
+    indexed_pdf_paths: list[tuple[int, Path]],
     opts: ConvertOptions,
     *,
     api_key: str,
     cloud_url: str,
 ) -> list[ConvertResult]:
     """Process a single batch chunk via bounded concurrent CLI invocations."""
-    max_workers = min(len(pdf_paths), max(1, int(opts.upload_workers or DEFAULT_UPLOAD_WORKERS)))
+    max_workers = min(len(indexed_pdf_paths), max(1, int(opts.upload_workers or DEFAULT_UPLOAD_WORKERS)))
 
     def _run_one(item: tuple[int, Path]) -> ConvertResult:
-        idx, pdf_path = item
+        global_idx, pdf_path = item
         item_opts = opts
         if opts.output_dir is not None:
-            item_opts = replace(opts, output_dir=opts.output_dir / f"{idx:04d}_{pdf_path.stem}")
+            item_opts = replace(opts, output_dir=opts.output_dir / f"{global_idx:04d}_{pdf_path.stem}")
         return convert_pdf_cloud(pdf_path, item_opts, api_key=api_key, cloud_url=cloud_url)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return list(pool.map(_run_one, enumerate(pdf_paths)))
+        return list(pool.map(_run_one, indexed_pdf_paths))
 
 
 def _build_cloud_cli_command(
