@@ -176,7 +176,7 @@ Workflow:
 | `citation_styles.py` | Citation style management (built-in APA/Vancouver/Chicago/MLA + dynamically loaded custom styles stored in `data/citation_styles/`) |
 | `citation_check.py` | Citation verification (extract author-year citations from text + cross-check against the local library) |
 | `audit.py` | Data-quality auditing + repair |
-| `sources/` | Data-source adapters (local / endnote / zotero / arxiv) |
+| `sources/` | External source adapters (endnote / zotero / arxiv) |
 | `cli.py` | Main CLI entry point |
 | `setup.py` | Environment detection + setup wizard |
 | `metrics.py` | LLM token usage + API timing |
@@ -372,8 +372,8 @@ data/explore/<name>/
 
 ### `sources/` Abstraction Layer
 
-`sources/local.py` iterates over subdirectories in `data/papers/` and yields `(paper_id, meta_dict, md_path)` tuples, where `paper_id` is the UUID.
-`papers.py` provides path helpers, and all modules use it to access paper paths.
+`papers.py` is the path-helper layer for the local library under `data/papers/`, and modules use it directly to iterate paper directories and read `meta.json`.
+`sources/` holds external-source adapters such as arXiv, Endnote, and Zotero.
 
 ## Configuration
 

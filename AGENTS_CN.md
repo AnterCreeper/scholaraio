@@ -175,7 +175,7 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 | `citation_styles.py` | 引用格式管理（内置 APA/Vancouver/Chicago/MLA + 动态加载自定义格式，存于 `data/citation_styles/`） |
 | `citation_check.py` | 引用验证（从文本提取 author-year 引用 + 本地库交叉核验） |
 | `audit.py` | 数据质量审计 + 修复 |
-| `sources/` | 数据源适配（local / endnote / zotero / arxiv） |
+| `sources/` | 外部来源适配（endnote / zotero / arxiv） |
 | `cli.py` | 全量 CLI 入口 |
 | `setup.py` | 环境检测 + 安装向导 |
 | `metrics.py` | LLM token 用量 + API 计时 |
@@ -362,8 +362,8 @@ data/explore/<name>/
 
 ### sources/ 抽象层
 
-`sources/local.py` 遍历 `data/papers/` 子目录，产出 `(paper_id, meta_dict, md_path)` 三元组（paper_id 为 UUID）。
-`papers.py` 提供路径 helper，所有模块通过它访问论文路径。
+`papers.py` 是本地论文库 `data/papers/` 的路径 helper 层，模块直接通过它遍历论文目录并读取 `meta.json`。
+`sources/` 主要承载 arXiv、Endnote、Zotero 等外部来源适配器。
 
 ## 配置
 

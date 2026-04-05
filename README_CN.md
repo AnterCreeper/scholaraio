@@ -273,7 +273,7 @@ scholaraio insights [--days N] 阅读行为分析
 ```
 scholaraio/          # Python 包——CLI、所有核心模块
   ingest/            #   PDF 解析 + 元数据提取流水线
-  sources/           #   数据源适配（local / Endnote / Zotero）
+  sources/           #   外部来源适配（arXiv / Endnote / Zotero）
 
 .claude/skills/      # agent skills（AgentSkills.io 格式）
 .agents/skills/      # ↑ 符号链接，方便跨 agent 发现

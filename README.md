@@ -274,7 +274,7 @@ scholaraio insights [--days N] Reading behavior analytics
 ```
 scholaraio/          # Python package — CLI and all core modules
   ingest/            #   PDF parsing + metadata extraction pipeline
-  sources/           #   Data source adapters (local / Endnote / Zotero)
+  sources/           #   External source adapters (arXiv / Endnote / Zotero)
 
 .claude/skills/      # Agent skills (AgentSkills.io format)
 .agents/skills/      # ↑ symlink for cross-agent discovery
