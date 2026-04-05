@@ -634,7 +634,7 @@ def _plan_cloud_chunking(
             size_bound_pages = max(1, int(max_bytes // avg_bytes_per_page))
             chunk_size = min(chunk_size, size_bound_pages)
     elif size_bytes > max_bytes:
-        chunk_size = max(1, default_chunk_size)
+        chunk_size = min(max_pages, max(1, default_chunk_size))
 
     return True, max(1, chunk_size), "; ".join(reasons)
 

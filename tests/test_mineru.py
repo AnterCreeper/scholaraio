@@ -297,3 +297,15 @@ def test_plan_cloud_chunking_uses_safe_fallback_chunk_size_when_page_count_unkno
     assert should_chunk is True
     assert chunk_size == 100
     assert "250.0 MB" in reason
+
+
+def test_plan_cloud_chunking_clamps_unknown_page_fallback_to_cloud_max(tmp_path, monkeypatch):
+    pdf_path = tmp_path / "unknown.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: -1)
+    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+
+    should_chunk, chunk_size, _reason = _plan_cloud_chunking(pdf_path, default_chunk_size=800)
+
+    assert should_chunk is True
+    assert chunk_size == 600

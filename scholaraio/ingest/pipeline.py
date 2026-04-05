@@ -179,6 +179,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
     """
     from scholaraio.ingest.mineru import (
         ConvertOptions,
+        ConvertResult,
         _convert_long_pdf,
         _convert_long_pdf_cloud,
         _get_pdf_page_count,
@@ -301,13 +302,20 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
 
         _log.debug("local MinerU unreachable, using MinerU cloud CLI")
         if is_long:
-            result = _convert_long_pdf_cloud(
-                pdf_path,
-                mineru_opts,
-                api_key=cloud_api_key,
-                cloud_url=ctx.cfg.ingest.mineru_cloud_url,
-                chunk_size=cloud_chunk_size or local_chunk_limit,
-            )
+            try:
+                result = _convert_long_pdf_cloud(
+                    pdf_path,
+                    mineru_opts,
+                    api_key=cloud_api_key,
+                    cloud_url=ctx.cfg.ingest.mineru_cloud_url,
+                    chunk_size=cloud_chunk_size or local_chunk_limit,
+                )
+            except ImportError as exc:
+                _log.warning("cloud split unavailable, trying fallback parsers: %s", exc)
+                result = ConvertResult(pdf_path=pdf_path, success=False, error=str(exc))
+            except Exception as exc:
+                _log.warning("cloud split failed unexpectedly, trying fallback parsers: %s", exc)
+                result = ConvertResult(pdf_path=pdf_path, success=False, error=str(exc))
         else:
             result = convert_pdf_cloud(
                 pdf_path,
@@ -1550,6 +1558,45 @@ def import_external(
 # ============================================================================
 
 
+def _move_batch_images(paper_md: Path, pdir: Path, stem: str, md_src: Path | None, tmp_dir: Path) -> None:
+    """Move images produced by cloud batch conversion into ``pdir/images``."""
+    image_sources: list[Path] = []
+
+    legacy_images_src = tmp_dir / f"{stem}_images"
+    if legacy_images_src.is_dir():
+        image_sources.append(legacy_images_src)
+
+    if md_src is not None:
+        for candidate in [md_src.parent / "images", md_src.parent / f"{stem}_images"]:
+            if candidate.is_dir() and candidate not in image_sources:
+                image_sources.append(candidate)
+
+    if not image_sources:
+        return
+
+    images_dst = pdir / "images"
+    if images_dst.exists():
+        shutil.rmtree(str(images_dst))
+    images_dst.mkdir(parents=True, exist_ok=True)
+
+    for images_src in image_sources:
+        for child in images_src.iterdir():
+            dst_child = images_dst / child.name
+            if dst_child.exists():
+                if dst_child.is_dir():
+                    shutil.rmtree(str(dst_child))
+                else:
+                    dst_child.unlink()
+            shutil.move(str(child), str(dst_child))
+        images_src.rmdir()
+
+    if paper_md.exists():
+        md_text = paper_md.read_text(encoding="utf-8")
+        fixed = md_text.replace(f"{stem}_images/", "images/")
+        if fixed != md_text:
+            paper_md.write_text(fixed, encoding="utf-8")
+
+
 def batch_convert_pdfs(
     cfg: Config,
     *,
@@ -1732,24 +1779,16 @@ def batch_convert_pdfs(
                         _run_fallback(pdir, br.pdf_path)
                         continue
 
+                    md_src = br.md_path if br.md_path and br.md_path.exists() else None
+                    if md_src is None:
+                        ui(f"  {pdir.name}: MinerU 未生成有效的 markdown，转为本地回退")
+                        _run_fallback(pdir, br.pdf_path)
+                        continue
+
                     # Move .md to paper_dir/paper.md
                     paper_md = pdir / "paper.md"
-                    if br.md_path and br.md_path.exists():
-                        shutil.move(str(br.md_path), str(paper_md))
-
-                    # Move namespaced images: tmp/<stem>_images → paper_dir/images
-                    images_src = tmp_dir / f"{stem}_images"
-                    if images_src.is_dir():
-                        images_dst = pdir / "images"
-                        if images_dst.exists():
-                            shutil.rmtree(str(images_dst))
-                        shutil.move(str(images_src), str(images_dst))
-                        # Fix image paths in markdown (data_id_images/ → images/)
-                        if paper_md.exists():
-                            md_text = paper_md.read_text(encoding="utf-8")
-                            fixed = md_text.replace(f"{stem}_images/", "images/")
-                            if fixed != md_text:
-                                paper_md.write_text(fixed, encoding="utf-8")
+                    shutil.move(str(md_src), str(paper_md))
+                    _move_batch_images(paper_md, pdir, stem, md_src, tmp_dir)
 
                     # Clean up source PDF (keep only markdown)
                     pdf_path = br.pdf_path

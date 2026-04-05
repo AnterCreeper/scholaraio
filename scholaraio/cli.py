@@ -2720,13 +2720,20 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
             )
             if should_chunk:
                 ui(f"检测到云端需分片 PDF（{reason}），正在分片处理...")
-                result = _convert_long_pdf_cloud(
-                    dest_pdf,
-                    mineru_opts,
-                    api_key=api_key,
-                    cloud_url=cfg.ingest.mineru_cloud_url,
-                    chunk_size=chunk_size,
-                )
+                try:
+                    result = _convert_long_pdf_cloud(
+                        dest_pdf,
+                        mineru_opts,
+                        api_key=api_key,
+                        cloud_url=cfg.ingest.mineru_cloud_url,
+                        chunk_size=chunk_size,
+                    )
+                except ImportError as exc:
+                    result = None
+                    ui(f"云端分片依赖缺失，尝试 fallback：{exc}。可安装 scholaraio[pdf] / pymupdf")
+                except Exception as exc:
+                    result = None
+                    ui(f"云端分片失败，尝试 fallback：{exc}")
             else:
                 result = convert_pdf_cloud(
                     dest_pdf,

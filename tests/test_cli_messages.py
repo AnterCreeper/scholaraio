@@ -677,6 +677,65 @@ class TestAttachPdfFallback:
         assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "split ok\n"
         assert not (paper_dir / "input.pdf").exists()
 
+    def test_attach_pdf_cloud_split_importerror_falls_back(self, tmp_path, monkeypatch):
+        paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+        paper_dir.mkdir(parents=True)
+        (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+        src_pdf = tmp_path / "input.pdf"
+        src_pdf.write_bytes(b"%PDF-1.4\n")
+        messages: list[str] = []
+
+        cfg = SimpleNamespace(
+            ingest=SimpleNamespace(
+                mineru_endpoint="http://localhost:8000",
+                mineru_cloud_url="https://mineru.net/api/v4",
+                mineru_backend_local="pipeline",
+                mineru_model_version_cloud="pipeline",
+                mineru_lang="en",
+                mineru_parse_method="auto",
+                mineru_enable_formula=True,
+                mineru_enable_table=True,
+                chunk_page_limit=100,
+                pdf_fallback_order=["auto"],
+                pdf_fallback_auto_detect=True,
+            ),
+            papers_dir=tmp_path / "papers",
+        )
+        cfg.resolved_mineru_api_key = lambda: "token"
+
+        monkeypatch.setattr(cli, "_resolve_paper", lambda *_: paper_dir)
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        import scholaraio.ingest.mineru as mineru
+        import scholaraio.ingest.pdf_fallback as pdf_fallback
+
+        monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+        monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
+        monkeypatch.setattr(
+            mineru,
+            "_convert_long_pdf_cloud",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(ImportError("install pymupdf")),
+        )
+        monkeypatch.setattr(
+            pdf_fallback,
+            "convert_pdf_with_fallback",
+            lambda _pdf, md_path, **_kwargs: (
+                md_path.write_text("fallback attach ok\n", encoding="utf-8"),
+                True,
+                "docling",
+                None,
+            )[1:],
+        )
+        monkeypatch.setattr("scholaraio.papers.read_meta", lambda *_: {"abstract": "exists"})
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_embed", lambda *_: None)
+        monkeypatch.setattr("scholaraio.ingest.pipeline.step_index", lambda *_: None)
+
+        args = Namespace(paper_id="paper-1", pdf_path=str(src_pdf), dry_run=False)
+        cli.cmd_attach_pdf(args, cfg)
+
+        assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "fallback attach ok\n"
+        assert any("scholaraio[pdf]" in msg for msg in messages)
+
 
 class TestSetupMetricsFallback:
     def test_setup_check_skips_metrics_init_failure(self, monkeypatch):

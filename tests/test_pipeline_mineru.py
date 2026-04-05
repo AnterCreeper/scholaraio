@@ -236,6 +236,84 @@ def test_batch_convert_pdfs_cloud_batch_success_counts_each_result(tmp_path, mon
     assert not pdf.exists()
 
 
+def test_batch_convert_pdfs_cloud_batch_missing_md_falls_back(tmp_path, monkeypatch):
+    paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+    paper_dir.mkdir(parents=True)
+    (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+    pdf = paper_dir / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.paths.papers_dir = "papers"
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pdf_fallback as pdf_fallback
+    import scholaraio.ingest.pipeline as pipeline
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(pipeline, "_batch_postprocess", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdfs_cloud_batch",
+        lambda *_args, **_kwargs: [ConvertResult(pdf_path=pdf, md_path=None, success=True)],
+    )
+    monkeypatch.setattr(
+        pdf_fallback,
+        "convert_pdf_with_fallback",
+        lambda _pdf, md_path, **_kwargs: (
+            md_path.write_text("fallback batch ok\n", encoding="utf-8"),
+            True,
+            "docling",
+            None,
+        )[1:],
+    )
+
+    stats = batch_convert_pdfs(cfg, enrich=False)
+
+    assert stats == {"converted": 1, "failed": 0, "skipped": 0}
+    assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "fallback batch ok\n"
+
+
+def test_batch_convert_pdfs_cloud_batch_moves_markdown_relative_images(tmp_path, monkeypatch):
+    paper_dir = tmp_path / "papers" / "Smith-2023-Test"
+    paper_dir.mkdir(parents=True)
+    (paper_dir / "meta.json").write_text("{}", encoding="utf-8")
+    pdf = paper_dir / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    md_dir = tmp_path / "batch-out" / "source"
+    md_dir.mkdir(parents=True)
+    tmp_md = md_dir / "index.md"
+    tmp_md.write_text("![img](images/fig.png)\n", encoding="utf-8")
+    (md_dir / "images").mkdir()
+    (md_dir / "images" / "fig.png").write_bytes(b"png")
+
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.paths.papers_dir = "papers"
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pipeline as pipeline
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(pipeline, "_batch_postprocess", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdfs_cloud_batch",
+        lambda *_args, **_kwargs: [ConvertResult(pdf_path=pdf, md_path=tmp_md, success=True)],
+    )
+
+    stats = batch_convert_pdfs(cfg, enrich=False)
+
+    assert stats == {"converted": 1, "failed": 0, "skipped": 0}
+    assert (paper_dir / "paper.md").read_text(encoding="utf-8") == "![img](images/fig.png)\n"
+    assert (paper_dir / "images" / "fig.png").exists()
+
+
 def test_step_mineru_prefers_docling_when_configured(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
@@ -406,3 +484,47 @@ def test_step_mineru_cloud_splits_when_new_cloud_limits_require_it(tmp_path, mon
     assert result == StepResult.OK
     assert captured["chunk_size"] == 320
     assert ctx.md_path == tmp_path / "paper.md"
+
+
+def test_step_mineru_cloud_split_importerror_falls_back(tmp_path, monkeypatch):
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    ctx = InboxCtx(
+        pdf_path=pdf,
+        inbox_dir=tmp_path,
+        papers_dir=tmp_path / "papers",
+        existing_dois={},
+        cfg=cfg,
+        opts={},
+    )
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pdf_fallback as pdf_fallback
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
+    monkeypatch.setattr(
+        mineru,
+        "_convert_long_pdf_cloud",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ImportError("install pymupdf")),
+    )
+    monkeypatch.setattr(
+        pdf_fallback,
+        "convert_pdf_with_fallback",
+        lambda _pdf, md_path, **_kwargs: (
+            md_path.write_text("fallback ok\n", encoding="utf-8"),
+            True,
+            "pymupdf",
+            None,
+        )[1:],
+    )
+
+    result = step_mineru(ctx)
+
+    assert result == StepResult.OK
+    assert ctx.md_path == tmp_path / "paper.md"
+    assert ctx.md_path.read_text(encoding="utf-8") == "fallback ok\n"
