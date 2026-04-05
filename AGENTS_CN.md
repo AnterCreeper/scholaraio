@@ -181,7 +181,6 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 | `metrics.py` | LLM token 用量 + API 计时 |
 | `insights.py` | 研究行为分析（热词、阅读趋势、语义近邻推荐、工作区活跃度） |
 | `translate.py` | 论文翻译（语言检测 + LLM 分块翻译 + 批量翻译） |
-| `migrate.py` | 数据迁移（扁平结构 → 按目录结构） |
 
 CLI 命令一览：`scholaraio --help`
 
@@ -189,7 +188,7 @@ CLI 命令一览：`scholaraio --help`
 - 检索相关：`search-author`、`embed`、`vsearch`、`usearch`、`fsearch`、`top-cited`
 - 图谱相关：`refs`、`citing`、`shared-refs`
 - 富化/修复：`enrich-toc`、`enrich-l3`、`backfill-abstract`、`refetch`、`repair`
-- 数据维护：`attach-pdf`、`migrate-dirs`
+- 数据维护：`attach-pdf`
 - 工作区：`ws`（init / add / remove / show / search / export 等子命令）
 - 外部发现与科学运行时：`arxiv`、`toolref`、`insights`、`style`、`document`
 

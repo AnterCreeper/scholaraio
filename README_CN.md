@@ -260,7 +260,6 @@ scholaraio document inspect   检查 DOCX / PPTX / XLSX 结构
 scholaraio audit              数据质量审计
 scholaraio repair             修复元数据
 scholaraio rename             标准化目录名
-scholaraio migrate-dirs       迁移旧版目录结构
 scholaraio setup              环境配置向导（默认进入向导，`check` 只做诊断）
 scholaraio metrics            查看 LLM 用量统计
 scholaraio insights [--days N] 阅读行为分析

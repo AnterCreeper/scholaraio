@@ -182,7 +182,6 @@ Workflow:
 | `metrics.py` | LLM token usage + API timing |
 | `insights.py` | Research behavior analytics (hot keywords, read trends, semantic neighbor recommendations, workspace activity) |
 | `translate.py` | Paper translation (language detection + LLM chunked translation + batch translation) |
-| `migrate.py` | Data migration (flat structure -> per-directory structure) |
 
 CLI command reference: `scholaraio --help`
 
@@ -190,7 +189,7 @@ Besides skills, the current CLI also provides several important capabilities wor
 - Retrieval-related: `search-author`, `embed`, `vsearch`, `usearch`, `fsearch`, `top-cited`
 - Graph-related: `refs`, `citing`, `shared-refs`
 - Enrichment and repair: `enrich-toc`, `enrich-l3`, `backfill-abstract`, `refetch`, `repair`
-- Data maintenance: `attach-pdf`, `migrate-dirs`
+- Data maintenance: `attach-pdf`
 - Workspace: `ws` (subcommands such as `init`, `add`, `remove`, `show`, `search`, `export`, and more)
 - External and scientific runtime: `arxiv`, `toolref`, `insights`, `style`, `document`
 

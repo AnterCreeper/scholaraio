@@ -45,13 +45,6 @@ class TestCliHelpLocalization:
         assert "Check environment status" not in setup_help
         assert "Output language" not in setup_check
 
-    def test_migrate_execute_help_uses_chinese_preview_wording(self):
-        parser = cli._build_parser()
-        migrate_help = parser._subparsers._group_actions[0].choices["migrate-dirs"].format_help()
-
-        assert "实际执行迁移（默认先预览）" in migrate_help
-        assert "dry-run" not in migrate_help
-
     def test_toolref_fetch_help_uses_prefix_free_version_example(self):
         parser = cli._build_parser()
         toolref_parser = parser._subparsers._group_actions[0].choices["toolref"]
@@ -430,40 +423,6 @@ class TestOptionalDependencyHints:
 
         assert any("缺少依赖: fitz" in msg for msg in errors)
         assert any("pip install scholaraio[pdf]" in msg for msg in errors)
-
-
-class TestMigrateDirsMessages:
-    def test_migrate_dirs_preview_message_is_chinese(self, tmp_path, monkeypatch):
-        messages: list[str] = []
-        monkeypatch.setattr(cli, "ui", messages.append)
-        monkeypatch.setattr(
-            "scholaraio.migrate.migrate_to_dirs",
-            lambda papers_dir, dry_run: {"migrated": 2, "skipped": 1, "failed": 0},
-        )
-
-        cfg = SimpleNamespace(papers_dir=tmp_path / "papers")
-        args = Namespace(execute=False)
-
-        cli.cmd_migrate_dirs(args, cfg)
-
-        assert any("迁移完成（预览）" in msg for msg in messages)
-        assert not any("dry-run" in msg or "executed" in msg for msg in messages)
-
-    def test_migrate_dirs_execute_message_is_chinese(self, tmp_path, monkeypatch):
-        messages: list[str] = []
-        monkeypatch.setattr(cli, "ui", messages.append)
-        monkeypatch.setattr(
-            "scholaraio.migrate.migrate_to_dirs",
-            lambda papers_dir, dry_run: {"migrated": 1, "skipped": 0, "failed": 0},
-        )
-
-        cfg = SimpleNamespace(papers_dir=tmp_path / "papers")
-        args = Namespace(execute=True)
-
-        cli.cmd_migrate_dirs(args, cfg)
-
-        assert any("迁移完成（已执行）" in msg for msg in messages)
-        assert not any("dry-run" in msg or "executed" in msg for msg in messages)
 
 
 class TestAttachPdfFallback:

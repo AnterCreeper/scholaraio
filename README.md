@@ -261,7 +261,6 @@ scholaraio document inspect   Inspect DOCX / PPTX / XLSX structure
 scholaraio audit              Data quality audit
 scholaraio repair             Fix metadata
 scholaraio rename             Standardize directory names
-scholaraio migrate-dirs       Migrate legacy directory structure
 scholaraio setup              Setup wizard
 scholaraio metrics            View LLM usage stats
 scholaraio insights [--days N] Reading behavior analytics

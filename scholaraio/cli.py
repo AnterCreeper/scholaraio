@@ -25,7 +25,6 @@ cli.py — scholaraio 命令行入口
     scholaraio pipeline <preset> | --steps <s1,s2,...> [--list] [--dry-run] ...
     scholaraio metrics [--summary] [--last N] [--category CAT] [--since DATE]
     scholaraio setup [check] [--lang en|zh]
-    scholaraio migrate-dirs [--execute]
     scholaraio explore fetch --issn <ISSN> [--name NAME] [--year-range Y]
     scholaraio explore embed --name <NAME> [--rebuild]
     scholaraio explore topics --name <NAME> [--build] [--rebuild] [--topic ID]
@@ -2394,19 +2393,6 @@ def cmd_setup(args: argparse.Namespace, cfg) -> None:
         run_wizard(cfg)
 
 
-def cmd_migrate_dirs(args: argparse.Namespace, cfg) -> None:
-    from scholaraio.migrate import migrate_to_dirs
-
-    dry_run = not args.execute
-    stats = migrate_to_dirs(cfg.papers_dir, dry_run=dry_run)
-    mode = "预览" if dry_run else "已执行"
-    ui(f"\n迁移完成（{mode}）：{stats['migrated']} 迁移 | {stats['skipped']} 跳过 | {stats['failed']} 失败")
-    if dry_run and stats["migrated"]:
-        ui("添加 --execute 以实际执行迁移")
-    if not dry_run and stats["migrated"]:
-        ui("请运行 `scholaraio pipeline reindex` 重建索引")
-
-
 def cmd_import_endnote(args: argparse.Namespace, cfg) -> None:
     try:
         from scholaraio.sources.endnote import parse_endnote_full
@@ -3344,11 +3330,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup_sub = p_setup.add_subparsers(dest="setup_action")
     p_setup_check = p_setup_sub.add_parser("check", help="检查环境状态")
     p_setup_check.add_argument("--lang", choices=["en", "zh"], default="zh", help="输出语言（zh 或 en，默认 zh）")
-
-    # --- migrate-dirs ---
-    p_migrate = sub.add_parser("migrate-dirs", help="迁移 data/papers/ 从平铺结构到每篇一目录")
-    p_migrate.set_defaults(func=cmd_migrate_dirs)
-    p_migrate.add_argument("--execute", action="store_true", help="实际执行迁移（默认先预览）")
 
     # --- fsearch ---
     p_fsearch = sub.add_parser("fsearch", help="联邦搜索：同时搜索主库、proceedings、explore 库和 arXiv")
