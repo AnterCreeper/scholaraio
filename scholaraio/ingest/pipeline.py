@@ -1007,8 +1007,12 @@ def _process_inbox(
     use_cloud_batch = False
     if needs_mineru and not dry_run:
         from scholaraio.ingest.mineru import check_server
+        from scholaraio.ingest.pdf_fallback import prefers_fallback_parser
 
-        if not check_server(cfg.ingest.mineru_endpoint):
+        preferred_parser = getattr(cfg.ingest, "pdf_preferred_parser", "mineru")
+        if prefers_fallback_parser(preferred_parser):
+            _log.debug("preferred parser %s bypasses MinerU cloud batch preflight", preferred_parser)
+        elif not check_server(cfg.ingest.mineru_endpoint):
             if cfg.resolved_mineru_api_key():
                 _log.debug("local MinerU unreachable, will use MinerU cloud CLI")
                 use_cloud_batch = True

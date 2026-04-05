@@ -620,6 +620,63 @@ def test_process_inbox_cloud_batch_failure_retries_mineru_per_file(tmp_path, mon
     assert extract_seen["md_path"] == inbox_dir / "paper.md"
 
 
+def test_process_inbox_skips_cloud_batch_when_fallback_parser_is_preferred(tmp_path, monkeypatch):
+    inbox_dir = tmp_path / "inbox"
+    inbox_dir.mkdir()
+    pdf = inbox_dir / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.ingest.pdf_preferred_parser = "docling"
+    monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
+
+    import scholaraio.ingest.mineru as mineru
+    import scholaraio.ingest.pipeline as pipeline
+
+    extract_seen: dict[str, Path | None] = {}
+    original_mineru = pipeline.STEPS["mineru"].fn
+    original_extract = pipeline.STEPS["extract"].fn
+
+    monkeypatch.setattr(mineru, "check_server", lambda *_: False)
+    monkeypatch.setattr(
+        mineru,
+        "convert_pdfs_cloud_batch",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not use cloud batch when docling is preferred")),
+    )
+
+    def fake_step_mineru(ctx):
+        ctx.md_path = inbox_dir / "paper.md"
+        ctx.md_path.write_text("preferred parser path\n", encoding="utf-8")
+        return StepResult.OK
+
+    def fake_extract(ctx):
+        extract_seen["md_path"] = ctx.md_path
+        ctx.status = "skipped"
+        return StepResult.OK
+
+    monkeypatch.setattr(pipeline.STEPS["mineru"], "fn", fake_step_mineru)
+    monkeypatch.setattr(pipeline.STEPS["extract"], "fn", fake_extract)
+
+    try:
+        _process_inbox(
+            inbox_dir,
+            tmp_path / "papers",
+            tmp_path / "pending",
+            {},
+            ["mineru", "extract"],
+            cfg,
+            {},
+            False,
+            [],
+        )
+    finally:
+        monkeypatch.setattr(pipeline.STEPS["mineru"], "fn", original_mineru)
+        monkeypatch.setattr(pipeline.STEPS["extract"], "fn", original_extract)
+
+    assert extract_seen["md_path"] == inbox_dir / "paper.md"
+
+
 def test_step_mineru_prefers_docling_when_configured(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")

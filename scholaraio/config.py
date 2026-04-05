@@ -190,7 +190,8 @@ class IngestConfig:
         mineru_batch_size: `mineru-open-api` 兼容层的分块大小，默认 20。
         mineru_upload_workers: 云端 CLI / `mineru-open-api` 兼容层的并发配置。
             对分块后的云端转换仍生效，用于限制同时进行的转换任务数。
-        mineru_upload_retries: 旧云 API 上传重试配置；为兼容保留。
+        mineru_upload_retries: 云端 `mineru-open-api` 单文件重试次数（含首轮），
+            默认 3。当前用于 MinerU cloud CLI 的指数退避重试。
         mineru_download_retries: 旧云 API 下载重试配置；为兼容保留。
         mineru_poll_timeout: `mineru-open-api` 单次转换超时（秒），默认 900。
         pdf_preferred_parser: 首选 PDF 解析器。默认优先 ``mineru``，也可显式设为
