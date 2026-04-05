@@ -517,6 +517,7 @@ def test_process_inbox_cloud_batch_keeps_images_for_mineru_only(tmp_path, monkey
     pdf.write_bytes(b"%PDF-1.4\n")
     md_path = inbox_dir / "paper.md"
     images_dir = inbox_dir / "images"
+    isolated_dir = inbox_dir / "0000_paper"
 
     cfg = Config()
     cfg._root = tmp_path
@@ -528,10 +529,12 @@ def test_process_inbox_cloud_batch_keeps_images_for_mineru_only(tmp_path, monkey
     monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
 
     def fake_convert(*_args, **_kwargs):
-        md_path.write_text("![img](images/fig.png)\n", encoding="utf-8")
-        images_dir.mkdir()
-        (images_dir / "fig.png").write_bytes(b"png")
-        return [ConvertResult(pdf_path=pdf, md_path=md_path, success=True)]
+        isolated_dir.mkdir()
+        nested_md = isolated_dir / "index.md"
+        nested_md.write_text("![img](images/fig.png)\n", encoding="utf-8")
+        (isolated_dir / "images").mkdir()
+        (isolated_dir / "images" / "fig.png").write_bytes(b"png")
+        return [ConvertResult(pdf_path=pdf, md_path=nested_md, success=True)]
 
     monkeypatch.setattr(
         mineru,
@@ -554,6 +557,7 @@ def test_process_inbox_cloud_batch_keeps_images_for_mineru_only(tmp_path, monkey
     assert md_path.exists() is True
     assert images_dir.is_dir() is True
     assert (images_dir / "fig.png").exists()
+    assert not isolated_dir.exists()
 
 
 def test_step_mineru_prefers_docling_when_configured(tmp_path, monkeypatch):

@@ -1092,7 +1092,11 @@ def _process_inbox(
                     continue
                 entry = entries.get(did)
                 if entry is not None and entry["md"] is None and br.md_path and br.md_path.exists():
-                    entry["md"] = br.md_path
+                    entry["md"] = (
+                        br.md_path
+                        if normalize_batch_assets
+                        else _flatten_cloud_batch_output(inbox_dir, did, br.md_path)
+                    )
 
     # ---- Per-file pipeline (remaining steps, or all steps if local MinerU) ----
     # If batch MinerU was used, skip mineru step per-file (md already exists)
@@ -1191,6 +1195,10 @@ def _process_inbox(
         if stray_dir.is_dir():
             shutil.rmtree(stray_dir)
             _log.debug("stray cleanup dir: %s", stray_dir.name)
+    for stray_dir in list(inbox_dir.glob("[0-9][0-9][0-9][0-9]_*")):
+        if stray_dir.is_dir() and not any(stray_dir.iterdir()):
+            stray_dir.rmdir()
+            _log.debug("stray cleanup empty batch dir: %s", stray_dir.name)
 
     ui(
         f"\n{label_prefix}inbox done: {stats['ingested']} ingested | {stats['duplicate']} duplicate | {stats['needs_review']} review | {stats['failed']} failed | {stats['skipped']} skipped"
@@ -1602,6 +1610,34 @@ def _move_batch_images(paper_md: Path, pdir: Path, stem: str, md_src: Path | Non
         fixed = md_text.replace(f"{stem}_images/", "images/")
         if fixed != md_text:
             paper_md.write_text(fixed, encoding="utf-8")
+
+
+def _flatten_cloud_batch_output(inbox_dir: Path, stem: str, md_src: Path) -> Path:
+    """Move isolated cloud batch output back into inbox root for mineru-only flows."""
+    flat_md = inbox_dir / f"{stem}.md"
+    if md_src != flat_md:
+        if flat_md.exists():
+            flat_md.unlink()
+        shutil.move(str(md_src), str(flat_md))
+
+    images_src = md_src.parent / "images"
+    if images_src.is_dir():
+        images_dst = inbox_dir / "images"
+        images_dst.mkdir(parents=True, exist_ok=True)
+        for child in images_src.iterdir():
+            dst_child = images_dst / child.name
+            if dst_child.exists():
+                if dst_child.is_dir():
+                    shutil.rmtree(str(dst_child))
+                else:
+                    dst_child.unlink()
+            shutil.move(str(child), str(dst_child))
+        images_src.rmdir()
+
+    md_src_parent = md_src.parent
+    if md_src_parent != inbox_dir and md_src_parent.is_dir() and not any(md_src_parent.iterdir()):
+        md_src_parent.rmdir()
+    return flat_md
 
 
 def batch_convert_pdfs(
