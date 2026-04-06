@@ -194,3 +194,51 @@ def test_enrich_metadata_records_arxiv_as_api_source_when_only_arxiv_lookup_succ
 
     assert meta.api_sources == ["arxiv"]
     assert meta.extraction_method == "arxiv_lookup"
+
+
+def test_enrich_metadata_rejects_title_search_hit_when_author_and_year_both_conflict(monkeypatch):
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_crossref",
+        lambda **kwargs: {
+            "DOI": "10.1002/9781118527221.ch2",
+            "title": ["Structure of Turbulent Boundary Layers"],
+            "author": [{"given": "Ronald J.", "family": "Adrian"}],
+            "published-print": {"date-parts": [[2013]]},
+            "container-title": ["Coherent Flow Structures at Earth's Surface"],
+            "type": "other",
+            "is-referenced-by-count": 5,
+            "abstract": "Wrong candidate abstract.",
+        }
+        if kwargs.get("title")
+        else {},
+    )
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_openalex",
+        lambda **kwargs: {
+            "doi": "https://doi.org/10.1002/9781118527221.ch2",
+            "title": "Structure of Turbulent Boundary Layers",
+            "publication_year": 2013,
+            "authorships": [{"author": {"display_name": "Ronald J. Adrian"}}],
+        }
+        if kwargs.get("title")
+        else {},
+    )
+    monkeypatch.setattr(
+        "scholaraio.ingest.metadata._api.query_semantic_scholar",
+        lambda **kwargs: {},
+    )
+
+    meta = PaperMetadata(
+        title="The structure of turbulent boundary layers",
+        authors=["S. J. Kline", "W. C. Reynolds"],
+        first_author="S. J. Kline",
+        first_author_lastname="Kline",
+        year=1967,
+    )
+
+    enrich_metadata(meta)
+
+    assert meta.doi == ""
+    assert meta.first_author_lastname == "Kline"
+    assert meta.year == 1967
+    assert meta.extraction_method == "local_only"

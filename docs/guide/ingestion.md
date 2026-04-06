@@ -16,6 +16,8 @@ This will:
 4. Deduplicate by DOI
 5. Move to `data/papers/` and update indexes
 
+If `translate.auto_translate: true` is enabled in config, the pipeline will also auto-inject the `translate` step for newly ingested papers before `embed/index`. It does not retroactively translate the whole library.
+
 ## Five Inboxes
 
 | Inbox | Path | Behavior |

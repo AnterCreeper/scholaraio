@@ -206,6 +206,70 @@ def _is_arxiv_datacite_doi(doi: str) -> bool:
     return normalized.startswith("10.48550/arxiv.")
 
 
+def _candidate_first_author_lastname(cr_data: dict, s2_data: dict, oa_data: dict) -> str:
+    """Return the candidate first-author lastname from API search results."""
+    if cr_data.get("author"):
+        first = cr_data["author"][0]
+        family = (first.get("family", "") or "").strip()
+        if family:
+            return family
+        given_joined = f"{first.get('given', '')} {first.get('family', '')}".strip()
+        if given_joined:
+            return _extract_lastname(given_joined)
+    if s2_data.get("authors"):
+        name = (s2_data["authors"][0].get("name", "") or "").strip()
+        if name:
+            return _extract_lastname(name)
+    if oa_data.get("authorships"):
+        name = ((oa_data["authorships"][0].get("author", {}) or {}).get("display_name", "") or "").strip()
+        if name:
+            return _extract_lastname(name)
+    return ""
+
+
+def _candidate_year(cr_data: dict, s2_data: dict, oa_data: dict) -> int | None:
+    """Return the candidate publication year from API search results."""
+    for date_key in ("published-print", "published-online"):
+        parts = (cr_data.get(date_key, {}) or {}).get("date-parts", [[]])
+        if parts and parts[0] and parts[0][0]:
+            try:
+                return int(parts[0][0])
+            except (TypeError, ValueError):
+                break
+    if s2_data.get("year"):
+        try:
+            return int(s2_data["year"])
+        except (TypeError, ValueError):
+            pass
+    if oa_data.get("publication_year"):
+        try:
+            return int(oa_data["publication_year"])
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _search_result_consistent_with_local(meta: PaperMetadata, cr_data: dict, s2_data: dict, oa_data: dict) -> bool:
+    """Reject title-search hits when both author and year clearly conflict.
+
+    For title-driven enrichment we tolerate missing local fields, but when local extraction
+    already has both a first-author lastname and a year, an API hit should not replace the
+    paper with a different author *and* a far-away year.
+    """
+    local_last = (meta.first_author_lastname or "").strip().lower()
+    candidate_last = _candidate_first_author_lastname(cr_data, s2_data, oa_data).strip().lower()
+    local_year = meta.year
+    candidate_year = _candidate_year(cr_data, s2_data, oa_data)
+
+    author_conflict = bool(local_last and candidate_last and local_last != candidate_last)
+    year_conflict = bool(
+        local_year
+        and candidate_year
+        and abs(int(local_year) - int(candidate_year)) > 2
+    )
+    return not (author_conflict and year_conflict)
+
+
 # ============================================================================
 #  Relaxed Queries (Tier 3)
 # ============================================================================
@@ -398,7 +462,11 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
                 oa_data = query_openalex(doi=found_doi)
 
         if cr_data or s2_data or oa_data:
-            meta.extraction_method = "title_search"
+            if not _search_result_consistent_with_local(meta, cr_data, s2_data, oa_data):
+                _log.debug("title search mismatch: discarding candidate due to author/year conflict")
+                cr_data, s2_data, oa_data = {}, {}, {}
+            else:
+                meta.extraction_method = "title_search"
 
     # ---- Tier 3: Relaxed title search (Crossref + OA, lower threshold) ----
     if not cr_data and not s2_data and not oa_data and meta.title:
@@ -416,14 +484,22 @@ def enrich_metadata(meta: PaperMetadata) -> PaperMetadata:
             s2_data = query_semantic_scholar(doi=found_doi)
 
         if cr_data or s2_data or oa_data:
-            meta.extraction_method = "title_search_relaxed"
+            if not _search_result_consistent_with_local(meta, cr_data, s2_data, oa_data):
+                _log.debug("relaxed title search mismatch: discarding candidate due to author/year conflict")
+                cr_data, s2_data, oa_data = {}, {}, {}
+            else:
+                meta.extraction_method = "title_search_relaxed"
 
     # ---- Tier 4: S2 title search (last resort, may be rate-limited) ----
     if not cr_data and not s2_data and not oa_data and meta.title:
         _log.debug("Trying S2 title search (last resort)")
         s2_data = query_semantic_scholar(title=meta.title)
         if s2_data:
-            meta.extraction_method = "title_search_s2"
+            if not _search_result_consistent_with_local(meta, {}, s2_data, {}):
+                _log.debug("S2 title search mismatch: discarding candidate due to author/year conflict")
+                s2_data = {}
+            else:
+                meta.extraction_method = "title_search_s2"
 
     # ---- Tier 5: local_only ----
     if arxiv_metadata_applied and "arxiv" not in meta.api_sources:

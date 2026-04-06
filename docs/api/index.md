@@ -128,3 +128,14 @@
         - refetch_metadata
         - rename_paper
         - write_metadata_json
+
+::: scholaraio.ingest.pipeline
+    options:
+      members:
+        - StepResult
+        - InboxCtx
+        - run_pipeline
+        - import_external
+        - batch_convert_pdfs
+        - step_embed
+        - step_index

@@ -164,7 +164,7 @@ Workflow:
 | `ingest/pdf_fallback.py` | PDF fallback parsing (Docling / PyMuPDF) |
 | `ingest/extractor.py` | Metadata extraction (four modes: regex / auto / robust / llm) |
 | `ingest/metadata/` | API completion (Crossref / S2 / OpenAlex) + abstract backfill + document metadata generation + JSON output + file renaming |
-| `ingest/pipeline.py` | Composable ingest pipeline (DOI / patent publication number dedup + pending + external-import batch conversion) |
+| `ingest/pipeline.py` | Composable multi-inbox ingest pipeline (dedup + pending + papers/global postprocess + external-import batch conversion) |
 | `index.py` | Keyword full-text search + papers_registry + citation graph |
 | `vectors.py` | Semantic vectors + incremental indexing + GPU-adaptive batching |
 | `topics.py` | BERTopic topic modeling + 6 HTML visualizations |
@@ -205,7 +205,7 @@ Main ingest flow:
 - Generated Markdown enters `extractor.py`
   - Stage 1: extract fields from the Markdown header, supporting `regex`, `auto`, `robust`, and `llm`
 - Then it enters `metadata/`
-  - Stage 2: API completion, JSON output, and rule-based renaming
+  - Stage 2: API completion, abstract backfill, document metadata generation, JSON output, and rule-based renaming
 - Then it enters `pipeline.py`
   - With DOI: write to `data/papers/<Author-Year-Title>/meta.json + paper.md`
   - With patent publication number: write to `data/papers/<Author-Year-Title>/`, deduplicated by publication number

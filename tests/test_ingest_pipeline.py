@@ -12,6 +12,7 @@ from scholaraio.ingest.pipeline import (
     InboxCtx,
     StepResult,
     _collect_existing_ids,
+    run_pipeline,
     step_dedup,
     step_extract,
     step_office_convert,
@@ -287,3 +288,71 @@ def test_step_translate_treats_all_chunks_failed_as_failure(tmp_path: Path, monk
 
     assert result == StepResult.FAIL
     assert any("全部分块翻译失败" in msg for msg in messages)
+
+
+def test_run_pipeline_auto_injects_translate_for_new_ingest(tmp_path: Path, monkeypatch):
+    cfg = SimpleNamespace(
+        translate=SimpleNamespace(auto_translate=True, target_lang="zh", concurrency=2),
+        llm=SimpleNamespace(concurrency=3),
+        _root=tmp_path,
+        papers_dir=tmp_path / "data" / "papers",
+    )
+
+    seen_steps: list[str] = []
+
+    def fake_process_inbox(
+        inbox_dir,
+        papers_dir,
+        pending_dir,
+        existing_dois,
+        inbox_steps,
+        cfg,
+        opts,
+        dry_run,
+        ingested_jsons,
+        **kwargs,
+    ):
+        seen_steps.extend(inbox_steps)
+        paper_dir = papers_dir / "Smith-2024-Test"
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        meta_json = paper_dir / "meta.json"
+        meta_json.write_text("{}", encoding="utf-8")
+        (paper_dir / "paper.md").write_text("content", encoding="utf-8")
+        ingested_jsons.append(meta_json)
+
+    monkeypatch.setattr("scholaraio.ingest.pipeline._collect_existing_ids", lambda *_: ({}, {}, {}))
+    monkeypatch.setattr("scholaraio.ingest.pipeline._process_inbox", fake_process_inbox)
+
+    paper_calls: list[str] = []
+
+    def fake_toc(json_path, cfg, opts):
+        paper_calls.append("toc")
+        return StepResult.OK
+
+    def fake_translate(json_path, cfg, opts):
+        paper_calls.append("translate")
+        return StepResult.OK
+
+    def fake_embed(papers_dir, cfg, opts):
+        paper_calls.append("embed")
+        return StepResult.OK
+
+    def fake_index(papers_dir, cfg, opts):
+        paper_calls.append("index")
+        return StepResult.OK
+
+    monkeypatch.setattr("scholaraio.ingest.pipeline.STEPS", {
+        "mineru": SimpleNamespace(scope="inbox", fn=lambda ctx: StepResult.OK, desc=""),
+        "extract": SimpleNamespace(scope="inbox", fn=lambda ctx: StepResult.OK, desc=""),
+        "dedup": SimpleNamespace(scope="inbox", fn=lambda ctx: StepResult.OK, desc=""),
+        "ingest": SimpleNamespace(scope="inbox", fn=lambda ctx: StepResult.OK, desc=""),
+        "toc": SimpleNamespace(scope="papers", fn=fake_toc, desc=""),
+        "translate": SimpleNamespace(scope="papers", fn=fake_translate, desc=""),
+        "embed": SimpleNamespace(scope="global", fn=fake_embed, desc=""),
+        "index": SimpleNamespace(scope="global", fn=fake_index, desc=""),
+    })
+
+    run_pipeline(["mineru", "extract", "dedup", "ingest", "toc", "embed", "index"], cfg, {})
+
+    assert seen_steps == ["mineru", "extract", "dedup", "ingest"]
+    assert paper_calls == ["toc", "translate", "embed", "index"]

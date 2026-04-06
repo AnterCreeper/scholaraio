@@ -113,6 +113,11 @@ scholaraio proceedings apply-clean <proceeding_dir> <clean_plan.json>
    - 本地 MinerU 按 `chunk_page_limit`（默认 >100 页）
    - 云端 MinerU 同时遵循 `>600 页` 和 `>200MB` 两个限制，并在仅超大小时估算更安全的分片页数
 
+11. 如果 `config.translate.auto_translate: true`，只要本次 pipeline 包含 inbox 步骤并成功入库新论文，系统会在 papers 阶段自动插入 `translate`，位置在 `embed/index` 之前：
+   - 只翻译本次新入库论文，不会顺手重翻整个库
+   - 目标语言读取 `translate.target_lang`
+   - 这是配置驱动行为，不需要额外改 preset
+
 ## 示例
 
 用户说："我放了几篇新论文到 inbox，帮我入库"
