@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-
 from pathlib import Path
+
+import pytest
 
 from scholaraio.explore import _build_filter, explore_db_path, fetch_explore, validate_explore_name
 
