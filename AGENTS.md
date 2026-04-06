@@ -169,6 +169,8 @@ Workflow:
 | `vectors.py` | Semantic vectors + incremental indexing + GPU-adaptive batching |
 | `topics.py` | BERTopic topic modeling + 6 HTML visualizations |
 | `loader.py` | L1-L4 layered loading + enrich_toc + enrich_l3 |
+| `proceedings.py` | Proceedings storage helpers + child-paper iteration + proceedings DB path helpers |
+| `ingest/proceedings.py` | Proceedings volume preparation + split-plan application + clean-plan application |
 | `explore.py` | Multi-dimensional literature exploration (OpenAlex multi-filter + keyword + semantic + hybrid search + topics, isolated under `data/explore/`) |
 | `workspace.py` | Workspace paper subset management (reuses search/export) |
 | `document.py` | Office document inspection (DOCX / PPTX / XLSX structure, layout, overflow checks) |
@@ -191,6 +193,7 @@ Besides skills, the current CLI also provides several important capabilities wor
 - Enrichment and repair: `enrich-toc`, `enrich-l3`, `backfill-abstract`, `refetch`, `repair`
 - Data maintenance: `attach-pdf`
 - Workspace: `ws` (subcommands such as `init`, `add`, `remove`, `show`, `search`, `export`, and more)
+- Proceedings: `proceedings` (`apply-split`, `build-clean-candidates`, `apply-clean`) and `fsearch --scope proceedings`
 - External and scientific runtime: `arxiv`, `toolref`, `insights`, `style`, `document`
 
 ## Architecture

@@ -4,7 +4,9 @@
     options:
       members:
         - build_index
+        - build_proceedings_index
         - search
+        - search_proceedings
 
 ::: scholaraio.loader
     options:
@@ -46,6 +48,13 @@
         - meta_path
         - md_path
         - iter_paper_dirs
+
+::: scholaraio.proceedings
+    options:
+      members:
+        - proceedings_db_path
+        - iter_proceedings_dirs
+        - iter_proceedings_papers
 
 ::: scholaraio.translate
     options:
