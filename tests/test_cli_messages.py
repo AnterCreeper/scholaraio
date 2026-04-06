@@ -504,6 +504,10 @@ class TestEnrichTocCliProgress:
             "Smith-2023-Turbulence",
             "Wang-2024-DeepLearning",
         ]
+        assert any("Smith-2023-Turbulence" in m and "开始处理" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "开始处理" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "TOC 提取完成" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "TOC 提取完成" in m for m in messages)
         assert any("完成: 2 成功 | 0 失败 | 0 跳过" in m for m in messages)
 
 
@@ -557,6 +561,11 @@ class TestEnrichL3CliBatchRetries:
             "Wang-2024-DeepLearning": 1,
         }
         assert sleep_delays == [1.0, 2.0]
+        assert any("Smith-2023-Turbulence" in m and "开始处理" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "开始处理" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "重试后成功" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "结论提取完成" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "结论提取完成" in m for m in messages)
         assert any("完成: 2 成功 | 0 失败 | 0 跳过" in m for m in messages)
 
 

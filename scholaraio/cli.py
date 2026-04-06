@@ -723,6 +723,9 @@ def _run_batch_enrich(
     failure_message: str,
     max_retries: int,
 ) -> tuple[int, int, int]:
+    def _batch_message(json_path: Path, message: str) -> str:
+        return f"{json_path.parent.name} | {message.strip()}"
+
     queued: list[tuple[Path, Path]] = []
     skip = 0
     for json_path in targets:
@@ -755,21 +758,25 @@ def _run_batch_enrich(
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         futures = []
         for json_path, md_path in queued:
-            ui(f"\n{json_path.parent.name}")
-            ui("  开始处理...")
+            ui(f"\n{_batch_message(json_path, '开始处理...')}")
             futures.append(pool.submit(_retry_one, json_path, md_path))
         for future in concurrent.futures.as_completed(futures):
             json_path, success, attempts = future.result()
             if success:
                 ok += 1
                 if attempts > 1:
-                    ui(f"  重试后成功（共 {attempts} 次）")
-                ui(success_message(json_path) if callable(success_message) else success_message)
+                    ui(_batch_message(json_path, f"重试后成功（共 {attempts} 次）"))
+                ui(
+                    _batch_message(
+                        json_path,
+                        success_message(json_path) if callable(success_message) else success_message,
+                    )
+                )
             else:
                 fail += 1
                 if attempts > 1:
-                    ui(f"  已重试 {attempts - 1}/{max_retries} 次")
-                ui(failure_message)
+                    ui(_batch_message(json_path, f"已重试 {attempts - 1}/{max_retries} 次"))
+                ui(_batch_message(json_path, failure_message))
 
     return ok, fail, skip
 
