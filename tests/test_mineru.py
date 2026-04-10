@@ -271,6 +271,22 @@ def test_cloud_safe_input_path_limits_utf8_bytes_for_non_ascii_long_filename(tmp
     assert not alias_parent.exists()
 
 
+def test_cloud_safe_input_path_symlink_fallback_keeps_relative_source_readable(tmp_path, monkeypatch):
+    pdf_path = tmp_path / f"{'relative-paper' * 12}.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "scholaraio.ingest.mineru.os.link",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("cross-device link")),
+    )
+
+    with cloud_safe_input_path(Path(pdf_path.name)) as alias:
+        assert alias.aliased is True
+        assert alias.path.exists()
+        assert alias.path.read_bytes() == b"%PDF-1.4\n"
+
+
 def test_convert_pdf_rejects_invalid_pdf_before_local_request(tmp_path, monkeypatch):
     pdf_path = tmp_path / "bad.pdf"
     pdf_path.write_bytes(b"not a pdf")

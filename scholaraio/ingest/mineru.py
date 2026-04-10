@@ -609,13 +609,14 @@ def cloud_safe_input_path(pdf_path: Path) -> Iterator[CloudInputAlias]:
 
     with tempfile.TemporaryDirectory(prefix="scholaraio-mineru-cloud-") as tmp:
         alias_path = Path(tmp) / safe_name
+        source_path = pdf_path.resolve()
         try:
-            os.link(pdf_path, alias_path)
+            os.link(source_path, alias_path)
         except OSError:
             try:
-                os.symlink(pdf_path, alias_path)
+                os.symlink(source_path, alias_path)
             except OSError:
-                shutil.copy2(pdf_path, alias_path)
+                shutil.copy2(source_path, alias_path)
         yield CloudInputAlias(path=alias_path, output_stem=alias_path.stem, aliased=True)
 
 
