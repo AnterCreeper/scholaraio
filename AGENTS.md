@@ -500,7 +500,7 @@ This project supports multiple AI coding agents at the same time. `AGENTS.md` is
 | Claude Code | `CLAUDE.md` | `.claude/skills/` |
 | Codex (OpenAI) | `AGENTS.md` | `.agents/skills/` -> `.claude/skills/` |
 | OpenClaw | `AGENTS.md` | `.agents/skills/` -> `.claude/skills/` |
-| Cursor | `.cursorrules` (wrapper -> points to `AGENTS.md`) | - |
+| Cursor | `.cursor/rules/scholaraio.mdc` (Project Rule -> points to `AGENTS.md`) + `.cursorrules` legacy fallback | - |
 | Windsurf | `.windsurfrules` (wrapper -> points to `AGENTS.md`) | - |
 | GitHub Copilot | `.github/copilot-instructions.md` (wrapper -> points to `AGENTS.md`) | - |
 | Cline | `.clinerules` (wrapper -> points to `AGENTS.md`) | `.claude/skills/` (natively supported) |

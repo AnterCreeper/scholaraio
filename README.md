@@ -77,7 +77,7 @@ ScholarAIO is designed to be **agent-agnostic**, but different agents expose dif
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `CLAUDE.md` + `.claude/skills/` | Claude plugin marketplace |
 | [Codex](https://openai.com/codex) / OpenClaw | `AGENTS.md` + `.agents/skills/` | Symlink skills into `~/.agents/skills/` |
 | [Cline](https://github.com/cline/cline) | `.clinerules` + `.claude/skills/` | CLI + skills |
-| [Cursor](https://cursor.sh) | `.cursorrules` | CLI + skills |
+| [Cursor](https://cursor.sh) | `.cursor/rules/scholaraio.mdc` + `AGENTS.md` (`.cursorrules` legacy fallback) | CLI + skills |
 | [Windsurf](https://codeium.com/windsurf) | `.windsurfrules` | CLI + skills |
 | [GitHub Copilot](https://github.com/features/copilot) | `.github/copilot-instructions.md` | CLI + skills |
 

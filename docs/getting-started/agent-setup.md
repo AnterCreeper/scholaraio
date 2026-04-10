@@ -35,7 +35,7 @@ Then start your agent in the repository root:
 | Claude Code | Reads `CLAUDE.md` and loads `.claude/skills/` |
 | Codex / OpenClaw | Reads `AGENTS.md` and discovers `.agents/skills/` |
 | Cline | Reads `.clinerules` and can use `.claude/skills/` |
-| Cursor | Reads `.cursorrules` |
+| Cursor | Reads `.cursor/rules/scholaraio.mdc` as a Project Rule, then `AGENTS.md`; `.cursorrules` is kept as a legacy fallback |
 | Windsurf | Reads `.windsurfrules` |
 | GitHub Copilot | Reads `.github/copilot-instructions.md` |
 
