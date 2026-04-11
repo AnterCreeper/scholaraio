@@ -482,20 +482,40 @@ def build_explore_vectors(name: str, *, rebuild: bool = False, cfg: Config | Non
     from scholaraio.vectors import (
         _append_faiss_files,
         _embed_batch,
+        _embed_provider,
+        _embed_signature,
         _ensure_schema,
-        _load_model,
         _pack,
+        _sync_embedding_signature,
     )
-
-    _load_model(cfg)
 
     db = _db_path(name, cfg)
     conn = sqlite3.connect(db)
     try:
         _ensure_schema(conn)
 
+        signature = _embed_signature(cfg)
+        rebuild, rebuild_reason = _sync_embedding_signature(
+            conn,
+            signature=signature,
+            rebuild=rebuild,
+        )
+        if rebuild_reason == "signature_changed":
+            _log.warning("探索库 embedding 配置已变更，自动执行全量重建: %s", signature)
+        elif rebuild_reason == "legacy_unknown":
+            _log.warning("探索库检测到旧版向量库缺少签名元数据，自动执行一次全量重建")
+
         if rebuild:
             conn.execute("DELETE FROM paper_vectors")
+            explore_dir = _explore_dir(name, cfg)
+            (explore_dir / "faiss.index").unlink(missing_ok=True)
+            (explore_dir / "faiss_ids.json").unlink(missing_ok=True)
+
+        if _embed_provider(cfg) == "none":
+            conn.commit()
+            _log.info("embed.provider=none，跳过探索库向量生成")
+            build_explore_fts(name, cfg=cfg)
+            return 0
 
         existing = set()
         if not rebuild:
@@ -516,6 +536,7 @@ def build_explore_vectors(name: str, *, rebuild: bool = False, cfg: Config | Non
             to_embed.append((pid, text))
 
         if not to_embed:
+            conn.commit()
             return 0
 
         _log.info("Embedding %d papers...", len(to_embed))
@@ -605,9 +626,10 @@ def build_explore_topics(
     Returns:
         统计字典：``{"n_topics": N, "n_outliers": N, "n_papers": N}``。
     """
-    from scholaraio.vectors import _load_model
+    from scholaraio.vectors import _embed_provider
 
-    _load_model(cfg)
+    if _embed_provider(cfg) == "none":
+        raise FileNotFoundError("当前 embed.provider=none，无法构建主题模型，请先启用向量后端并运行 embed")
 
     model_dir = _explore_dir(name, cfg) / "topic_model"
     if model_dir.exists() and not rebuild:

@@ -83,8 +83,8 @@ _S: dict[str, dict[Lang, str]] = {
     "step_deps": {"en": "Step 1: Checking dependencies...", "zh": "步骤 1: 检查依赖..."},
     "step_config": {"en": "Step 2: Configuration file", "zh": "步骤 2: 配置文件"},
     "step_keys": {
-        "en": "Step 3: API keys (stored in config.local.yaml, not tracked by git)",
-        "zh": "步骤 3: API 密钥（保存在 config.local.yaml，不进 git）",
+        "en": "Step 3: API keys & embedding backend (stored in config.local.yaml, not tracked by git)",
+        "zh": "步骤 3: API 密钥与 embedding 后端（保存在 config.local.yaml，不进 git）",
     },
     "step_parser": {
         "en": "Step 3: Choose a PDF parser",
@@ -226,6 +226,34 @@ _S: dict[str, dict[Lang, str]] = {
         "en": "  Contact email (free; used for the Crossref polite pool so API responses are faster).\n  Press Enter to skip.",
         "zh": "  联系邮箱（免费；用于 Crossref polite pool，配置后 API 更快）。\n  按 Enter 跳过。",
     },
+    "embed_backend_prompt": {
+        "en": "  Embedding backend:\n"
+        "    1) Local model (default, may download model on first use)\n"
+        "    2) Cloud API (OpenAI-compatible /v1/embeddings)\n"
+        "    3) Disable embeddings (keyword search only)\n"
+        "  Choose [1/2/3], press Enter for default.",
+        "zh": "  Embedding 后端：\n"
+        "    1) 本地模型（默认，首次使用可能下载模型）\n"
+        "    2) 云端 API（OpenAI-compatible /v1/embeddings）\n"
+        "    3) 禁用 embedding（仅关键词检索）\n"
+        "  请选择 [1/2/3]，直接回车使用默认。",
+    },
+    "embed_model_prompt": {
+        "en": "  Embedding model name (e.g. text-embedding-3-small). Press Enter for default.",
+        "zh": "  Embedding 模型名（例如 text-embedding-3-small）。回车使用默认值。",
+    },
+    "embed_api_base_prompt": {
+        "en": "  Embedding API base URL (e.g. https://api.openai.com/v1). Press Enter for default.",
+        "zh": "  Embedding API base URL（例如 https://api.openai.com/v1）。回车使用默认值。",
+    },
+    "embed_api_key_prompt": {
+        "en": "  Embedding API key. Press Enter to reuse llm.api_key / env fallback.",
+        "zh": "  Embedding API key。回车可复用 llm.api_key / 环境变量回退。",
+    },
+    "embed_saved": {
+        "en": "  Embedding backend settings saved.",
+        "zh": "  Embedding 后端配置已保存。",
+    },
     "key_saved": {"en": "  Saved to config.local.yaml.", "zh": "  已保存到 config.local.yaml。"},
     "no_keys": {
         "en": "  No keys configured. You can add them later in config.local.yaml.",
@@ -285,7 +313,7 @@ def _prompt_result(prompt: str) -> PromptResult:
     """Read one prompt and preserve whether EOF was hit."""
     try:
         return PromptResult(input(prompt).strip(), from_eof=False)
-    except EOFError:
+    except (EOFError, StopIteration):
         return PromptResult("", from_eof=True)
 
 
@@ -930,6 +958,51 @@ def _wizard_keys(root: Path, lang: Lang, parser_choice: ParserChoice | None = No
     else:
         local_data.pop("llm", None)
 
+    # Embedding backend
+    print(t("embed_backend_prompt", lang))
+    embed_choice = _prompt_text("  > ")
+
+    embed_cfg_raw = local_data.get("embed")
+    embed_cfg: dict[str, object] = embed_cfg_raw if isinstance(embed_cfg_raw, dict) else {}
+    if embed_cfg_raw is not None and not isinstance(embed_cfg_raw, dict):
+        changed = True
+    local_data["embed"] = embed_cfg
+
+    if not embed_choice:
+        pass
+    elif embed_choice == "1":
+        if embed_cfg.get("provider") != "local":
+            embed_cfg["provider"] = "local"
+            changed = True
+    elif embed_choice == "2":
+        embed_cfg["provider"] = "openai-compat"
+
+        print(t("embed_model_prompt", lang))
+        model = _prompt_text("  > ")
+        embed_cfg["model"] = model or "text-embedding-3-small"
+
+        print(t("embed_api_base_prompt", lang))
+        api_base = _prompt_text("  > ")
+        if api_base:
+            embed_cfg["api_base"] = api_base
+
+        print(t("embed_api_key_prompt", lang))
+        embed_key = _prompt_text("  > ")
+        if embed_key:
+            embed_cfg["api_key"] = embed_key
+
+        changed = True
+    elif embed_choice == "3":
+        if embed_cfg.get("provider") != "none":
+            embed_cfg["provider"] = "none"
+            changed = True
+
+    if embed_choice in ("1", "2", "3"):
+        print(t("embed_saved", lang))
+
+    if not embed_cfg:
+        local_data.pop("embed", None)
+
     if ingest_local:
         local_data["ingest"] = ingest_local
     else:
@@ -993,12 +1066,18 @@ ingest:
 
 # Semantic embeddings (Qwen3-Embedding-0.6B, ~1.2 GB, auto-downloaded)
 embed:
+  provider: local          # local | openai-compat | none
   model: Qwen/Qwen3-Embedding-0.6B
   cache_dir: ~/.cache/modelscope/hub/models
   device: auto              # auto | cpu | cuda
   top_k: 10
   source: modelscope        # modelscope | huggingface
   hf_endpoint: null         # optional HuggingFace mirror endpoint
+  api_base: null            # OpenAI-compatible endpoint, e.g. https://api.openai.com/v1
+  api_key: null             # -> config.local.yaml or env SCHOLARAIO_EMBED_API_KEY
+  api_timeout: 30
+  batch_size: 64
+  max_retries: 3
 
 search:
   top_k: 20

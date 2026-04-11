@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from scholaraio.papers import best_citation as _best_cite
 from scholaraio.papers import read_meta as _read_meta
-from scholaraio.vectors import _unpack
+from scholaraio.vectors import _embed_provider, _unpack
 
 _log = logging.getLogger(__name__)
 
@@ -314,6 +314,9 @@ def build_topics(
     Returns:
         训练好的 BERTopic 模型实例。
     """
+    if _embed_provider(cfg) == "none":
+        raise FileNotFoundError("当前 embed.provider=none，无法构建主题模型，请先启用向量后端并运行 embed")
+
     paper_ids, docs, metas, embeddings = _load_embeddings_and_docs(
         db_path,
         papers_dir,

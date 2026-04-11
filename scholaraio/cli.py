@@ -364,9 +364,14 @@ def cmd_embed(args: argparse.Namespace, cfg) -> None:
         _log.error("论文目录不存在: %s", papers_dir)
         sys.exit(1)
 
+    provider = (getattr(cfg.embed, "provider", "local") or "local").strip().lower()
     action = "重建向量索引" if args.rebuild else "更新向量索引"
     ui(f"{action}: {papers_dir} -> {cfg.index_db}")
     count = build_vectors(papers_dir, cfg.index_db, rebuild=args.rebuild, cfg=cfg)
+    if provider == "none":
+        ui("当前 embed.provider=none：已禁用向量生成，系统将使用关键词检索。")
+        ui("如需语义检索，请将 embed.provider 改为 local 或 openai-compat 后重新运行 `scholaraio embed`。")
+        return
     label = "总计" if args.rebuild else "新增"
     ui(f"完成：{label} {count} 条向量。")
     ui("下一步：运行 `scholaraio vsearch <问题>` 或 `scholaraio usearch <问题>` 试试检索效果。")
@@ -1349,6 +1354,10 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
         except ImportError as e:
             _check_import_error(e)
         n = build_explore_vectors(args.name, rebuild=args.rebuild, cfg=cfg)
+        provider = (getattr(cfg.embed, "provider", "local") or "local").strip().lower()
+        if provider == "none":
+            ui("当前 embed.provider=none：探索库跳过向量生成，仅保留关键词检索。")
+            return
         ui(f"完成: 新增 {n} 条向量嵌入")
 
     elif action == "topics":

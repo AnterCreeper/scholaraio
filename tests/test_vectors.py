@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from types import SimpleNamespace
 
 from scholaraio import vectors
@@ -137,3 +138,74 @@ def test_load_model_fast_fails_when_remote_download_is_unreachable(tmp_path, mon
         assert "HuggingFace" in str(exc) or "Hugging Face" in str(exc)
     else:
         raise AssertionError("expected _load_model to fail fast when remote preflight is unreachable")
+
+
+def test_build_vectors_auto_rebuild_on_signature_change(tmp_papers, tmp_db, tmp_path, monkeypatch):
+    monkeypatch.setattr(vectors, "_embed_batch", lambda texts, cfg=None: [[0.1, 0.2, 0.3] for _ in texts])
+
+    cfg_local = _build_config(
+        {
+            "embed": {
+                "provider": "local",
+                "model": "local-test-model",
+                "source": "huggingface",
+                "device": "cpu",
+            }
+        },
+        tmp_path,
+    )
+    n1 = vectors.build_vectors(tmp_papers, tmp_db, cfg=cfg_local)
+    assert n1 == 2
+
+    with sqlite3.connect(tmp_db) as conn:
+        sig1 = conn.execute("SELECT value FROM vector_metadata WHERE key='embed_signature'").fetchone()[0]
+        count1 = conn.execute("SELECT COUNT(*) FROM paper_vectors").fetchone()[0]
+    assert sig1.startswith("local::local-test-model::")
+    assert count1 == 2
+
+    cfg_cloud = _build_config(
+        {
+            "embed": {
+                "provider": "openai-compat",
+                "model": "text-embedding-3-small",
+                "api_base": "https://api.example.com/v1",
+                "api_key": "embed-key",
+            }
+        },
+        tmp_path,
+    )
+    n2 = vectors.build_vectors(tmp_papers, tmp_db, cfg=cfg_cloud)
+    assert n2 == 2  # full rebuild after signature change
+
+    with sqlite3.connect(tmp_db) as conn:
+        sig2 = conn.execute("SELECT value FROM vector_metadata WHERE key='embed_signature'").fetchone()[0]
+        count2 = conn.execute("SELECT COUNT(*) FROM paper_vectors").fetchone()[0]
+    assert sig2 == "openai-compat::text-embedding-3-small::https://api.example.com/v1"
+    assert count2 == 2
+
+
+def test_build_vectors_provider_none_clears_vectors(tmp_papers, tmp_db, tmp_path, monkeypatch):
+    monkeypatch.setattr(vectors, "_embed_batch", lambda texts, cfg=None: [[0.1, 0.2, 0.3] for _ in texts])
+
+    cfg_local = _build_config(
+        {
+            "embed": {
+                "provider": "local",
+                "model": "local-test-model",
+                "source": "huggingface",
+                "device": "cpu",
+            }
+        },
+        tmp_path,
+    )
+    assert vectors.build_vectors(tmp_papers, tmp_db, cfg=cfg_local) == 2
+
+    cfg_none = _build_config({"embed": {"provider": "none"}}, tmp_path)
+    assert vectors.build_vectors(tmp_papers, tmp_db, cfg=cfg_none) == 0
+
+    with sqlite3.connect(tmp_db) as conn:
+        count = conn.execute("SELECT COUNT(*) FROM paper_vectors").fetchone()[0]
+        sig = conn.execute("SELECT value FROM vector_metadata WHERE key='embed_signature'").fetchone()[0]
+
+    assert count == 0
+    assert sig == "none"

@@ -106,20 +106,32 @@ class EmbedConfig:
     """语义向量嵌入配置。
 
     Attributes:
+        provider: 嵌入后端，``"local"`` | ``"openai-compat"`` | ``"none"``。
         model: Sentence Transformer 模型名称或 HuggingFace ID。
         cache_dir: 本地模型缓存目录。
         device: 推理设备，``"auto"`` | ``"cpu"`` | ``"cuda"``。
         top_k: ``scholaraio vsearch`` 默认返回条数。
         source: 模型下载源，``"modelscope"`` | ``"huggingface"``。
         hf_endpoint: HuggingFace 镜像地址（可选），用于无代理或私有镜像。
+        api_base: 云端嵌入 API 基础地址（OpenAI-compatible ``/v1`` 前缀）。
+        api_key: 云端嵌入 API 密钥，建议放 config.local.yaml 或环境变量。
+        api_timeout: 云端嵌入 API 超时（秒）。
+        batch_size: 云端嵌入 API 的请求批大小。
+        max_retries: 云端嵌入 API 最大重试次数。
     """
 
+    provider: str = "local"
     model: str = "Qwen/Qwen3-Embedding-0.6B"
     cache_dir: str = "~/.cache/modelscope/hub/models"
     device: str = "auto"
     top_k: int = 10
     source: str = "modelscope"
     hf_endpoint: str = ""
+    api_base: str = ""
+    api_key: str = ""
+    api_timeout: int = 30
+    batch_size: int = 64
+    max_retries: int = 3
 
 
 @dataclass
@@ -413,6 +425,28 @@ class Config:
             return self.ingest.s2_api_key
         return os.environ.get("S2_API_KEY", "")
 
+    def resolved_embed_api_key(self) -> str:
+        """按优先级查找 Embedding API key。
+
+        查找顺序:
+        1. config ``embed.api_key``
+        2. 环境变量 ``SCHOLARAIO_EMBED_API_KEY``
+        3. OpenAI 兼容常见环境变量 ``OPENAI_API_KEY`` / ``DEEPSEEK_API_KEY``
+        4. 回退到 :meth:`resolved_api_key`
+
+        Returns:
+            API key 字符串，未找到则返回空字符串。
+        """
+        if self.embed.api_key:
+            return self.embed.api_key
+
+        for env_var in ("SCHOLARAIO_EMBED_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
+            val = os.environ.get(env_var, "")
+            if val:
+                return val
+
+        return self.resolved_api_key()
+
 
 # ============================================================================
 #  Loading
@@ -646,21 +680,30 @@ def _build_config(data: dict, root: Path) -> Config:
     )
 
     embed_data = data.get("embed", {}) or {}
+    embed_provider = os.environ.get("SCHOLARAIO_EMBED_PROVIDER") or embed_data.get("provider") or "local"
     embed_source = os.environ.get("SCHOLARAIO_EMBED_SOURCE") or embed_data.get("source") or "modelscope"
     embed_cache_dir = (
         os.environ.get("SCHOLARAIO_EMBED_CACHE_DIR") or embed_data.get("cache_dir") or "~/.cache/modelscope/hub/models"
     )
     embed_model = os.environ.get("SCHOLARAIO_EMBED_MODEL") or embed_data.get("model") or "Qwen/Qwen3-Embedding-0.6B"
+    embed_api_base = os.environ.get("SCHOLARAIO_EMBED_API_BASE") or embed_data.get("api_base") or ""
+    embed_api_key = os.environ.get("SCHOLARAIO_EMBED_API_KEY") or embed_data.get("api_key") or ""
     hf_endpoint = (
         os.environ.get("SCHOLARAIO_HF_ENDPOINT") or embed_data.get("hf_endpoint") or os.environ.get("HF_ENDPOINT") or ""
     )
     embed = EmbedConfig(
+        provider=embed_provider,
         model=embed_model,
         cache_dir=embed_cache_dir,
         device=embed_data.get("device", "auto"),
         top_k=int(embed_data.get("top_k", 10)),
         source=embed_source,
         hf_endpoint=hf_endpoint,
+        api_base=embed_api_base,
+        api_key=embed_api_key,
+        api_timeout=int(embed_data.get("api_timeout", 30)),
+        batch_size=max(1, int(embed_data.get("batch_size", 64))),
+        max_retries=max(0, int(embed_data.get("max_retries", 3))),
     )
 
     search_data = data.get("search", {}) or {}

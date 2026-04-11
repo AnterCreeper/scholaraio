@@ -25,6 +25,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import requests
+
 _log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -40,12 +42,104 @@ CREATE TABLE IF NOT EXISTS paper_vectors (
 );
 """
 
+_META_SCHEMA = """
+CREATE TABLE IF NOT EXISTS vector_metadata (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+"""
+
 _MIGRATE_HASH = "ALTER TABLE paper_vectors ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''"
+_EMBED_SIG_KEY = "embed_signature"
+
+
+def _embed_provider(cfg: Config | None = None) -> str:
+    """Return normalized embedding backend provider."""
+    if cfg is None:
+        return "local"
+    provider = (cfg.embed.provider or "local").strip().lower()
+    return provider or "local"
+
+
+def _embed_signature(cfg: Config | None = None) -> str:
+    """Build a stable signature for current embedding backend settings."""
+    provider = _embed_provider(cfg)
+
+    if provider == "none":
+        return "none"
+
+    if cfg is None:
+        model = "Qwen/Qwen3-Embedding-0.6B"
+        source = "modelscope"
+        return f"local::{model}::{source}"
+
+    if provider == "openai-compat":
+        model = (cfg.embed.model or "").strip() or "text-embedding-3-small"
+        api_base = (cfg.embed.api_base or "").strip().rstrip("/")
+        if not api_base and getattr(cfg, "llm", None) is not None:
+            llm_base = (cfg.llm.base_url or "").strip().rstrip("/")
+            if llm_base:
+                api_base = llm_base if llm_base.endswith("/v1") else f"{llm_base}/v1"
+        api_base = api_base or "https://api.openai.com/v1"
+        return f"openai-compat::{model}::{api_base}"
+
+    model = (cfg.embed.model or "").strip() or "Qwen/Qwen3-Embedding-0.6B"
+    source = (cfg.embed.source or "").strip() or "modelscope"
+    return f"local::{model}::{source}"
+
+
+def _get_vector_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM vector_metadata WHERE key = ?", (key,)).fetchone()
+    return row[0] if row else None
+
+
+def _set_vector_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO vector_metadata (key, value) VALUES (?, ?)",
+        (key, value),
+    )
+
+
+def _sync_embedding_signature(
+    conn: sqlite3.Connection,
+    *,
+    signature: str,
+    rebuild: bool = False,
+    table_name: str = "paper_vectors",
+) -> tuple[bool, str | None]:
+    """Sync stored embedding signature and decide whether full rebuild is needed.
+
+    Returns:
+        Tuple of ``(effective_rebuild, reason)`` where reason is one of
+        ``"signature_changed"``, ``"legacy_unknown"`` or ``None``.
+    """
+    stored_sig = _get_vector_meta(conn, _EMBED_SIG_KEY)
+    has_rows = conn.execute(f"SELECT 1 FROM {table_name} LIMIT 1").fetchone() is not None
+
+    reason: str | None = None
+    effective_rebuild = rebuild
+
+    if rebuild:
+        reason = None
+    elif stored_sig is None and has_rows:
+        # Legacy DB has vectors but no signature metadata; safest is full rebuild.
+        effective_rebuild = True
+        reason = "legacy_unknown"
+    elif stored_sig is not None and stored_sig != signature:
+        effective_rebuild = True
+        reason = "signature_changed"
+
+    if effective_rebuild:
+        conn.execute(f"DELETE FROM {table_name}")
+
+    _set_vector_meta(conn, _EMBED_SIG_KEY, signature)
+    return effective_rebuild, reason
 
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     """Create paper_vectors table and migrate schema if needed."""
     conn.execute(_SCHEMA)
+    conn.execute(_META_SCHEMA)
     # Migrate: add content_hash column if missing
     cols = {row[1] for row in conn.execute("PRAGMA table_info(paper_vectors)")}
     if "content_hash" not in cols:
@@ -409,13 +503,13 @@ def _compute_batch_size(est_tokens: int, profile: dict, safety_factor: float = 0
     return max(1, min(bs, 128))
 
 
-def _embed_text(text: str, cfg: Config | None = None) -> list[float]:
+def _embed_text_local(text: str, cfg: Config | None = None) -> list[float]:
     model = _load_model(cfg)
     vec = model.encode([text], prompt_name="query", normalize_embeddings=True)
     return vec[0].tolist()
 
 
-def _embed_batch(texts: list[str], cfg: Config | None = None) -> list[list[float]]:
+def _embed_batch_local(texts: list[str], cfg: Config | None = None) -> list[list[float]]:
     """Embed texts with adaptive GPU batch sizing.
 
     Sorts texts by estimated token count, groups them into buckets of
@@ -495,8 +589,139 @@ def _embed_batch(texts: list[str], cfg: Config | None = None) -> list[list[float
     return results
 
 
+def _resolve_embed_api_base(cfg: Config | None = None) -> str:
+    """Resolve OpenAI-compatible embedding API base URL."""
+    if cfg is not None:
+        raw = (cfg.embed.api_base or "").strip().rstrip("/")
+        if raw:
+            return raw
+
+        llm_base = (cfg.llm.base_url or "").strip().rstrip("/")
+        if llm_base:
+            return llm_base if llm_base.endswith("/v1") else f"{llm_base}/v1"
+
+    env_base = (os.environ.get("SCHOLARAIO_EMBED_API_BASE") or "").strip().rstrip("/")
+    if env_base:
+        return env_base
+
+    return "https://api.openai.com/v1"
+
+
+def _resolve_embed_api_key(cfg: Config | None = None) -> str:
+    if cfg is not None:
+        return cfg.resolved_embed_api_key()
+    for env_var in ("SCHOLARAIO_EMBED_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"):
+        val = os.environ.get(env_var, "")
+        if val:
+            return val
+    return ""
+
+
+def _embed_batch_openai_compat(texts: list[str], cfg: Config | None = None) -> list[list[float]]:
+    """Embed texts via OpenAI-compatible ``/v1/embeddings`` API."""
+    if not texts:
+        return []
+
+    api_key = _resolve_embed_api_key(cfg)
+    if not api_key:
+        raise RuntimeError("未配置 embedding API key，请设置 embed.api_key 或 SCHOLARAIO_EMBED_API_KEY")
+
+    model_name = "text-embedding-3-small"
+    batch_size = 64
+    timeout = 30
+    max_retries = 3
+    if cfg is not None:
+        model_name = (cfg.embed.model or "").strip() or model_name
+        batch_size = max(1, int(cfg.embed.batch_size))
+        timeout = max(1, int(cfg.embed.api_timeout))
+        max_retries = max(0, int(cfg.embed.max_retries))
+
+    base = _resolve_embed_api_base(cfg)
+    endpoint = f"{base}/embeddings"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    all_vecs: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start : start + batch_size]
+        payload = {"model": model_name, "input": batch}
+
+        data_items: list[dict] | None = None
+        last_err: Exception | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
+
+                if resp.status_code in {429, 500, 502, 503, 504}:
+                    wait = min(2**attempt, 8)
+                    _log.warning(
+                        "[embed-api] transient error (%s), retry in %ss",
+                        resp.status_code,
+                        wait,
+                    )
+                    time.sleep(wait)
+                    continue
+
+                resp.raise_for_status()
+                body = resp.json()
+                data_items = body.get("data", [])
+                break
+            except (requests.Timeout, requests.ConnectionError) as e:
+                last_err = e
+                wait = min(2**attempt, 8)
+                if attempt < max_retries:
+                    _log.warning("[embed-api] request failed (%s), retry in %ss", e, wait)
+                    time.sleep(wait)
+                    continue
+                break
+            except requests.HTTPError as e:
+                last_err = e
+                break
+
+        if data_items is None:
+            raise RuntimeError(f"调用 embedding API 失败: {last_err}")
+
+        if len(data_items) != len(batch):
+            raise RuntimeError(
+                "embedding API 返回数量与请求不一致: "
+                f"request={len(batch)} response={len(data_items)}"
+            )
+
+        for item in sorted(data_items, key=lambda x: x.get("index", 0)):
+            vec = item.get("embedding")
+            if not isinstance(vec, list):
+                raise RuntimeError("embedding API 返回了非法向量格式")
+            all_vecs.append(vec)
+
+    return all_vecs
+
+
+def _embed_text(text: str, cfg: Config | None = None) -> list[float]:
+    provider = _embed_provider(cfg)
+    if provider == "none":
+        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量功能")
+    if provider == "openai-compat":
+        return _embed_batch_openai_compat([text], cfg)[0]
+    if provider == "local":
+        return _embed_text_local(text, cfg)
+    raise ValueError(f"未知 embedding provider: {provider}")
+
+
+def _embed_batch(texts: list[str], cfg: Config | None = None) -> list[list[float]]:
+    provider = _embed_provider(cfg)
+    if provider == "none":
+        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量功能")
+    if provider == "openai-compat":
+        return _embed_batch_openai_compat(texts, cfg)
+    if provider == "local":
+        return _embed_batch_local(texts, cfg)
+    raise ValueError(f"未知 embedding provider: {provider}")
+
+
 class QwenEmbedder:
-    """BERTopic-compatible embedder wrapping Qwen3 via ``_embed_batch``.
+    """BERTopic-compatible embedder wrapping the configured embedding backend.
 
     BERTopic's KeyBERTInspired representation model requires an embedding
     backend that exposes ``embed_documents`` and ``embed_words`` methods.
@@ -607,7 +832,10 @@ def build_vectors(papers_dir: Path, db_path: Path, rebuild: bool = False, cfg: C
     """为论文生成语义嵌入向量并写入 ``paper_vectors`` 表。
 
     嵌入文本 = ``title`` + ``abstract`` 拼接。
-    使用 Sentence Transformer 模型（默认 Qwen3-Embedding-0.6B）。
+    支持本地模型、OpenAI-compatible 云端 API，或 ``embed.provider=none`` 禁用模式。
+
+    当检测到 embedding 配置签名变化（例如切换 provider/model/api_base）时，
+    会自动清空旧向量并全量重建，避免不同向量空间混用。
 
     Args:
         papers_dir: 已入库论文目录，扫描其中的 ``*.json``。
@@ -622,8 +850,25 @@ def build_vectors(papers_dir: Path, db_path: Path, rebuild: bool = False, cfg: C
     try:
         _ensure_schema(conn)
 
+        signature = _embed_signature(cfg)
+        rebuild, rebuild_reason = _sync_embedding_signature(
+            conn,
+            signature=signature,
+            rebuild=rebuild,
+        )
+        if rebuild_reason == "signature_changed":
+            _log.warning("embedding 配置已变更，自动执行全量重建: %s", signature)
+        elif rebuild_reason == "legacy_unknown":
+            _log.warning("检测到旧版向量库缺少签名元数据，自动执行一次全量重建")
+
         if rebuild:
-            conn.execute("DELETE FROM paper_vectors")
+            _invalidate_faiss(db_path)
+
+        provider = _embed_provider(cfg)
+        if provider == "none":
+            conn.commit()
+            _log.info("embed.provider=none，已禁用向量生成")
+            return 0
 
         # Build lookup of existing hashes for incremental check
         existing_hashes: dict[str, str] = {}
@@ -660,6 +905,7 @@ def build_vectors(papers_dir: Path, db_path: Path, rebuild: bool = False, cfg: C
             to_embed.append((paper_id, text, h))
 
         if not to_embed:
+            conn.commit()
             return 0
 
         _log.info("embedding %d papers", len(to_embed))
@@ -800,6 +1046,9 @@ def _vsearch_faiss(
     import faiss
     import numpy as np
 
+    if _embed_provider(cfg) == "none":
+        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量检索")
+
     q_vec = np.array([_embed_text(query, cfg)], dtype="float32")
     faiss.normalize_L2(q_vec)
 
@@ -849,6 +1098,9 @@ def vsearch(
     """
     import faiss
     import numpy as np
+
+    if _embed_provider(cfg) == "none":
+        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量检索")
 
     if top_k is None:
         top_k = cfg.embed.top_k if cfg is not None else 10

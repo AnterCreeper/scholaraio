@@ -70,12 +70,18 @@ ingest:
 
 # Semantic embeddings 语义向量
 embed:
+  provider: local # local | openai-compat | none
   model: Qwen/Qwen3-Embedding-0.6B
   cache_dir: ~/.cache/modelscope/hub/models
   device: auto # auto | cpu | cuda
   top_k: 10 # vsearch default results vsearch 默认返回条数
   source: modelscope # modelscope (China) | huggingface (international) 模型下载源
   hf_endpoint: null # optional HuggingFace mirror endpoint (env SCHOLARAIO_HF_ENDPOINT > HF_ENDPOINT)
+  api_base: null # OpenAI-compatible endpoint, e.g. https://api.openai.com/v1
+  api_key: null # -> config.local.yaml or env SCHOLARAIO_EMBED_API_KEY
+  api_timeout: 30
+  batch_size: 64
+  max_retries: 3
 
 search:
   top_k: 20 # FTS5 search default results 关键词搜索默认返回条数

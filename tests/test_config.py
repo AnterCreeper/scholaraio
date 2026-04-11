@@ -210,18 +210,24 @@ class TestBuildConfig:
     def test_embed_env_vars_override_yaml(self, tmp_path, monkeypatch):
         data = {
             "embed": {
+                "provider": "local",
                 "source": "modelscope",
                 "cache_dir": "/yaml-cache",
                 "model": "yaml-model",
+                "api_base": "https://yaml-embed.example/v1",
             }
         }
+        monkeypatch.setenv("SCHOLARAIO_EMBED_PROVIDER", "openai-compat")
         monkeypatch.setenv("SCHOLARAIO_EMBED_SOURCE", "huggingface")
         monkeypatch.setenv("SCHOLARAIO_EMBED_CACHE_DIR", "/env-cache")
         monkeypatch.setenv("SCHOLARAIO_EMBED_MODEL", "env-model")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_API_BASE", "https://env-embed.example/v1")
         cfg = _build_config(data, tmp_path)
+        assert cfg.embed.provider == "openai-compat"
         assert cfg.embed.source == "huggingface"
         assert cfg.embed.cache_dir == "/env-cache"
         assert cfg.embed.model == "env-model"
+        assert cfg.embed.api_base == "https://env-embed.example/v1"
 
     def test_scholaraio_hf_endpoint_wins_over_hf_endpoint(self, tmp_path, monkeypatch):
         data = {"embed": {"hf_endpoint": "https://yaml-mirror.example"}}
@@ -233,22 +239,36 @@ class TestBuildConfig:
     def test_empty_embed_env_vars_do_not_override_yaml(self, tmp_path, monkeypatch):
         data = {
             "embed": {
+                "provider": "local",
                 "source": "huggingface",
                 "cache_dir": "/yaml-cache",
                 "model": "yaml-model",
                 "hf_endpoint": "https://yaml-mirror.example",
+                "api_base": "https://yaml-embed.example/v1",
             }
         }
+        monkeypatch.setenv("SCHOLARAIO_EMBED_PROVIDER", "")
         monkeypatch.setenv("SCHOLARAIO_EMBED_SOURCE", "")
         monkeypatch.setenv("SCHOLARAIO_EMBED_CACHE_DIR", "")
         monkeypatch.setenv("SCHOLARAIO_EMBED_MODEL", "")
+        monkeypatch.setenv("SCHOLARAIO_EMBED_API_BASE", "")
         monkeypatch.setenv("SCHOLARAIO_HF_ENDPOINT", "")
         monkeypatch.setenv("HF_ENDPOINT", "")
         cfg = _build_config(data, tmp_path)
+        assert cfg.embed.provider == "local"
         assert cfg.embed.source == "huggingface"
         assert cfg.embed.cache_dir == "/yaml-cache"
         assert cfg.embed.model == "yaml-model"
         assert cfg.embed.hf_endpoint == "https://yaml-mirror.example"
+        assert cfg.embed.api_base == "https://yaml-embed.example/v1"
+
+    def test_embed_provider_defaults_to_local(self, tmp_path):
+        cfg = _build_config({}, tmp_path)
+        assert cfg.embed.provider == "local"
+
+    def test_embed_batch_size_min_1(self, tmp_path):
+        cfg = _build_config({"embed": {"batch_size": 0}}, tmp_path)
+        assert cfg.embed.batch_size == 1
 
 
 class TestConfigProperties:
@@ -363,6 +383,21 @@ class TestResolvedApiKey:
         cfg = _build_config({}, tmp_path)
         monkeypatch.delenv("S2_API_KEY", raising=False)
         assert cfg.resolved_s2_api_key() == ""
+
+    def test_embed_key_from_embed_config(self, tmp_path):
+        cfg = _build_config({"embed": {"api_key": "embed-key"}}, tmp_path)
+        assert cfg.resolved_embed_api_key() == "embed-key"
+
+    def test_embed_key_prefers_embed_env(self, tmp_path, monkeypatch):
+        cfg = _build_config({}, tmp_path)
+        monkeypatch.setenv("SCHOLARAIO_EMBED_API_KEY", "embed-env")
+        assert cfg.resolved_embed_api_key() == "embed-env"
+
+    def test_embed_key_falls_back_to_llm(self, tmp_path, monkeypatch):
+        cfg = _build_config({}, tmp_path)
+        monkeypatch.delenv("SCHOLARAIO_EMBED_API_KEY", raising=False)
+        monkeypatch.setenv("SCHOLARAIO_LLM_API_KEY", "llm-env")
+        assert cfg.resolved_embed_api_key() == "llm-env"
 
 
 class TestLoadConfig:
