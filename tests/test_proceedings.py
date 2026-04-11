@@ -14,7 +14,7 @@ from scholaraio.ingest.proceedings import (
     build_proceedings_clean_candidates,
     ingest_proceedings_markdown,
 )
-from scholaraio.proceedings import iter_proceedings_papers
+from scholaraio.proceedings import iter_proceedings_dirs, iter_proceedings_papers
 
 
 def _write_proceedings_fixture(root: Path) -> Path:
@@ -76,6 +76,10 @@ def _write_proceedings_fixture(root: Path) -> Path:
     (paper_b / "paper.md").write_text("# Shock response of cellular materials", encoding="utf-8")
 
     return proceedings_root
+
+
+def _first_proceeding_dir(proceedings_root: Path) -> Path:
+    return next(iter_proceedings_dirs(proceedings_root))
 
 
 def test_iter_proceedings_papers_yields_child_rows(tmp_path: Path):
@@ -480,9 +484,9 @@ def test_pipeline_routes_manual_proceedings_inbox_to_proceedings_library(tmp_pat
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(iter_proceedings_dirs(tmp_path / "data" / "proceedings"))
     assert not any((tmp_path / "data" / "papers").iterdir())
-    proceeding_dir = next((tmp_path / "data" / "proceedings").iterdir())
+    proceeding_dir = _first_proceeding_dir(tmp_path / "data" / "proceedings")
     meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["split_status"] == "pending_review"
 
@@ -520,9 +524,9 @@ def test_pipeline_routes_forced_proceedings_pdf_right_after_mineru(tmp_path: Pat
 
     run_pipeline(["mineru", "extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(iter_proceedings_dirs(tmp_path / "data" / "proceedings"))
     assert not any((tmp_path / "data" / "papers").iterdir())
-    proceeding_dir = next((tmp_path / "data" / "proceedings").iterdir())
+    proceeding_dir = _first_proceeding_dir(tmp_path / "data" / "proceedings")
     meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["split_status"] == "pending_review"
 
