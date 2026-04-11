@@ -730,7 +730,9 @@ class TestAttachPdfFallback:
         monkeypatch.setattr(
             mineru,
             "check_server",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("fallback-only path should not check MinerU")),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("fallback-only path should not check MinerU")
+            ),
         )
 
         calls: list[tuple[Path, Path]] = []

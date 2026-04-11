@@ -292,7 +292,9 @@ def is_pdf_validation_error(result: ConvertResult | None) -> bool:
 
 
 def _invalid_pdf(message: str, *, encrypted: bool = False, deep_checked: bool = False) -> PDFValidationResult:
-    return PDFValidationResult(ok=False, error=f"PDF validation failed: {message}", encrypted=encrypted, deep_checked=deep_checked)
+    return PDFValidationResult(
+        ok=False, error=f"PDF validation failed: {message}", encrypted=encrypted, deep_checked=deep_checked
+    )
 
 
 def _validation_failure_result(pdf_path: Path, validation: PDFValidationResult, started_at: float) -> ConvertResult:
@@ -548,7 +550,10 @@ def _cloud_cli_retry_attempts(opts: ConvertOptions) -> int:
 def _cloud_safe_pdf_name(pdf_path: Path) -> str:
     """Return a MinerU-cloud-safe filename without changing the user's file."""
     original_name = pdf_path.name
-    if len(original_name) <= CLOUD_SAFE_FILENAME_THRESHOLD and _utf8_size(original_name) <= CLOUD_SAFE_FILENAME_MAX_BYTES:
+    if (
+        len(original_name) <= CLOUD_SAFE_FILENAME_THRESHOLD
+        and _utf8_size(original_name) <= CLOUD_SAFE_FILENAME_MAX_BYTES
+    ):
         return original_name
 
     suffix = pdf_path.suffix or ".pdf"

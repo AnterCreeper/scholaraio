@@ -1614,7 +1614,9 @@ def _move_batch_images(paper_md: Path, pdir: Path, stem: str, md_src: Path | Non
 
     if md_src is not None:
         candidates = [md_src.parent / "images"]
-        candidates.extend(md_src.parent / f"{candidate_stem}_images" for candidate_stem in _asset_stem_candidates(stem, ""))
+        candidates.extend(
+            md_src.parent / f"{candidate_stem}_images" for candidate_stem in _asset_stem_candidates(stem, "")
+        )
         for candidate in candidates:
             if _path_is_dir(candidate) and candidate not in image_sources:
                 image_sources.append(candidate)
