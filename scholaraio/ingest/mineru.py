@@ -81,13 +81,17 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import logging
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -121,6 +125,11 @@ DEFAULT_UPLOAD_RETRIES = 3
 DEFAULT_DOWNLOAD_RETRIES = 3
 DEFAULT_UPLOAD_WORKERS = 4
 DEFAULT_POLL_TIMEOUT = 900
+PDF_VALIDATION_ERROR_KIND = "pdf_validation"
+CLOUD_SAFE_FILENAME_THRESHOLD = 100
+CLOUD_SAFE_FILENAME_MAX_CHARS = 128
+CLOUD_SAFE_FILENAME_MAX_BYTES = 128
+CLOUD_SAFE_FILENAME_PREFIX_CHARS = 100
 
 
 # ============================================================================
@@ -139,6 +148,7 @@ class ConvertResult:
         pages_parsed: 解析的页数。
         elapsed_seconds: 转换耗时（秒）。
         error: 失败时的错误信息，成功时为 ``None``。
+        error_kind: 机器可读的错误类型，用于决定是否允许 fallback。
         md_size: 输出 Markdown 的字节数。
     """
 
@@ -148,6 +158,7 @@ class ConvertResult:
     pages_parsed: int = 0
     elapsed_seconds: float = 0.0
     error: str | None = None
+    error_kind: str | None = None
     md_size: int = 0  # bytes
 
 
@@ -191,6 +202,26 @@ class ConvertOptions:
     poll_timeout: int = DEFAULT_POLL_TIMEOUT
 
 
+@dataclass(frozen=True)
+class PDFValidationResult:
+    """Result of checking whether a PDF is safe to hand to a parser."""
+
+    ok: bool
+    error: str | None = None
+    page_count: int | None = None
+    encrypted: bool = False
+    deep_checked: bool = False
+
+
+@dataclass(frozen=True)
+class CloudInputAlias:
+    """Temporary cloud upload input that keeps original PDF identity separate."""
+
+    path: Path
+    output_stem: str
+    aliased: bool = False
+
+
 # ============================================================================
 #  MinerU API
 # ============================================================================
@@ -210,6 +241,131 @@ def check_server(api_url: str = DEFAULT_API_URL) -> bool:
         return resp.status_code == 200
     except requests.ConnectionError:
         return False
+
+
+def validate_pdf_for_mineru(pdf_path: Path, *, deep: bool = True) -> PDFValidationResult:
+    """Validate a PDF before submitting it to MinerU.
+
+    The cheap checks always run. When PyMuPDF or pikepdf is available, a deeper
+    open/page-count check catches encrypted or structurally broken PDFs before
+    they reach MinerU.
+    """
+    try:
+        if not pdf_path.exists():
+            return _invalid_pdf(f"file not found: {pdf_path}")
+        if not pdf_path.is_file():
+            return _invalid_pdf(f"not a regular file: {pdf_path}")
+        size = pdf_path.stat().st_size
+    except OSError as exc:
+        return _invalid_pdf(f"cannot stat file: {pdf_path}: {_format_exception(exc)}")
+
+    if size <= 0:
+        return _invalid_pdf(f"file is empty: {pdf_path.name}")
+
+    try:
+        with open(pdf_path, "rb") as fh:
+            header = fh.read(5)
+    except OSError as exc:
+        return _invalid_pdf(f"cannot read file header: {pdf_path.name}: {_format_exception(exc)}")
+
+    if header != b"%PDF-":
+        return _invalid_pdf(f"invalid PDF header: {pdf_path.name}")
+
+    if not deep:
+        return PDFValidationResult(ok=True, deep_checked=False)
+
+    deep_result = _validate_pdf_with_pymupdf(pdf_path)
+    if deep_result is not None:
+        return deep_result
+
+    deep_result = _validate_pdf_with_pikepdf(pdf_path)
+    if deep_result is not None:
+        return deep_result
+
+    _log.warning("cannot deep-check PDF structure (install pymupdf or pikepdf): %s", pdf_path.name)
+    return PDFValidationResult(ok=True, deep_checked=False)
+
+
+def is_pdf_validation_error(result: ConvertResult | None) -> bool:
+    """Return whether a conversion failed before parser submission due to bad input."""
+    return bool(result and result.error_kind == PDF_VALIDATION_ERROR_KIND)
+
+
+def _invalid_pdf(message: str, *, encrypted: bool = False, deep_checked: bool = False) -> PDFValidationResult:
+    return PDFValidationResult(
+        ok=False, error=f"PDF validation failed: {message}", encrypted=encrypted, deep_checked=deep_checked
+    )
+
+
+def _validation_failure_result(pdf_path: Path, validation: PDFValidationResult, started_at: float) -> ConvertResult:
+    return ConvertResult(
+        pdf_path=pdf_path,
+        success=False,
+        error=validation.error or "PDF validation failed",
+        error_kind=PDF_VALIDATION_ERROR_KIND,
+        elapsed_seconds=time.time() - started_at,
+    )
+
+
+def _format_exception(exc: BaseException) -> str:
+    message = str(exc).strip()
+    if not message:
+        message = exc.__class__.__name__
+    return message.splitlines()[0][:200]
+
+
+def _validate_pdf_with_pymupdf(pdf_path: Path) -> PDFValidationResult | None:
+    try:
+        import pymupdf
+    except ImportError:
+        return None
+
+    try:
+        with pymupdf.open(pdf_path) as doc:
+            encrypted = bool(getattr(doc, "needs_pass", False)) or bool(getattr(doc, "is_encrypted", False))
+            if encrypted:
+                return _invalid_pdf(
+                    f"encrypted/password-protected PDF is not supported: {pdf_path.name}",
+                    encrypted=True,
+                    deep_checked=True,
+                )
+            page_count = len(doc)
+    except Exception as exc:
+        return _invalid_pdf(
+            f"cannot open PDF structure: {pdf_path.name}: {_format_exception(exc)}",
+            deep_checked=True,
+        )
+
+    if page_count <= 0:
+        return _invalid_pdf(f"PDF has no pages: {pdf_path.name}", deep_checked=True)
+    return PDFValidationResult(ok=True, page_count=page_count, deep_checked=True)
+
+
+def _validate_pdf_with_pikepdf(pdf_path: Path) -> PDFValidationResult | None:
+    try:
+        import pikepdf
+    except ImportError:
+        return None
+
+    try:
+        with pikepdf.open(pdf_path) as pdf:
+            encrypted = bool(getattr(pdf, "is_encrypted", False))
+            if encrypted:
+                return _invalid_pdf(
+                    f"encrypted/password-protected PDF is not supported: {pdf_path.name}",
+                    encrypted=True,
+                    deep_checked=True,
+                )
+            page_count = len(pdf.pages)
+    except Exception as exc:
+        return _invalid_pdf(
+            f"cannot open PDF structure: {pdf_path.name}: {_format_exception(exc)}",
+            deep_checked=True,
+        )
+
+    if page_count <= 0:
+        return _invalid_pdf(f"PDF has no pages: {pdf_path.name}", deep_checked=True)
+    return PDFValidationResult(ok=True, page_count=page_count, deep_checked=True)
 
 
 def convert_pdf(pdf_path: Path, opts: ConvertOptions) -> ConvertResult:
@@ -250,6 +406,10 @@ def convert_pdf(pdf_path: Path, opts: ConvertOptions) -> ConvertResult:
         result.success = True
         result.md_path = md_path
         return result
+
+    validation = validate_pdf_for_mineru(pdf_path)
+    if not validation.ok:
+        return _validation_failure_result(pdf_path, validation, t0)
 
     # Build multipart form data
     url = f"{opts.api_url}{PARSE_ENDPOINT}"
@@ -318,7 +478,7 @@ def convert_pdf(pdf_path: Path, opts: ConvertOptions) -> ConvertResult:
     if opts.save_content_list:
         cl = _extract_field(data, "content_list")
         if cl:
-            cl_path = out_dir / (pdf_path.stem + "_content_list.json")
+            cl_path = out_dir / f"{_safe_pdf_artifact_stem(pdf_path)}_content_list.json"
             cl_path.write_text(json.dumps(cl, ensure_ascii=False, indent=2), encoding="utf-8")
 
     _log.info("-> %s (%s, %.1fs)", md_path.name, _fmt_size(result.md_size), result.elapsed_seconds)
@@ -387,6 +547,84 @@ def _cloud_cli_retry_attempts(opts: ConvertOptions) -> int:
     return max(1, int(opts.upload_retries or DEFAULT_UPLOAD_RETRIES))
 
 
+def _cloud_safe_pdf_name(pdf_path: Path) -> str:
+    """Return a MinerU-cloud-safe filename without changing the user's file."""
+    original_name = pdf_path.name
+    if (
+        len(original_name) <= CLOUD_SAFE_FILENAME_THRESHOLD
+        and _utf8_size(original_name) <= CLOUD_SAFE_FILENAME_MAX_BYTES
+    ):
+        return original_name
+
+    suffix = pdf_path.suffix or ".pdf"
+    if len(suffix) >= CLOUD_SAFE_FILENAME_MAX_CHARS or _utf8_size(suffix) >= CLOUD_SAFE_FILENAME_MAX_BYTES:
+        suffix = ".pdf"
+    digest = hashlib.md5(original_name.encode("utf-8")).hexdigest()[:16]
+    max_prefix_chars = CLOUD_SAFE_FILENAME_MAX_CHARS - len(suffix) - len(digest) - 1
+    max_prefix_bytes = CLOUD_SAFE_FILENAME_MAX_BYTES - _utf8_size(suffix) - len(digest) - 1
+    prefix = _truncate_utf8_prefix(
+        pdf_path.stem,
+        max_chars=min(CLOUD_SAFE_FILENAME_PREFIX_CHARS, max_prefix_chars),
+        max_bytes=max_prefix_bytes,
+    ).rstrip(" ._-")
+    if not prefix:
+        prefix = _truncate_utf8_prefix("document", max_chars=max_prefix_chars, max_bytes=max_prefix_bytes) or "d"
+    return f"{prefix}-{digest}{suffix}"
+
+
+def _utf8_size(value: str) -> int:
+    return len(value.encode("utf-8"))
+
+
+def _truncate_utf8_prefix(value: str, *, max_chars: int, max_bytes: int) -> str:
+    """Truncate without splitting UTF-8 code points."""
+    if max_chars <= 0 or max_bytes <= 0:
+        return ""
+
+    chars: list[str] = []
+    used_bytes = 0
+    for char in value:
+        if len(chars) >= max_chars:
+            break
+        char_bytes = _utf8_size(char)
+        if used_bytes + char_bytes > max_bytes:
+            break
+        chars.append(char)
+        used_bytes += char_bytes
+    return "".join(chars)
+
+
+def _cloud_safe_pdf_stem(pdf_path: Path) -> str:
+    """Return the stem corresponding to the cloud-safe filename."""
+    return _safe_pdf_artifact_stem(pdf_path)
+
+
+def _safe_pdf_artifact_stem(pdf_path: Path) -> str:
+    """Return a bounded, stable stem for internal artifacts derived from a PDF."""
+    return Path(_cloud_safe_pdf_name(pdf_path)).stem
+
+
+@contextmanager
+def cloud_safe_input_path(pdf_path: Path) -> Iterator[CloudInputAlias]:
+    """Yield a path whose basename is safe for MinerU Cloud's data_id limit."""
+    safe_name = _cloud_safe_pdf_name(pdf_path)
+    if safe_name == pdf_path.name:
+        yield CloudInputAlias(path=pdf_path, output_stem=pdf_path.stem, aliased=False)
+        return
+
+    with tempfile.TemporaryDirectory(prefix="scholaraio-mineru-cloud-") as tmp:
+        alias_path = Path(tmp) / safe_name
+        source_path = pdf_path.resolve()
+        try:
+            os.link(source_path, alias_path)
+        except OSError:
+            try:
+                os.symlink(source_path, alias_path)
+            except OSError:
+                shutil.copy2(source_path, alias_path)
+        yield CloudInputAlias(path=alias_path, output_stem=alias_path.stem, aliased=True)
+
+
 def convert_pdf_cloud(
     pdf_path: Path,
     opts: ConvertOptions,
@@ -401,7 +639,10 @@ def convert_pdf_cloud(
     out_dir = opts.output_dir if opts.output_dir else pdf_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
     md_path = out_dir / (pdf_path.stem + ".md")
-    existing_md_path = _locate_cloud_markdown_output(out_dir, pdf_path.stem)
+    cloud_output_stem = Path(_cloud_safe_pdf_name(pdf_path)).stem
+    existing_md_path = _locate_cloud_markdown_output(out_dir, cloud_output_stem)
+    if existing_md_path is None and cloud_output_stem != pdf_path.stem:
+        existing_md_path = _locate_cloud_markdown_output(out_dir, pdf_path.stem)
     result.md_path = existing_md_path or md_path
 
     if opts.dry_run:
@@ -416,6 +657,10 @@ def convert_pdf_cloud(
         result.success = True
         return result
 
+    validation = validate_pdf_for_mineru(pdf_path)
+    if not validation.ok:
+        return _validation_failure_result(pdf_path, validation, t0)
+
     cli_path = shutil.which(MINERU_OPEN_API_BIN)
     if not cli_path:
         result.error = (
@@ -425,65 +670,68 @@ def convert_pdf_cloud(
         result.elapsed_seconds = time.time() - t0
         return result
 
-    cmd = _build_cloud_cli_command(cli_path, pdf_path, out_dir, opts, cloud_url=cloud_url)
-    env = os.environ.copy()
-    if api_key:
-        env["MINERU_TOKEN"] = api_key
+    with cloud_safe_input_path(pdf_path) as cloud_input:
+        cmd = _build_cloud_cli_command(cli_path, cloud_input.path, out_dir, opts, cloud_url=cloud_url)
+        env = os.environ.copy()
+        if api_key:
+            env["MINERU_TOKEN"] = api_key
 
-    attempts = _cloud_cli_retry_attempts(opts)
-    for attempt in range(1, attempts + 1):
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(pdf_path.parent),
-                env=env,
-                timeout=max(30, int(opts.poll_timeout or DEFAULT_POLL_TIMEOUT)) + 60,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            result.error = f"mineru-open-api 执行超时: {exc}"
-        except OSError as exc:
-            result.error = f"无法启动 mineru-open-api: {exc}"
-            result.elapsed_seconds = time.time() - t0
-            return result
-        else:
-            if proc.returncode != 0:
-                detail = (proc.stderr or proc.stdout or "").strip()
-                result.error = f"mineru-open-api exit code {proc.returncode}: {detail or 'unknown error'}"
+        attempts = _cloud_cli_retry_attempts(opts)
+        for attempt in range(1, attempts + 1):
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    cwd=str(cloud_input.path.parent),
+                    env=env,
+                    timeout=max(30, int(opts.poll_timeout or DEFAULT_POLL_TIMEOUT)) + 60,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                result.error = f"mineru-open-api 执行超时: {exc}"
+            except OSError as exc:
+                result.error = f"无法启动 mineru-open-api: {exc}"
+                result.elapsed_seconds = time.time() - t0
+                return result
             else:
-                actual_md_path = _locate_cloud_markdown_output(out_dir, pdf_path.stem)
-                if actual_md_path is None:
+                if proc.returncode != 0:
                     detail = (proc.stderr or proc.stdout or "").strip()
-                    result.error = f"mineru-open-api 未生成 Markdown 输出: {detail or 'missing .md file'}"
+                    result.error = f"mineru-open-api exit code {proc.returncode}: {detail or 'unknown error'}"
                 else:
-                    result.md_path = actual_md_path
-                    result.success = True
-                    result.md_size = len(actual_md_path.read_bytes())
-                    result.elapsed_seconds = time.time() - t0
-                    _log.info(
-                        "-> [cloud-cli] %s (%s, %.1fs)",
-                        actual_md_path.name,
-                        _fmt_size(result.md_size),
-                        result.elapsed_seconds,
-                    )
-                    return result
+                    actual_md_path = _locate_cloud_markdown_output(out_dir, cloud_input.output_stem)
+                    if actual_md_path is None and cloud_input.output_stem != pdf_path.stem:
+                        actual_md_path = _locate_cloud_markdown_output(out_dir, pdf_path.stem)
+                    if actual_md_path is None:
+                        detail = (proc.stderr or proc.stdout or "").strip()
+                        result.error = f"mineru-open-api 未生成 Markdown 输出: {detail or 'missing .md file'}"
+                    else:
+                        result.md_path = actual_md_path
+                        result.success = True
+                        result.md_size = len(actual_md_path.read_bytes())
+                        result.elapsed_seconds = time.time() - t0
+                        _log.info(
+                            "-> [cloud-cli] %s (%s, %.1fs)",
+                            actual_md_path.name,
+                            _fmt_size(result.md_size),
+                            result.elapsed_seconds,
+                        )
+                        return result
 
-        if attempt >= attempts:
-            result.elapsed_seconds = time.time() - t0
-            return result
+            if attempt >= attempts:
+                result.elapsed_seconds = time.time() - t0
+                return result
 
-        backoff_seconds = float(2 ** (attempt - 1))
-        _log.warning(
-            "mineru-open-api attempt %d/%d failed for %s: %s; retrying in %.1fs",
-            attempt,
-            attempts,
-            pdf_path.name,
-            result.error,
-            backoff_seconds,
-        )
-        time.sleep(backoff_seconds)
+            backoff_seconds = float(2 ** (attempt - 1))
+            _log.warning(
+                "mineru-open-api attempt %d/%d failed for %s: %s; retrying in %.1fs",
+                attempt,
+                attempts,
+                pdf_path.name,
+                result.error,
+                backoff_seconds,
+            )
+            time.sleep(backoff_seconds)
 
     result.elapsed_seconds = time.time() - t0
     return result
@@ -527,7 +775,7 @@ def _convert_chunk_cloud(
         global_idx, pdf_path = item
         item_opts = opts
         if opts.output_dir is not None:
-            item_opts = replace(opts, output_dir=opts.output_dir / f"{global_idx:04d}_{pdf_path.stem}")
+            item_opts = replace(opts, output_dir=opts.output_dir / f"{global_idx:04d}_{_cloud_safe_pdf_stem(pdf_path)}")
         return convert_pdf_cloud(pdf_path, item_opts, api_key=api_key, cloud_url=cloud_url)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
@@ -683,21 +931,13 @@ def _get_pdf_page_count(pdf_path: Path) -> int:
     Returns:
         Page count, or -1 if unable to determine.
     """
-    try:
-        import pymupdf
-
-        with pymupdf.open(pdf_path) as doc:
-            return len(doc)
-    except ImportError:
-        pass
-    try:
-        import pikepdf
-
-        with pikepdf.open(pdf_path) as pdf:
-            return len(pdf.pages)
-    except ImportError:
-        pass
-    _log.warning("cannot detect page count (install pymupdf or pikepdf): %s", pdf_path.name)
+    validation = validate_pdf_for_mineru(pdf_path)
+    if validation.ok and validation.page_count is not None:
+        return validation.page_count
+    if validation.ok:
+        _log.warning("cannot detect page count (install pymupdf or pikepdf): %s", pdf_path.name)
+    else:
+        _log.warning("cannot detect page count: %s", validation.error)
     return -1
 
 
@@ -723,15 +963,16 @@ def _split_pdf(pdf_path: Path, chunk_size: int = DEFAULT_CHUNK_PAGES, output_dir
     if page_count <= chunk_size:
         return [pdf_path]
 
+    artifact_stem = _safe_pdf_artifact_stem(pdf_path)
     if output_dir is None:
-        output_dir = pdf_path.parent / f".{pdf_path.stem}_chunks"
+        output_dir = pdf_path.parent / f".{artifact_stem}_chunks"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     chunks: list[Path] = []
     with pymupdf.open(pdf_path) as src_doc:
         for start in range(0, page_count, chunk_size):
             end = min(start + chunk_size, page_count)  # exclusive
-            chunk_name = f"{pdf_path.stem}_p{start:04d}-{end - 1:04d}.pdf"
+            chunk_name = f"{artifact_stem}_p{start:04d}-{end - 1:04d}.pdf"
             chunk_path = output_dir / chunk_name
 
             if chunk_path.exists():
@@ -860,8 +1101,13 @@ def _convert_long_pdf(pdf_path: Path, opts: ConvertOptions, chunk_size: int = DE
 
     Uses the local MinerU API for each chunk sequentially.
     """
+    t0 = time.time()
+    validation = validate_pdf_for_mineru(pdf_path)
+    if not validation.ok:
+        return _validation_failure_result(pdf_path, validation, t0)
+
     out_dir = opts.output_dir if opts.output_dir else pdf_path.parent
-    chunks_dir = out_dir / f".{pdf_path.stem}_chunks"
+    chunks_dir = out_dir / f".{_safe_pdf_artifact_stem(pdf_path)}_chunks"
 
     chunk_paths = _split_pdf(pdf_path, chunk_size=chunk_size, output_dir=chunks_dir)
 
@@ -905,8 +1151,13 @@ def _convert_long_pdf_cloud(
     chunk_size: int = DEFAULT_CHUNK_PAGES,
 ) -> ConvertResult:
     """Handle a long PDF via MinerU cloud CLI: split → convert → merge."""
+    t0 = time.time()
+    validation = validate_pdf_for_mineru(pdf_path)
+    if not validation.ok:
+        return _validation_failure_result(pdf_path, validation, t0)
+
     out_dir = opts.output_dir if opts.output_dir else pdf_path.parent
-    chunks_dir = out_dir / f".{pdf_path.stem}_chunks"
+    chunks_dir = out_dir / f".{_safe_pdf_artifact_stem(pdf_path)}_chunks"
 
     chunk_paths = _split_pdf(pdf_path, chunk_size=chunk_size, output_dir=chunks_dir)
 

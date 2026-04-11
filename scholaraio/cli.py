@@ -2766,6 +2766,8 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         _plan_cloud_chunking,
         check_server,
         convert_pdf,
+        is_pdf_validation_error,
+        validate_pdf_for_mineru,
     )
     from scholaraio.ingest.pdf_fallback import (
         convert_pdf_with_fallback,
@@ -2794,6 +2796,13 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         auto_detect=fallback_auto_detect,
     )
     local_chunk_limit = getattr(cfg.ingest, "chunk_page_limit", 100)
+
+    def _ensure_valid_for_mineru() -> None:
+        validation = validate_pdf_for_mineru(dest_pdf)
+        if not validation.ok:
+            ui(f"PDF 校验失败: {validation.error or 'PDF validation failed'}")
+            sys.exit(1)
+
     if prefers_fallback_parser(getattr(cfg.ingest, "pdf_preferred_parser", "mineru")):
         ok, parser_name, fallback_err = convert_pdf_with_fallback(
             dest_pdf,
@@ -2807,6 +2816,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         ui(f"已按配置优先使用 {parser_name} 生成 paper.md")
         preferred_done = True
     elif check_server(cfg.ingest.mineru_endpoint):
+        _ensure_valid_for_mineru()
         page_count = _get_pdf_page_count(dest_pdf)
         if page_count > local_chunk_limit:
             ui(f"检测到长 PDF（{page_count} 页，超过 {local_chunk_limit} 页限制），正在分片处理...")
@@ -2820,6 +2830,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         else:
             from scholaraio.ingest.mineru import convert_pdf_cloud
 
+            _ensure_valid_for_mineru()
             should_chunk, chunk_size, reason = _plan_cloud_chunking(
                 dest_pdf,
                 default_chunk_size=local_chunk_limit,
@@ -2850,6 +2861,9 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
 
     if not preferred_done and (result is None or not result.success):
         err = result.error if result is not None else "MinerU unavailable"
+        if is_pdf_validation_error(result):
+            ui(f"PDF 校验失败: {err}")
+            sys.exit(1)
         ui(f"MinerU 转换失败，尝试 fallback: {err}")
         ok, parser_name, fallback_err = convert_pdf_with_fallback(
             dest_pdf,

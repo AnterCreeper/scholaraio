@@ -186,6 +186,8 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
         _plan_cloud_chunking,
         check_server,
         convert_pdf,
+        is_pdf_validation_error,
+        validate_pdf_for_mineru,
     )
     from scholaraio.ingest.pdf_fallback import (
         convert_pdf_with_fallback,
@@ -273,6 +275,12 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
             ctx.md_path = md_path
             return StepResult.OK
 
+    validation = validate_pdf_for_mineru(pdf_path)
+    if not validation.ok:
+        _log.error("%s", validation.error or "PDF validation failed")
+        ctx.status = "failed"
+        return StepResult.FAIL
+
     local_chunk_limit = getattr(ctx.cfg.ingest, "chunk_page_limit", 100)
     cloud_chunk_size = 0
     cloud_chunk_reason = ""
@@ -326,6 +334,10 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
 
     if result is None or not result.success:
         mineru_err = result.error if result is not None else "MinerU unavailable"
+        if is_pdf_validation_error(result):
+            _log.error("%s", mineru_err)
+            ctx.status = "failed"
+            return StepResult.FAIL
         _log.warning("MinerU failed, trying fallback parsers: %s", mineru_err)
         ok, parser_name, fallback_err = convert_pdf_with_fallback(
             pdf_path,
@@ -1054,7 +1066,7 @@ def _process_inbox(
                 continue
             pdfs_to_convert.append(pdf)
         if pdfs_to_convert:
-            from scholaraio.ingest.mineru import ConvertOptions, convert_pdfs_cloud_batch
+            from scholaraio.ingest.mineru import ConvertOptions, convert_pdfs_cloud_batch, is_pdf_validation_error
 
             mineru_opts = ConvertOptions(
                 output_dir=inbox_dir,
@@ -1082,22 +1094,30 @@ def _process_inbox(
             # Move namespaced assets back to per-stem structure
             for br in batch_results:
                 did = br.pdf_path.stem
-                target = inbox_dir / f"{did}_mineru_images"
+                asset_stem = _safe_pdf_artifact_stem_from_stem(did)
+                target = inbox_dir / f"{asset_stem}_mineru_images"
                 if normalize_batch_assets:
                     # Normalize cloud assets into the legacy inbox layout so later
                     # extract/dedup/ingest steps can reuse the existing asset mover.
-                    namespaced_images = inbox_dir / f"{did}_images"
-                    if namespaced_images.is_dir():
-                        namespaced_images.rename(target)
+                    for candidate_stem in _asset_stem_candidates(did, ""):
+                        namespaced_images = inbox_dir / f"{candidate_stem}_images"
+                        if _path_is_dir(namespaced_images):
+                            if target.exists():
+                                shutil.rmtree(target)
+                            namespaced_images.rename(target)
+                            break
                     nested_images = br.md_path.parent / "images" if br.md_path else None
-                    if nested_images and nested_images.is_dir() and nested_images != target:
+                    if nested_images and _path_is_dir(nested_images) and nested_images != target:
                         if target.exists():
                             shutil.rmtree(target)
                         shutil.move(str(nested_images), str(target))
                 if not br.success:
                     batch_retry_stems.add(did)
                     _log.error("MinerU batch failed for %s: %s", br.pdf_path.name, br.error)
-                    ui(f"  {br.pdf_path.name}: MinerU 批量预处理失败，后续将按单文件解析流重试")
+                    if is_pdf_validation_error(br):
+                        ui(f"  {br.pdf_path.name}: PDF 校验失败，后续不会降级解析")
+                    else:
+                        ui(f"  {br.pdf_path.name}: MinerU 批量预处理失败，后续将按单文件解析流重试")
                     continue
                 entry = entries.get(did)
                 if entry is not None and entry["md"] is None and br.md_path and br.md_path.exists():
@@ -1587,13 +1607,18 @@ def _move_batch_images(paper_md: Path, pdir: Path, stem: str, md_src: Path | Non
     """Move images produced by cloud batch conversion into ``pdir/images``."""
     image_sources: list[Path] = []
 
-    legacy_images_src = tmp_dir / f"{stem}_images"
-    if legacy_images_src.is_dir():
-        image_sources.append(legacy_images_src)
+    for candidate_stem in _asset_stem_candidates(stem, ""):
+        legacy_images_src = tmp_dir / f"{candidate_stem}_images"
+        if _path_is_dir(legacy_images_src):
+            image_sources.append(legacy_images_src)
 
     if md_src is not None:
-        for candidate in [md_src.parent / "images", md_src.parent / f"{stem}_images"]:
-            if candidate.is_dir() and candidate not in image_sources:
+        candidates = [md_src.parent / "images"]
+        candidates.extend(
+            md_src.parent / f"{candidate_stem}_images" for candidate_stem in _asset_stem_candidates(stem, "")
+        )
+        for candidate in candidates:
+            if _path_is_dir(candidate) and candidate not in image_sources:
                 image_sources.append(candidate)
 
     if not image_sources:
@@ -1617,7 +1642,9 @@ def _move_batch_images(paper_md: Path, pdir: Path, stem: str, md_src: Path | Non
 
     if paper_md.exists():
         md_text = paper_md.read_text(encoding="utf-8")
-        fixed = md_text.replace(f"{stem}_images/", "images/")
+        fixed = md_text
+        for candidate_stem in _asset_stem_candidates(stem, ""):
+            fixed = fixed.replace(f"{candidate_stem}_images/", "images/")
         if fixed != md_text:
             paper_md.write_text(fixed, encoding="utf-8")
 
@@ -1685,7 +1712,7 @@ def batch_convert_pdfs(
         ui("没有需要转换的 PDF")
         return stats
 
-    from scholaraio.ingest.mineru import ConvertOptions, check_server
+    from scholaraio.ingest.mineru import ConvertOptions, check_server, is_pdf_validation_error
     from scholaraio.ingest.pdf_fallback import (
         convert_pdf_with_fallback,
         preferred_parser_order,
@@ -1751,6 +1778,9 @@ def batch_convert_pdfs(
             result = convert_pdf(pdf_path, mineru_opts)
             if not result.success:
                 ui(f"  MinerU 失败: {result.error}")
+                if is_pdf_validation_error(result):
+                    stats["failed"] += 1
+                    continue
                 _run_fallback(pdir, pdf_path)
                 continue
 
@@ -1822,6 +1852,9 @@ def batch_convert_pdfs(
 
                     if not br.success:
                         ui(f"  {pdir.name}: MinerU 失败: {br.error}")
+                        if is_pdf_validation_error(br):
+                            stats["failed"] += 1
+                            continue
                         _run_fallback(pdir, br.pdf_path)
                         continue
 
@@ -1879,6 +1912,9 @@ def batch_convert_pdfs(
                 continue
             if not result.success:
                 ui(f"  {pdir.name}: MinerU 失败: {result.error}")
+                if is_pdf_validation_error(result):
+                    stats["failed"] += 1
+                    continue
                 _run_fallback(pdir, pdf_path)
                 continue
             _postprocess_convert(pdir, pdf_path, result)
@@ -2276,37 +2312,80 @@ def _find_assets(inbox_dir: Path, asset_prefix: str, md_stem: str) -> tuple[Path
         (images_dir, json_files, origin_pdfs) — images_dir may be None.
     """
     images_dir = None
-    for candidate in [
-        inbox_dir / f"{asset_prefix}_mineru_images",
-        inbox_dir / f"{md_stem}_mineru_images",
-        inbox_dir / "images",
-    ]:
-        if candidate.is_dir():
+    for candidate_stem in _asset_stem_candidates(asset_prefix, md_stem):
+        candidate = inbox_dir / f"{candidate_stem}_mineru_images"
+        if _path_is_dir(candidate):
             images_dir = candidate
             break
+    if images_dir is None and _path_is_dir(inbox_dir / "images"):
+        images_dir = inbox_dir / "images"
+
     json_files: list[Path] = []
     origin_pdfs: list[Path] = []
-    for prefix in dict.fromkeys([asset_prefix, md_stem]):
+    for prefix in _asset_stem_candidates(asset_prefix, md_stem):
         if not prefix:
             continue
-        json_files.extend(inbox_dir.glob(f"{prefix}_*.json"))
-        origin_pdfs.extend(inbox_dir.glob(f"{prefix}_*_origin.pdf"))
+        json_files.extend(_safe_glob(inbox_dir, f"{prefix}_*.json"))
+        origin_pdfs.extend(_safe_glob(inbox_dir, f"{prefix}_*_origin.pdf"))
     return images_dir, json_files, origin_pdfs
+
+
+def _asset_stem_candidates(asset_prefix: str, md_stem: str) -> list[str]:
+    """Return safe-first legacy stem candidates for MinerU transient assets."""
+    candidates: list[str] = []
+
+    def add(stem: str) -> None:
+        if stem and stem not in candidates:
+            candidates.append(stem)
+
+    for stem in (asset_prefix, md_stem):
+        if not stem:
+            continue
+        add(_safe_pdf_artifact_stem_from_stem(stem))
+        add(stem)
+    return candidates
+
+
+def _safe_pdf_artifact_stem_from_stem(stem: str) -> str:
+    from scholaraio.ingest.mineru import _safe_pdf_artifact_stem
+
+    return _safe_pdf_artifact_stem(Path(f"{stem}.pdf"))
+
+
+def _path_is_dir(path: Path) -> bool:
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _safe_glob(parent: Path, pattern: str) -> list[Path]:
+    try:
+        return list(parent.glob(pattern))
+    except OSError:
+        return []
 
 
 def _move_assets(inbox_dir: Path, dest_dir: Path, asset_prefix: str, md_stem: str) -> None:
     """Move MinerU assets (images, layout.json, etc.) from inbox to dest."""
     images_dir, json_files, origin_pdfs = _find_assets(inbox_dir, asset_prefix, md_stem)
+    candidate_stems = _asset_stem_candidates(asset_prefix, md_stem)
     if images_dir:
         shutil.move(str(images_dir), str(dest_dir / "images"))
     for f in json_files:
-        prefix = asset_prefix if f.name.startswith(asset_prefix) else md_stem
-        dest_name = f.name.replace(f"{prefix}_", "", 1)
+        dest_name = _strip_artifact_prefix(f.name, candidate_stems)
         shutil.move(str(f), str(dest_dir / dest_name))
     for f in origin_pdfs:
-        prefix = asset_prefix if f.name.startswith(asset_prefix) else md_stem
-        dest_name = f.name.replace(f"{prefix}_", "", 1)
+        dest_name = _strip_artifact_prefix(f.name, candidate_stems)
         shutil.move(str(f), str(dest_dir / dest_name))
+
+
+def _strip_artifact_prefix(name: str, candidate_stems: list[str]) -> str:
+    for stem in candidate_stems:
+        marker = f"{stem}_"
+        if stem and name.startswith(marker):
+            return name.removeprefix(marker)
+    return name
 
 
 def _move_to_pending(

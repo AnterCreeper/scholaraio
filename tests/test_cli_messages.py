@@ -10,9 +10,19 @@ from types import SimpleNamespace
 
 from scholaraio import cli
 from scholaraio.index import build_index
-from scholaraio.ingest.mineru import ConvertResult
+from scholaraio.ingest.mineru import ConvertResult, PDFValidationResult
 from scholaraio.setup import _S
 from scholaraio.translate import TranslateResult
+
+
+def _allow_pdf_validation(monkeypatch):
+    import scholaraio.ingest.mineru as mineru
+
+    monkeypatch.setattr(
+        mineru,
+        "validate_pdf_for_mineru",
+        lambda _path: PDFValidationResult(ok=True, page_count=1, deep_checked=True),
+    )
 
 
 class TestSetupImportHints:
@@ -658,6 +668,7 @@ class TestAttachPdfFallback:
         import scholaraio.ingest.mineru as mineru
         import scholaraio.ingest.pdf_fallback as pdf_fallback
 
+        _allow_pdf_validation(monkeypatch)
         monkeypatch.setattr(mineru, "check_server", lambda *_: False)
 
         calls: list[tuple[Path, Path]] = []
@@ -708,7 +719,21 @@ class TestAttachPdfFallback:
         monkeypatch.setattr(cli, "_resolve_paper", lambda *_: paper_dir)
         monkeypatch.setattr(cli, "ui", lambda *_args, **_kwargs: None)
 
+        import scholaraio.ingest.mineru as mineru
         import scholaraio.ingest.pdf_fallback as pdf_fallback
+
+        monkeypatch.setattr(
+            mineru,
+            "validate_pdf_for_mineru",
+            lambda _path: PDFValidationResult(ok=False, error="PDF validation failed: should not run"),
+        )
+        monkeypatch.setattr(
+            mineru,
+            "check_server",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("fallback-only path should not check MinerU")
+            ),
+        )
 
         calls: list[tuple[Path, Path]] = []
 
@@ -759,6 +784,7 @@ class TestAttachPdfFallback:
 
         import scholaraio.ingest.mineru as mineru
 
+        _allow_pdf_validation(monkeypatch)
         monkeypatch.setattr(mineru, "check_server", lambda *_: False)
         monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
         monkeypatch.setattr(
@@ -816,6 +842,7 @@ class TestAttachPdfFallback:
 
         import scholaraio.ingest.mineru as mineru
 
+        _allow_pdf_validation(monkeypatch)
         monkeypatch.setattr(mineru, "check_server", lambda *_: False)
         monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (False, 600, ""))
         captured: dict[str, object] = {}
@@ -866,6 +893,7 @@ class TestAttachPdfFallback:
 
         import scholaraio.ingest.mineru as mineru
 
+        _allow_pdf_validation(monkeypatch)
         nested_dir = paper_dir / "flowchart"
         nested_dir.mkdir()
         nested_md = nested_dir / "index.md"
@@ -926,6 +954,7 @@ class TestAttachPdfFallback:
 
         import scholaraio.ingest.mineru as mineru
 
+        _allow_pdf_validation(monkeypatch)
         flat_md = paper_dir / "flowchart.md"
         flat_md.write_text("![img](images/fig.png)\n", encoding="utf-8")
         (paper_dir / "images").mkdir()
@@ -983,6 +1012,7 @@ class TestAttachPdfFallback:
 
         import scholaraio.ingest.mineru as mineru
 
+        _allow_pdf_validation(monkeypatch)
         monkeypatch.setattr(mineru, "check_server", lambda *_: False)
         monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
         monkeypatch.setattr(
@@ -1042,6 +1072,7 @@ class TestAttachPdfFallback:
         import scholaraio.ingest.mineru as mineru
         import scholaraio.ingest.pdf_fallback as pdf_fallback
 
+        _allow_pdf_validation(monkeypatch)
         monkeypatch.setattr(mineru, "check_server", lambda *_: False)
         monkeypatch.setattr(mineru, "_plan_cloud_chunking", lambda *_args, **_kwargs: (True, 320, "too large"))
         monkeypatch.setattr(
