@@ -472,7 +472,7 @@ In plugin mode, all data lives under `~/.scholaraio/`:
 └── workspace/            # Workspaces
 ```
 
-The exact invocation form of skills depends on the host agent or plugin system; this repository only guarantees that skill definitions live in `.claude/skills/` and are exposed through the `.agents/skills` and `skills/` symlinks for different discovery mechanisms.
+The exact invocation form of skills depends on the host agent or plugin system; this repository only guarantees that skill definitions live in `.claude/skills/` and are exposed through the `.agents/skills`, `.qwen/skills`, and `skills/` symlinks for different discovery mechanisms.
 
 ### API Key Notes
 

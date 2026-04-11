@@ -470,7 +470,7 @@ translate:
 └── workspace/            # 工作区
 ```
 
-skills 的具体调用形式取决于宿主 agent / 插件系统；本仓库只保证技能定义位于 `.claude/skills/`，并通过 `.agents/skills` 与 `skills/` 两个符号链接暴露给不同发现机制。
+skills 的具体调用形式取决于宿主 agent / 插件系统；本仓库只保证技能定义位于 `.claude/skills/`，并通过 `.agents/skills`、`.qwen/skills` 与 `skills/` 三个符号链接暴露给不同发现机制。
 
 ### API key 说明
 
