@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Cursor native project rules**: Added `.cursor/rules/scholaraio.mdc` as the primary Cursor integration path, with `AGENTS.md` as the shared multi-agent instruction source and `.cursorrules` kept only as a legacy fallback
+
+### Fixed
+
+- **Cursor compatibility CI coverage**: Added regression coverage to keep the Cursor rule wrapper lightweight and explicitly MCP-free
+- **Proceedings routing test stability**: Tests no longer assume the first `data/proceedings` entry is a proceedings volume directory, avoiding CI-only failures when `proceedings.db` sorts before real volume folders
+
 ## [1.3.0] — 2026-04-06
 
 ### Added
