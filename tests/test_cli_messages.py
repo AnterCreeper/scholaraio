@@ -705,7 +705,9 @@ class TestTopicCliErrors:
         monkeypatch.setattr(cli._log, "error", lambda msg, *args: errors.append(msg % args if args else msg))
         monkeypatch.setattr(
             "scholaraio.topics.build_topics",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("当前 embed.provider=none，无法构建主题模型")),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                FileNotFoundError("当前 embed.provider=none，无法构建主题模型")
+            ),
         )
 
         cfg = SimpleNamespace(
@@ -741,7 +743,9 @@ class TestTopicCliErrors:
         monkeypatch.setattr("scholaraio.explore._explore_dir", lambda *_args, **_kwargs: tmp_path / "explore")
         monkeypatch.setattr(
             "scholaraio.explore.build_explore_topics",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("当前 embed.provider=none，无法构建主题模型")),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                FileNotFoundError("当前 embed.provider=none，无法构建主题模型")
+            ),
         )
 
         cfg = SimpleNamespace()

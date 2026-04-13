@@ -684,10 +684,7 @@ def _embed_batch_openai_compat(texts: list[str], cfg: Config | None = None) -> l
             raise RuntimeError(f"调用 embedding API 失败: {last_err}")
 
         if len(data_items) != len(batch):
-            raise RuntimeError(
-                "embedding API 返回数量与请求不一致: "
-                f"request={len(batch)} response={len(data_items)}"
-            )
+            raise RuntimeError(f"embedding API 返回数量与请求不一致: request={len(batch)} response={len(data_items)}")
 
         for item in sorted(data_items, key=lambda x: x.get("index", 0)):
             vec = item.get("embedding")
