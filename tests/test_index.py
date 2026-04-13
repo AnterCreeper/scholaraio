@@ -100,9 +100,7 @@ class TestBuildAndSearch:
         assert len(results) >= 1
         assert all(r["match"] == "fts" for r in results)
 
-    def test_unified_search_return_diagnostics_reports_vector_degradation(
-        self, tmp_papers, tmp_db, monkeypatch
-    ):
+    def test_unified_search_return_diagnostics_reports_vector_degradation(self, tmp_papers, tmp_db, monkeypatch):
         build_index(tmp_papers, tmp_db)
 
         def boom(*_args, **_kwargs):

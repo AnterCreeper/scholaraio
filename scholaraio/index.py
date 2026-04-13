@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 class UnifiedSearchDiagnostics(TypedDict):
     vector_degraded: bool
 
+
 _SCHEMA = """
 CREATE VIRTUAL TABLE IF NOT EXISTS papers USING fts5(
     paper_id       UNINDEXED,
