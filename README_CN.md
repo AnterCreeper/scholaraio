@@ -78,11 +78,12 @@ ScholarAIO 的设计目标是 **agent 无关**，但不同 agent 的接入方式
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `CLAUDE.md` + `.claude/skills/`   | Claude 插件市场            |
 | [Codex](https://openai.com/codex) / OpenClaw                  | `AGENTS.md` + `.agents/skills/`   | 注册到 `~/.agents/skills/` |
 | [Cline](https://github.com/cline/cline)                       | `.clinerules` + `.claude/skills/` | CLI + skills               |
+| [Qwen](https://qwen.ai/)                                      | `.qwen/QWEN.md` + `.qwen/skills/` | CLI + skills               |
 | [Cursor](https://cursor.sh)                                   | `.cursor/rules/scholaraio.mdc` + `AGENTS.md`（`.cursorrules` 旧版 fallback） | CLI + skills               |
 | [Windsurf](https://codeium.com/windsurf)                      | `.windsurfrules`                  | CLI + skills               |
 | [GitHub Copilot](https://github.com/features/copilot)         | `.github/copilot-instructions.md` | CLI + skills               |
 
-Skills 遵循开放的 [AgentSkills.io](https://agentskills.io) 标准，`.agents/skills/` 是 `.claude/skills/` 的符号链接，方便不同 agent 发现和复用。
+Skills 遵循开放的 [AgentSkills.io](https://agentskills.io) 标准，`.agents/skills/` 与 `.qwen/skills/` 均为 `.claude/skills/` 的符号链接，方便不同 agent 发现和复用。Qwen 的项目上下文文件位于 `.qwen/QWEN.md`。
 
 **从现有工具迁移？** 支持从 Endnote（XML/RIS）和 Zotero（Web API 或本地 SQLite）直接导入——PDF、元数据、引用关系一并迁入。更多导入源持续开发中。
 
@@ -112,6 +113,8 @@ scholaraio/             # Python 包——CLI、所有核心模块
 
 .claude/skills/         # agent skills（AgentSkills.io 格式）
 .agents/skills/         # ↑ 符号链接，方便跨 agent 发现
+.qwen/QWEN.md           # ↑ Qwen Code 的项目上下文文件
+.qwen/skills/           # ↑ 符号链接，方便 Qwen agent 发现
 data/papers/            # 你的论文库（不进 git）
 data/proceedings/       # 论文集库（不进 git）
 data/inbox/             # 放入 PDF 即可入库

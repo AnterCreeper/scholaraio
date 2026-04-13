@@ -254,6 +254,69 @@ class TestSearchResultFormatting:
         assert "( [])" not in messages[0]
 
 
+class TestUnifiedSearchDegradeWarnings:
+    def test_cmd_usearch_warns_when_vector_search_degrades(self, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
+        monkeypatch.setattr("scholaraio.metrics.get_store", lambda: None)
+        monkeypatch.setattr(cli, "_record_search_metrics", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            "scholaraio.index.unified_search",
+            lambda *_args, **_kwargs: (
+                [
+                    {
+                        "paper_id": "paper-1",
+                        "dir_name": "Smith-2023-Turbulence",
+                        "authors": "John Smith",
+                        "year": 2023,
+                        "journal": "JFM",
+                        "title": "Turbulence modeling in boundary layers",
+                        "score": 0.016,
+                        "match": "fts",
+                    }
+                ],
+                {"vector_degraded": True},
+            ),
+        )
+
+        cfg = SimpleNamespace(index_db=Path("dummy.db"), search=SimpleNamespace(top_k=10))
+        args = Namespace(query=["mode"], top=3, year=None, journal=None, paper_type=None)
+
+        cli.cmd_usearch(args, cfg)
+
+        assert any("向量检索不可用，已降级为关键词检索" in m for m in messages)
+
+    def test_cmd_fsearch_warns_when_main_scope_vector_search_degrades(self, monkeypatch, tmp_path):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
+        monkeypatch.setattr(
+            "scholaraio.index.unified_search",
+            lambda *_args, **_kwargs: (
+                [
+                    {
+                        "paper_id": "paper-1",
+                        "dir_name": "Smith-2023-Turbulence",
+                        "authors": "John Smith",
+                        "year": 2023,
+                        "journal": "JFM",
+                        "title": "Turbulence modeling in boundary layers",
+                        "score": 0.016,
+                        "match": "fts",
+                    }
+                ],
+                {"vector_degraded": True},
+            ),
+        )
+
+        cfg = SimpleNamespace(index_db=tmp_path / "index.db", papers_dir=tmp_path / "papers")
+        cfg.index_db.write_text("", encoding="utf-8")
+        args = Namespace(query=["mode"], scope="main", top=3)
+
+        cli.cmd_fsearch(args, cfg)
+
+        assert any("向量检索不可用，已降级为关键词检索" in m for m in messages)
+
+
 class TestToolrefCliMessages:
     def test_toolref_show_output_is_localized(self, monkeypatch):
         messages: list[str] = []

@@ -39,7 +39,7 @@ You are not a passive tool waiting for instructions, but an active collaborator.
 
 ## Agent Skills
 
-Skills are defined in the `.claude/skills/` directory and follow the [Agent Skills](https://agentskills.io) open standard. Each skill is a folder containing a `SKILL.md` file (YAML frontmatter plus instructions). `.agents/skills` and the repository-root `skills/` are both symlinks to `.claude/skills/`, exposing the same skill definitions to different agent and plugin discovery mechanisms.
+Skills are defined in the `.claude/skills/` directory and follow the [Agent Skills](https://agentskills.io) open standard. Each skill is a folder containing a `SKILL.md` file (YAML frontmatter plus instructions). `.agents/skills`, `.qwen/skills`, and the repository-root `skills/` are all symlinks to `.claude/skills/`, exposing the same skill definitions to different agent and plugin discovery mechanisms.
 
 The right mental model is to treat skills as "reusable workflows": when the user's intent clearly matches a capability, read the corresponding `SKILL.md` first and follow the workflow already distilled there instead of inventing a process from scratch every time.
 
@@ -472,7 +472,7 @@ In plugin mode, all data lives under `~/.scholaraio/`:
 └── workspace/            # Workspaces
 ```
 
-The exact invocation form of skills depends on the host agent or plugin system; this repository only guarantees that skill definitions live in `.claude/skills/` and are exposed through the `.agents/skills` and `skills/` symlinks for different discovery mechanisms.
+The exact invocation form of skills depends on the host agent or plugin system; this repository only guarantees that skill definitions live in `.claude/skills/` and are exposed through the `.agents/skills`, `.qwen/skills`, and `skills/` symlinks for different discovery mechanisms.
 
 ### API Key Notes
 
@@ -504,8 +504,9 @@ This project supports multiple AI coding agents at the same time. `AGENTS.md` is
 | Windsurf | `.windsurfrules` (wrapper -> points to `AGENTS.md`) | - |
 | GitHub Copilot | `.github/copilot-instructions.md` (wrapper -> points to `AGENTS.md`) | - |
 | Cline | `.clinerules` (wrapper -> points to `AGENTS.md`) | `.claude/skills/` (natively supported) |
+| Qwen | - | `.qwen/skills/` -> `.claude/skills/` |
 
-Skills follow the [AgentSkills.io](https://agentskills.io) open standard (`SKILL.md` format). The canonical location is `.claude/skills/`; `.agents/skills/` is the symlink for cross-agent discovery, and `skills/` is the symlink for Claude plugin / skill-system discovery.
+Skills follow the [AgentSkills.io](https://agentskills.io) open standard (`SKILL.md` format). The canonical location is `.claude/skills/`; `.agents/skills/` is the symlink for cross-agent discovery, `.qwen/skills/` is the symlink for Qwen agent discovery, and `skills/` is the symlink for Claude plugin / skill-system discovery.
 
 ### Plugin Packaging
 

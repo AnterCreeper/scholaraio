@@ -100,6 +100,20 @@ class TestBuildAndSearch:
         assert len(results) >= 1
         assert all(r["match"] == "fts" for r in results)
 
+    def test_unified_search_return_diagnostics_reports_vector_degradation(self, tmp_papers, tmp_db, monkeypatch):
+        build_index(tmp_papers, tmp_db)
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("proxy unavailable")
+
+        monkeypatch.setattr("scholaraio.vectors.vsearch", boom)
+
+        results, diagnostics = unified_search("turbulence", tmp_db, return_diagnostics=True)
+
+        assert len(results) >= 1
+        assert all(r["match"] == "fts" for r in results)
+        assert diagnostics == {"vector_degraded": True}
+
 
 class TestLookupPaper:
     """lookup_paper contract: find by UUID, dir_name, DOI, or publication_number."""

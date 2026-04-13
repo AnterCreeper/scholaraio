@@ -77,11 +77,12 @@ ScholarAIO is designed to be **agent-agnostic**, but different agents expose dif
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | `CLAUDE.md` + `.claude/skills/` | Claude plugin marketplace |
 | [Codex](https://openai.com/codex) / OpenClaw | `AGENTS.md` + `.agents/skills/` | Symlink skills into `~/.agents/skills/` |
 | [Cline](https://github.com/cline/cline) | `.clinerules` + `.claude/skills/` | CLI + skills |
+| [Qwen](https://qwen.ai/) | `.qwen/QWEN.md` + `.qwen/skills/` | CLI + skills |
 | [Cursor](https://cursor.sh) | `.cursor/rules/scholaraio.mdc` + `AGENTS.md` (`.cursorrules` legacy fallback) | CLI + skills |
 | [Windsurf](https://codeium.com/windsurf) | `.windsurfrules` | CLI + skills |
 | [GitHub Copilot](https://github.com/features/copilot) | `.github/copilot-instructions.md` | CLI + skills |
 
-Skills follow the open [AgentSkills.io](https://agentskills.io) standard, and `.agents/skills/` is a symlink to `.claude/skills/` so different agents can discover and reuse the same skills.
+Skills follow the open [AgentSkills.io](https://agentskills.io) standard, and `.agents/skills/` and `.qwen/skills/` are symlinks to `.claude/skills/` so different agents can discover and reuse the same skills. Qwen-specific project context lives in `.qwen/QWEN.md`.
 
 **Migrating from existing tools?** Import directly from Endnote (XML/RIS) and Zotero (Web API or local SQLite), with PDFs, metadata, and references brought over together. More import sources are on the roadmap.
 
@@ -111,6 +112,8 @@ scholaraio/             # Python package — CLI and all core modules
 
 .claude/skills/         # Agent skills (AgentSkills.io format)
 .agents/skills/         # ↑ symlink for cross-agent discovery
+.qwen/QWEN.md           # ↑ project context for Qwen Code
+.qwen/skills/           # ↑ symlink for Qwen agent skill discovery
 data/papers/            # Your paper library (gitignored)
 data/proceedings/       # Proceedings library (gitignored)
 data/inbox/             # Drop PDFs here for ingestion
