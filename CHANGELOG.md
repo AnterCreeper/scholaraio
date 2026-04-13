@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **Qwen agent support**: Added `.qwen/skills` symlink to `.claude/skills/` so Qwen-based agents can discover ScholarAIO skills out of the box
+- **Qwen project context**: Added `.qwen/QWEN.md` so Qwen Code has a repository-native project context file instead of relying on `AGENTS.md` / `CLAUDE.md`
+
+### Changed
+
+- **Unified search transparency**: `usearch` and `fsearch` now print an explicit message when semantic retrieval is unavailable and the command degrades to keyword-only search
 
 ## [1.3.0] — 2026-04-06
 

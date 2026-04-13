@@ -35,7 +35,7 @@ Then start your agent in the repository root:
 | Claude Code | Reads `CLAUDE.md` and loads `.claude/skills/` |
 | Codex / OpenClaw | Reads `AGENTS.md` and discovers `.agents/skills/` |
 | Cline | Reads `.clinerules` and can use `.claude/skills/` |
-| Qwen | Discovers `.qwen/skills/` |
+| Qwen | Loads `.qwen/QWEN.md` and discovers `.qwen/skills/` |
 | Cursor | Reads `.cursorrules` |
 | Windsurf | Reads `.windsurfrules` |
 | GitHub Copilot | Reads `.github/copilot-instructions.md` |
