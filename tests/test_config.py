@@ -166,6 +166,23 @@ class TestBuildConfig:
         assert cfg.backup.ssh_bin == "ssh"
         assert cfg.backup.targets == {}
 
+    def test_backup_target_mode_defaults_to_safe_full_sync(self, tmp_path):
+        cfg = _build_config(
+            {
+                "backup": {
+                    "targets": {
+                        "lab": {
+                            "host": "backup.example.com",
+                            "path": "/srv/scholaraio",
+                        }
+                    }
+                }
+            },
+            tmp_path,
+        )
+
+        assert cfg.backup.targets["lab"].mode == "default"
+
     def test_backup_targets_are_parsed_and_normalized(self, tmp_path):
         cfg = _build_config(
             {

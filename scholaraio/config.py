@@ -291,7 +291,7 @@ class BackupTargetConfig:
     path: str = ""
     port: int = 22
     identity_file: str = ""
-    mode: str = "append-verify"
+    mode: str = "default"
     compress: bool = True
     enabled: bool = True
     exclude: list[str] = field(default_factory=list)
@@ -818,8 +818,8 @@ def _build_config(data: dict, root: Path) -> Config:
                 ),
                 identity_file=str(target_data.get("identity_file") or "").strip(),
                 mode=_normalize_choice(
-                    target_data.get("mode", "append-verify"),
-                    default="append-verify",
+                    target_data.get("mode", "default"),
+                    default="default",
                     valid=VALID_BACKUP_MODES,
                     field_name=f"backup.targets.{name}.mode",
                 ),

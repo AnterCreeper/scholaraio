@@ -120,7 +120,7 @@ backup:
   #     path: /srv/scholaraio
   #     port: 22
   #     identity_file: ~/.ssh/id_ed25519 # Prefer placing secrets/host-specific overrides in config.local.yaml
-  #     mode: append-verify # default | append | append-verify
+  #     mode: default # default | append | append-verify
   #     compress: true
   #     enabled: true
   #     exclude: ["*.tmp", "metrics.db"]

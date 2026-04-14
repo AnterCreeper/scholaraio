@@ -50,7 +50,7 @@ backup:
       path: /srv/scholaraio
       port: 22
       identity_file: ~/.ssh/id_ed25519
-      mode: append-verify
+      mode: default
       compress: true
       enabled: true
       exclude:
@@ -61,7 +61,8 @@ backup:
 
 - 共享配置写在 `config.yaml`
 - 主机相关或敏感项优先放 `config.local.yaml`
-- 默认优先使用 `append-verify`，不要默认退化成更激进的 `append`
+- 备份整棵 `data/` 目录时优先使用 `default`
+- 只有在明确备份对象是追加型文件时，才考虑 `append` / `append-verify`
 
 ## Agent 行为规范
 

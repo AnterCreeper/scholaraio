@@ -156,6 +156,31 @@ def test_cmd_backup_run_reports_dry_run_completion(tmp_path: Path, monkeypatch):
     assert any("预演完成" in msg for msg in messages)
 
 
+def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatch):
+    messages: list[str] = []
+    monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
+    monkeypatch.setattr(
+        "scholaraio.backup.build_rsync_command",
+        lambda *_args, **_kwargs: [
+            "rsync",
+            "-a",
+            "-e",
+            "ssh -p 2222 -i /tmp/test key",
+            "/src/",
+            "alice@host:/dst/",
+        ],
+    )
+    monkeypatch.setattr(
+        "scholaraio.backup.run_backup",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+
+    cli.cmd_backup(Namespace(backup_action="run", target="lab", dry_run=True), _build_backup_cfg(tmp_path))
+
+    assert any("即将执行备份命令" in msg for msg in messages)
+    assert any("'ssh -p 2222 -i /tmp/test key'" in msg for msg in messages)
+
+
 def test_cmd_backup_run_exits_cleanly_when_backup_runtime_error_occurs(tmp_path: Path, monkeypatch):
     from scholaraio.backup import BackupConfigError
 

@@ -57,6 +57,7 @@ import argparse
 import concurrent.futures
 import json
 import logging
+import shlex
 import shutil
 import sys
 import tempfile
@@ -2569,7 +2570,7 @@ def cmd_backup(args: argparse.Namespace, cfg) -> None:
         try:
             cmd = build_rsync_command(cfg, args.target, dry_run=args.dry_run)
             ui("即将执行备份命令：")
-            ui("  " + " ".join(cmd))
+            ui("  " + shlex.join(cmd))
             result = run_backup(cfg, args.target, dry_run=args.dry_run)
         except BackupConfigError as exc:
             _log.error("%s", exc)

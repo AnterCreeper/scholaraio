@@ -77,7 +77,7 @@ backup:
       path: /srv/scholaraio
       port: 22
       identity_file: ~/.ssh/id_ed25519
-      mode: append-verify
+      mode: default
       compress: true
       enabled: true
       exclude:
@@ -86,5 +86,6 @@ backup:
 ```
 
 - `mode` supports `default`, `append`, and `append-verify`.
-- `append-verify` is the recommended default for long-term incremental sync because it is safer than raw `--append`.
+- Use `default` for the full ScholarAIO `data/` tree, especially when it includes mutable files such as SQLite databases.
+- Reserve `append` / `append-verify` for append-only artifacts where the remote copy is expected to be a prefix of the local file.
 - Keep host-specific secrets such as `identity_file` in `config.local.yaml` when possible.
