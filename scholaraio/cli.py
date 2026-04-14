@@ -2419,11 +2419,15 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
 
     try:
         with tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
+            tmp_root = Path(tmpdir)
+            inbox_dir = tmp_root / "inbox"
+            inbox_dir.mkdir(parents=True, exist_ok=True)
             doc_inbox_dir = Path(tmpdir) / "inbox-doc"
             doc_inbox_dir.mkdir(parents=True, exist_ok=True)
 
             for idx, url in enumerate(urls, start=1):
-                result = webextract(url, pdf=args.pdf)
+                pdf_mode = True if args.pdf else None
+                result = webextract(url, pdf=pdf_mode)
                 source_url = (result.get("url") or url).strip()
                 if result.get("error"):
                     raise RuntimeError(f"{source_url}: {result['error']}")
@@ -2460,6 +2464,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 step_names,
                 cfg,
                 {
+                    "inbox_dir": inbox_dir,
                     "doc_inbox_dir": doc_inbox_dir,
                     "force": args.force,
                     "include_aux_inboxes": False,

@@ -44,7 +44,7 @@ class TestIngestLinkCommand:
         monkeypatch.setattr(cli, "ui", messages.append)
 
         def fake_extract(url, *, pdf=None, base_url=None):
-            assert pdf is False
+            assert pdf is None
             return {
                 "url": url,
                 "title": "Example Page",
@@ -82,6 +82,7 @@ class TestIngestLinkCommand:
 
         assert seen["steps"] == ["extract_doc", "ingest", "embed", "index"]
         assert seen["doc_inbox_dir"] != cfg._root / "data" / "inbox-doc"
+        assert seen["opts"]["inbox_dir"] != cfg._root / "data" / "inbox"
         assert seen["opts"]["include_aux_inboxes"] is False
         assert seen["opts"]["force"] is True
         assert "# Example Page" in seen["md_text"]
@@ -159,3 +160,46 @@ class TestIngestLinkCommand:
                 "markdown_file": "01-example-page.md",
             }
         ]
+
+    def test_ingest_link_pdf_flag_only_sent_when_requested(self, tmp_path, monkeypatch):
+        seen: list[bool | None] = []
+
+        def fake_extract(url, *, pdf=None, base_url=None):
+            seen.append(pdf)
+            return {
+                "url": url,
+                "title": "Example Page",
+                "text": "Body",
+                "html": "",
+                "error": "",
+            }
+
+        monkeypatch.setattr("scholaraio.sources.webtools.webextract", fake_extract)
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", lambda *args, **kwargs: None)
+
+        cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
+
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=["https://example.com/article"],
+                dry_run=False,
+                force=False,
+                pdf=False,
+                no_index=True,
+                json=False,
+            ),
+            cfg,
+        )
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=["https://example.com/report.pdf"],
+                dry_run=False,
+                force=False,
+                pdf=True,
+                no_index=True,
+                json=False,
+            ),
+            cfg,
+        )
+
+        assert seen == [None, True]
