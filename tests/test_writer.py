@@ -427,6 +427,7 @@ class TestRefetchMetadata:
         assert result is None
         assert suffixed_dir.exists()
 
+
 class TestMetadataToDictWebFields:
     def test_preserves_web_source_fields(self):
         meta = PaperMetadata(
