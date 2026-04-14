@@ -45,7 +45,7 @@ scholaraio topics
 
 **查看指定主题的论文：**
 ```bash
-scholaraio topics --topic <ID> [--top N]
+scholaraio topics --topic <ID> [--limit N]
 ```
 
 **生成 HTML 可视化（6 张图表）：**

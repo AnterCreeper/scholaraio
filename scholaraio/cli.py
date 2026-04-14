@@ -5,14 +5,14 @@ cli.py — scholaraio 命令行入口
 命令：
     scholaraio index [--rebuild]
     scholaraio embed [--rebuild]
-    scholaraio search <query> [--top N] [--year Y] [--journal J] [--type T]
-    scholaraio search-author <query> [--top N] [--year Y] [--journal J] [--type T]
-    scholaraio vsearch <query> [--top N] [--year Y] [--journal J] [--type T]
-    scholaraio usearch <query> [--top N] [--year Y] [--journal J] [--type T]
+    scholaraio search <query> [--limit N] [--year Y] [--journal J] [--type T]
+    scholaraio search-author <query> [--limit N] [--year Y] [--journal J] [--type T]
+    scholaraio vsearch <query> [--limit N] [--year Y] [--journal J] [--type T]
+    scholaraio usearch <query> [--limit N] [--year Y] [--journal J] [--type T]
     scholaraio show <paper-id> [--layer 1|2|3|4]
     scholaraio enrich-toc [<paper-id> | --all] [--force] [--inspect]
     scholaraio enrich-l3 [<paper-id> | --all] [--force] [--inspect] [--max-retries N]
-    scholaraio top-cited [--top N] [--year Y] [--journal J] [--type T]
+    scholaraio top-cited [--limit N] [--year Y] [--journal J] [--type T]
     scholaraio refs <paper-id>
     scholaraio citing <paper-id>
     scholaraio shared-refs <id1> <id2> ... [--min N]
@@ -28,7 +28,7 @@ cli.py — scholaraio 命令行入口
     scholaraio explore fetch --issn <ISSN> [--name NAME] [--year-range Y]
     scholaraio explore embed --name <NAME> [--rebuild]
     scholaraio explore topics --name <NAME> [--build] [--rebuild] [--topic ID]
-    scholaraio explore search --name <NAME> <query> [--top N]
+    scholaraio explore search --name <NAME> <query> [--limit N]
     scholaraio explore viz --name <NAME>
     scholaraio explore list
     scholaraio explore info [--name NAME]
@@ -46,7 +46,7 @@ cli.py — scholaraio 命令行入口
     scholaraio ws remove <name> <paper-refs...>
     scholaraio ws list
     scholaraio ws show <name>
-    scholaraio ws search <name> <query> [--top N] [--mode unified|keyword|semantic]
+    scholaraio ws search <name> <query> [--limit N] [--mode unified|keyword|semantic]
     scholaraio ws rename <old-name> <new-name>
     scholaraio ws export <name> [-o FILE]
 """
@@ -75,8 +75,41 @@ _log = logging.getLogger(__name__)
 # ============================================================================
 
 
+class _ResultLimitAction(argparse.Action):
+    """Accept --limit as the canonical flag while keeping --top as a safe alias."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        current = getattr(namespace, self.dest, None)
+        if current is not None and current != values:
+            parser.error("--limit 和 --top 不能同时指定不同的值")
+        setattr(namespace, self.dest, values)
+
+
+def _add_result_limit_arg(parser: argparse.ArgumentParser, help_text: str) -> None:
+    parser.add_argument(
+        "--limit",
+        "--top",
+        dest="result_limit",
+        metavar="N",
+        type=int,
+        default=None,
+        action=_ResultLimitAction,
+        help=f"{help_text}（兼容旧写法 --top）",
+    )
+
+
+def _resolve_result_limit(args: argparse.Namespace, default: int) -> int:
+    result_limit = getattr(args, "result_limit", None)
+    if result_limit is not None:
+        return result_limit
+    legacy_top = getattr(args, "top", None)
+    if legacy_top is not None:
+        return legacy_top
+    return default
+
+
 def _resolve_top(args: argparse.Namespace, default: int) -> int:
-    return args.top if args.top is not None else default
+    return _resolve_result_limit(args, default)
 
 
 def _record_search_metrics(
@@ -949,7 +982,7 @@ def cmd_toolref(args: argparse.Namespace, cfg) -> None:
             results = toolref_search(
                 args.tool,
                 query,
-                top_k=args.top,
+                top_k=_resolve_result_limit(args, 20),
                 program=args.program,
                 section=args.section,
                 cfg=cfg,
@@ -1241,7 +1274,7 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
     # Show specific topic
     if args.topic is not None:
         tid = args.topic
-        top_n = args.top or 0  # 0 = show all
+        top_n = _resolve_result_limit(args, 0) or 0  # 0 = show all
         if tid == -1:
             papers = get_outliers(model)
             ui(f"离群论文: {len(papers)}\n")
@@ -3216,14 +3249,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_search = sub.add_parser("search", help="关键词检索")
     p_search.set_defaults(func=cmd_search)
     p_search.add_argument("query", nargs="+", help="检索词")
-    p_search.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认读 config search.top_k）")
+    _add_result_limit_arg(p_search, "最多返回 N 条（默认读 config search.top_k）")
     _add_filter_args(p_search)
 
     # --- search-author ---
     p_sa = sub.add_parser("search-author", help="按作者名搜索")
     p_sa.set_defaults(func=cmd_search_author)
     p_sa.add_argument("query", nargs="+", help="作者名（模糊匹配）")
-    p_sa.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认读 config search.top_k）")
+    _add_result_limit_arg(p_sa, "最多返回 N 条（默认读 config search.top_k）")
     _add_filter_args(p_sa)
 
     # --- show ---
@@ -3255,14 +3288,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_vsearch = sub.add_parser("vsearch", help="语义向量检索")
     p_vsearch.set_defaults(func=cmd_vsearch)
     p_vsearch.add_argument("query", nargs="+", help="检索词")
-    p_vsearch.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认读 config embed.top_k）")
+    _add_result_limit_arg(p_vsearch, "最多返回 N 条（默认读 config embed.top_k）")
     _add_filter_args(p_vsearch)
 
     # --- usearch (unified) ---
     p_usearch = sub.add_parser("usearch", help="融合检索（关键词 + 语义向量）")
     p_usearch.set_defaults(func=cmd_usearch)
     p_usearch.add_argument("query", nargs="+", help="检索词")
-    p_usearch.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认读 config search.top_k）")
+    _add_result_limit_arg(p_usearch, "最多返回 N 条（默认读 config search.top_k）")
     _add_filter_args(p_usearch)
 
     # --- enrich-toc ---
@@ -3303,7 +3336,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- top-cited ---
     p_tc = sub.add_parser("top-cited", help="按引用量排序查看论文")
     p_tc.set_defaults(func=cmd_top_cited)
-    p_tc.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认读 config search.top_k）")
+    _add_result_limit_arg(p_tc, "最多返回 N 条（默认读 config search.top_k）")
     _add_filter_args(p_tc)
 
     # --- refs ---
@@ -3335,7 +3368,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--merge", type=str, default=None, metavar="IDS", help="手动合并主题，格式: 1,6,14+3,5（用+分隔组）"
     )
     p_topics.add_argument("--topic", type=int, default=None, metavar="ID", help="查看指定主题的论文（-1 查看 outlier）")
-    p_topics.add_argument("--top", type=int, default=None, help="返回条数")
+    _add_result_limit_arg(p_topics, "返回条数")
     p_topics.add_argument("--min-topic-size", type=int, default=None, help="最小聚类大小（覆盖 config）")
     p_topics.add_argument("--nr-topics", type=int, default=None, help="目标主题数（覆盖 config，0=auto, -1=不合并）")
     p_topics.add_argument("--viz", action="store_true", help="生成 HTML 可视化图表（6 张）")
@@ -3398,14 +3431,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_et.add_argument("--build", action="store_true", help="构建主题模型")
     p_et.add_argument("--rebuild", action="store_true", help="重建主题模型")
     p_et.add_argument("--topic", type=int, default=None, help="查看指定主题的论文")
-    p_et.add_argument("--top", type=int, default=None, help="返回条数")
+    _add_result_limit_arg(p_et, "返回条数")
     p_et.add_argument("--min-topic-size", type=int, default=None, help="最小聚类大小（默认 30）")
     p_et.add_argument("--nr-topics", type=int, default=None, help="目标主题数（默认自然聚类）")
 
     p_es = p_explore_sub.add_parser("search", help="探索库搜索（语义/关键词/融合）")
     p_es.add_argument("--name", required=True, help="探索库名称")
     p_es.add_argument("query", nargs="+", help="查询文本")
-    p_es.add_argument("--top", type=int, default=None, help="返回条数")
+    _add_result_limit_arg(p_es, "返回条数")
     p_es.add_argument(
         "--mode", choices=["semantic", "keyword", "unified"], default="semantic", help="搜索模式（默认 semantic）"
     )
@@ -3473,7 +3506,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ws_add_batch.add_argument("--search", dest="add_search", type=str, default=None, help="按搜索结果批量添加")
     p_ws_add_batch.add_argument("--topic", dest="add_topic", type=int, default=None, help="按主题 ID 批量添加")
     p_ws_add_batch.add_argument("--all", dest="add_all", action="store_true", default=False, help="添加全库论文")
-    p_ws_add.add_argument("--top", type=int, default=None, help="限制 --search 返回条数")
+    _add_result_limit_arg(p_ws_add, "限制 --search 返回条数")
     _add_filter_args(p_ws_add)
 
     p_ws_rm = p_ws_sub.add_parser("remove", help="从工作区移除论文")
@@ -3488,7 +3521,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ws_search = p_ws_sub.add_parser("search", help="在工作区内搜索")
     p_ws_search.add_argument("name", help="工作区名称")
     p_ws_search.add_argument("query", nargs="+", help="查询文本")
-    p_ws_search.add_argument("--top", type=int, default=None, help="返回条数")
+    _add_result_limit_arg(p_ws_search, "返回条数")
     p_ws_search.add_argument(
         "--mode", choices=["unified", "keyword", "semantic"], default="unified", help="搜索模式（默认 unified）"
     )
@@ -3573,7 +3606,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="main",
         help="搜索范围（逗号分隔）：main / proceedings / explore:NAME / explore:* / arxiv（默认 main）",
     )
-    p_fsearch.add_argument("--top", type=int, default=None, help="每个来源最多返回 N 条（默认 10）")
+    _add_result_limit_arg(p_fsearch, "每个来源最多返回 N 条（默认 10）")
 
     # --- proceedings ---
     p_proc = sub.add_parser("proceedings", help="论文集辅助命令（apply-split 等）")
@@ -3600,7 +3633,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_arxiv_search = p_arxiv_sub.add_parser("search", help="搜索 arXiv 预印本")
     p_arxiv_search.set_defaults(func=cmd_arxiv_search)
     p_arxiv_search.add_argument("query", nargs="*", help="检索词（可省略，配合 --category 使用）")
-    p_arxiv_search.add_argument("--top", type=int, default=None, help="最多返回 N 条（默认 10）")
+    _add_result_limit_arg(p_arxiv_search, "最多返回 N 条（默认 10）")
     p_arxiv_search.add_argument("--category", type=str, default="", help="arXiv 分类，如 physics.flu-dyn")
     p_arxiv_search.add_argument(
         "--sort", choices=["relevance", "recent"], default="relevance", help="排序方式（默认 relevance）"
@@ -3677,7 +3710,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_trq = p_tr_sub.add_parser("search", help="全文搜索工具文档")
     p_trq.add_argument("tool", help="工具名")
     p_trq.add_argument("query", nargs="+", help="搜索关键词")
-    p_trq.add_argument("--top", type=int, default=20, help="返回条数（默认 20）")
+    _add_result_limit_arg(p_trq, "返回条数（默认 20）")
     p_trq.add_argument("--program", default=None, help="按程序过滤（如 pw.x）")
     p_trq.add_argument("--section", default=None, help="按 namelist/section 过滤（如 SYSTEM）")
 

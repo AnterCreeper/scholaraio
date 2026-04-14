@@ -64,12 +64,15 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 - `translate` — 当用户要把论文翻译到目标语言并保留 Markdown 结构时，用这个 skill。
 
 学术写作：
+- `academic-writing` — 当用户还不确定该用哪条学术写作工作流，或任务是按交付物来定义的（综述、论文章节、rebuttal、PPT、海报、技术调研报告等）时，用这个 skill 做总入口和分流。
 - `literature-review` — 当用户要写文献综述、组织主题并形成批判性叙述时，用这个 skill。
 - `paper-writing` — 当用户要起草论文具体章节而不是泛泛总结时，用这个 skill。
 - `citation-check` — 当用户担心引用不实、作者年份不对或 AI 幻觉引用时，用这个 skill。
 - `writing-polish` — 当用户要润色学术表达、去 AI 味或做风格迁移时，用这个 skill。
 - `review-response` — 当用户要回审稿意见、写 rebuttal 或逐点回复时，用这个 skill。
 - `research-gap` — 当用户要从现有文献中识别研究空白和开放问题时，用这个 skill。
+- `technical-report` — 当用户要写技术调研报告、专题报告或研究简报，需要组织范围、证据、建议和最终交付结构时，用这个 skill。
+- `poster` — 当用户要做学术海报或海报式研究摘要，需要控制版块结构、图文密度和最终交付方式时，用这个 skill。
 
 可视化与文档生成：
 - `draw` — 当用户要把流程、结构、时间线或概念关系画出来时，用这个 skill。

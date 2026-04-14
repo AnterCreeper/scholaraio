@@ -3,9 +3,12 @@ from __future__ import annotations
 import builtins
 import os
 import sqlite3
+import sys
 from types import SimpleNamespace
 
-from scholaraio import vectors
+import numpy as np
+
+from scholaraio import explore, vectors
 from scholaraio.config import _build_config
 
 
@@ -241,3 +244,132 @@ def test_build_vectors_skips_faiss_append_when_cache_missing(tmp_papers, tmp_db,
     index_path, ids_path = vectors._faiss_paths(tmp_db)
     assert not index_path.exists()
     assert not ids_path.exists()
+
+
+def test_vsearch_embeds_query_before_loading_faiss_index(tmp_db, monkeypatch):
+    with sqlite3.connect(tmp_db) as conn:
+        conn.execute(
+            "CREATE TABLE paper_vectors (paper_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, content_hash TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO paper_vectors (paper_id, embedding, content_hash) VALUES (?, ?, ?)",
+            ("seed-paper", b"\x00\x00\x00\x00", ""),
+        )
+        conn.commit()
+
+    order: list[str] = []
+
+    class FakeIndex:
+        ntotal = 1
+
+        def search(self, q_vec, fetch_k):
+            order.append("search")
+            return np.array([[0.9]], dtype="float32"), np.array([[0]], dtype="int64")
+
+    monkeypatch.setitem(sys.modules, "faiss", SimpleNamespace(normalize_L2=lambda arr: order.append("faiss_normalize")))
+    monkeypatch.setattr(vectors, "_embed_text", lambda query, cfg=None: order.append("embed") or [1.0, 0.0])
+
+    def fake_build_index(db_path):
+        assert order == ["embed"], f"expected query embedding before FAISS index load, got {order}"
+        order.append("build_index")
+        return FakeIndex(), ["paper-1"]
+
+    monkeypatch.setattr(vectors, "_build_faiss_index", fake_build_index)
+
+    results = vectors.vsearch("turbulence", tmp_db, top_k=1)
+
+    assert results[0]["paper_id"] == "paper-1"
+    assert order[:3] == ["embed", "build_index", "search"]
+
+
+def test_vsearch_does_not_embed_when_vector_table_is_empty(tmp_db, monkeypatch):
+    with sqlite3.connect(tmp_db) as conn:
+        conn.execute(
+            "CREATE TABLE paper_vectors (paper_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, content_hash TEXT)"
+        )
+        conn.commit()
+
+    monkeypatch.setattr(
+        vectors,
+        "_embed_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("embedding should not run for empty vector store")
+        ),
+    )
+
+    with np.testing.assert_raises_regex(FileNotFoundError, "向量索引为空"):
+        vectors.vsearch("turbulence", tmp_db, top_k=1)
+
+
+def test_explore_vsearch_embeds_query_before_loading_faiss_index(tmp_path, monkeypatch):
+    order: list[str] = []
+    cfg = _build_config({}, tmp_path)
+    db_path = tmp_path / "data" / "explore" / "demo" / "explore.db"
+    db_path.parent.mkdir(parents=True)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE paper_vectors (paper_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, content_hash TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO paper_vectors (paper_id, embedding, content_hash) VALUES (?, ?, ?)",
+            ("seed-paper", b"\x00\x00\x00\x00", ""),
+        )
+        conn.commit()
+
+    class FakeIndex:
+        ntotal = 1
+
+    monkeypatch.setattr(vectors, "_embed_text", lambda query, cfg=None: order.append("embed") or [1.0, 0.0])
+
+    def fake_build_index(name, cfg=None):
+        assert order == ["embed"], f"expected query embedding before FAISS index load, got {order}"
+        order.append("build_index")
+        return FakeIndex(), ["10.1234/demo"]
+
+    monkeypatch.setattr(explore, "_build_faiss_index", fake_build_index)
+    monkeypatch.setattr(
+        vectors,
+        "_vsearch_faiss",
+        lambda *_args, **_kwargs: [("10.1234/demo", 0.88)],
+    )
+    monkeypatch.setattr(
+        explore,
+        "iter_papers",
+        lambda name, cfg=None: [
+            {
+                "title": "Demo paper",
+                "doi": "10.1234/demo",
+                "authors": ["Alice"],
+                "year": 2024,
+            }
+        ],
+    )
+
+    results = explore.explore_vsearch("demo", "turbulence", top_k=1, cfg=cfg)
+
+    assert results[0]["doi"] == "10.1234/demo"
+    assert order[:2] == ["embed", "build_index"]
+
+
+def test_explore_vsearch_does_not_embed_when_vector_table_is_empty(tmp_path, monkeypatch):
+    cfg = _build_config({}, tmp_path)
+    db_path = tmp_path / "data" / "explore" / "demo" / "explore.db"
+    db_path.parent.mkdir(parents=True)
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE paper_vectors (paper_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, content_hash TEXT)"
+        )
+        conn.commit()
+
+    monkeypatch.setattr(
+        vectors,
+        "_embed_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("embedding should not run for empty vector store")
+        ),
+    )
+
+    with np.testing.assert_raises_regex(FileNotFoundError, "向量库为空"):
+        explore.explore_vsearch("demo", "turbulence", top_k=1, cfg=cfg)

@@ -71,14 +71,14 @@ scholaraio explore embed --name <名称> [--rebuild]
 scholaraio explore topics --name <名称> --build
 scholaraio explore topics --name <名称> --rebuild --nr-topics <N>
 scholaraio explore topics --name <名称>
-scholaraio explore topics --name <名称> --topic <ID> [--top N]
+scholaraio explore topics --name <名称> --topic <ID> [--limit N]
 ```
 
 ### 搜索（三种模式）
 
 ```bash
 # 语义搜索（默认）
-scholaraio explore search --name <名称> "<查询词>" [--top N]
+scholaraio explore search --name <名称> "<查询词>" [--limit N]
 
 # 关键词搜索（FTS5）
 scholaraio explore search --name <名称> "<查询词>" --mode keyword

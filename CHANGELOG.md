@@ -10,10 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **Rsync backup workflow** ([#54](https://github.com/ZimoLiao/scholaraio/issues/54)): Added typed `backup` configuration, the `scholaraio.backup` module, `scholaraio backup list/run`, and the `backup` skill so ScholarAIO data can be synced to named remote targets through rsync instead of hand-written shell commands
+- **macOS semantic-search smoke workflow**: Added a dedicated GitHub Actions job on `macos-14` to exercise the `sentence-transformers` -> `faiss-cpu` semantic-search stack and run targeted regression tests for vector-search paths
+- **Academic writing router** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added the `academic-writing` skill as a stable top-level entry point that routes users by deliverable and writing stage instead of forcing them to guess among multiple writing skills
+- **Deliverable-first writing workflows** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added lightweight `poster` and `technical-report` skills so conference posters, poster-style summaries, topic reports, and research briefings are first-class workflows rather than implicit combinations of lower-level skills
+- **Writing workflow regression coverage**: Added tests for skill frontmatter validity, router references, approximate host-style skill selection, and 11 rounds of documentation-alignment checks across docs, agent instructions, and marketplace metadata
 
 ### Fixed
 
 - **Backup runtime robustness**: `scholaraio backup run` now reports missing `rsync` executables as controlled CLI errors, shell-quotes the displayed rsync command preview, and defaults full-data backups to the safer `default` rsync mode instead of append-only behavior
+- **macOS semantic/unified search crash** ([#65](https://github.com/ZimoLiao/scholaraio/issues/65)): main-library and explore semantic search now embed and normalize the query before loading or searching FAISS indexes, avoiding a known `faiss` / `sentence-transformers` import-order segfault pattern on macOS while preserving existing ranking behavior
+- **Academic writing docs alignment** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Synchronized `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` around a router-first writing model so poster/report workflows and the academic-writing entry point are discoverable consistently across user and agent surfaces
 
 ## [1.3.1] — 2026-04-14
 
@@ -110,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Workspace batch add**: `ws add` now supports `--search "<query>"`, `--topic <id>`, and `--all` flags for bulk paper addition, with `--top`/`--year`/`--journal`/`--type` filter support
+- **Workspace batch add**: `ws add` now supports `--search "<query>"`, `--topic <id>`, and `--all` flags for bulk paper addition, with `--limit`/`--year`/`--journal`/`--type` filter support (`--top` remains a compatibility alias)
 - **PDF optional dependency**: `pymupdf` declared in `pyproject.toml` as `[pdf]` extra (included in `[full]`), fixing undeclared dependency for long PDF splitting
 - **Subagent information tiers**: T1/T2/T3 architecture documented in CLAUDE.md and AGENTS.md for structured context management
 
