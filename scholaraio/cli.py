@@ -547,7 +547,7 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
             _log.debug("failed to read existing meta.json: %s", e)
     if not existing_uuid:
         reg = lookup_paper(cfg.index_db, args.paper_id)
-        if reg and reg.get("dir_name") == paper_d.name:
+        if reg and reg.get("id"):
             existing_uuid = str(reg.get("id") or "")
     if not existing_uuid:
         existing_uuid = generate_uuid()

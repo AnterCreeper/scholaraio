@@ -288,21 +288,24 @@ def rename_paper(json_path: Path, *, dry_run: bool = False) -> Path | None:
     old_stem = paper_d.name
     papers_root = paper_d.parent
 
-    if new_stem == old_stem or _has_collision_suffix(old_stem, new_stem):
+    if new_stem == old_stem:
         return None
 
     new_dir = papers_root / new_stem
 
     # Avoid collision with existing directories
-    if new_dir.exists():
+    if new_dir.exists() and new_dir != paper_d:
         suffix = 2
         while True:
             candidate = f"{new_stem}-{suffix}"
-            if not (papers_root / candidate).exists():
-                new_stem = candidate
-                new_dir = papers_root / new_stem
+            candidate_dir = papers_root / candidate
+            if candidate_dir == paper_d or not candidate_dir.exists():
+                new_dir = candidate_dir
                 break
             suffix += 1
+
+    if new_dir == paper_d:
+        return None
 
     if dry_run:
         return new_dir / "meta.json"
@@ -424,10 +427,6 @@ def rename_files(md_path: Path, json_path: Path, new_stem: str, dry_run: bool = 
             _log.debug("failed to update papers_registry during rename_files: %s", e)
     _log.debug("renamed dir: %s -> %s", paper_d.name, new_dir.name)
     return new_md, new_json
-
-
-def _has_collision_suffix(dir_name: str, canonical_stem: str) -> bool:
-    return bool(re.fullmatch(rf"{re.escape(canonical_stem)}-\d+", dir_name))
 
 
 def _update_registry_dir_name(db_path: Path, uuid: str, new_dir_name: str) -> None:
