@@ -404,3 +404,25 @@ class TestRefetchMetadata:
         result = rename_paper(old_dir / "meta.json", dry_run=True)
         assert result is not None
         assert old_dir.exists()  # original not moved
+
+    def test_collision_suffix_name_is_idempotent(self, tmp_path):
+        papers = tmp_path / "papers"
+        (papers / "Smith-2023-Test").mkdir(parents=True)
+        suffixed_dir = papers / "Smith-2023-Test-2"
+        suffixed_dir.mkdir(parents=True)
+        (suffixed_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "test-uuid",
+                    "title": "Test",
+                    "first_author_lastname": "Smith",
+                    "year": 2023,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = rename_paper(suffixed_dir / "meta.json")
+
+        assert result is None
+        assert suffixed_dir.exists()

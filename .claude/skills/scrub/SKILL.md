@@ -62,7 +62,7 @@ Then narrow to papers that are both:
 
 ### 2. Inspect one paper at a time
 
-For each candidate, inspect:
+For candidates with readable metadata, inspect:
 
 ```bash
 scholaraio show "<paper-id>" --layer 1
@@ -76,7 +76,19 @@ Then read the source text as needed:
 scholaraio show "<paper-id>" --layer 4
 ```
 
-If the default view is too long, resolve the actual `paper.md` path with the same identifier semantics as `show` / `repair`, then inspect only the needed slice:
+If the suspect is `invalid_metadata` because the directory only has `paper.md` and no readable `meta.json`, `show --layer 1` may not work yet. In that case, inspect `paper.md` directly from the configured papers directory and repair by directory name:
+
+```bash
+python - <<'PY'
+from scholaraio.config import load_config
+
+paper_id = "<paper-id>"
+cfg = load_config()
+print((cfg.papers_dir / paper_id / "paper.md").resolve())
+PY
+```
+
+If the default `show --layer 4` view is too long, resolve the actual `paper.md` path with the same identifier semantics as `show` / `repair`, then inspect only the needed slice:
 
 ```bash
 python - <<'PY'
@@ -139,7 +151,9 @@ print(_resolve_paper(stable_id, cfg).name)
 PY
 ```
 
-If you repaired several papers, or edited `meta.json` outside `repair`, normalize names once at the end:
+If you repaired papers through `scholaraio repair`, skip `rename --all` for those same records. `repair` already rewrites `meta.json` and renames the directory immediately, including collision suffixes when needed.
+
+Only use `rename --all` for records whose `meta.json` you edited outside `repair`, or for older records you did not already rename in the current scrub pass:
 
 ```bash
 scholaraio rename --all

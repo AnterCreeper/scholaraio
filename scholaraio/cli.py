@@ -309,7 +309,7 @@ def cmd_show(args: argparse.Namespace, cfg) -> None:
             else:
                 ui(f"已追加笔记到 {paper_d.name}/notes.md")
 
-    l1 = load_l1(json_path)
+    l1 = _enrich_show_header(load_l1(json_path), paper_d=paper_d, requested_id=args.paper_id, cfg=cfg)
     _print_header(l1)
 
     # Show existing agent notes (T2 layer) if available
@@ -516,6 +516,7 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         rename_files,
         write_metadata_json,
     )
+    from scholaraio.papers import generate_uuid
 
     papers_dir = cfg.papers_dir
     direct_dir = papers_dir / args.paper_id
@@ -543,6 +544,8 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         reg = lookup_paper(cfg.index_db, args.paper_id)
         if reg and reg.get("dir_name") == paper_d.name:
             existing_uuid = str(reg.get("id") or "")
+    if not existing_uuid:
+        existing_uuid = generate_uuid()
 
     # Build PaperMetadata from CLI args (skip md parsing)
     meta = PaperMetadata()
@@ -3100,6 +3103,8 @@ def _print_header(l1: dict) -> None:
     if len(authors) > 3:
         author_str += f" et al. ({len(authors)} total)"
     ui(f"论文ID   : {l1['paper_id']}")
+    if l1.get("dir_name") and l1["dir_name"] != l1["paper_id"]:
+        ui(f"目录名   : {l1['dir_name']}")
     ui(f"标题     : {l1['title']}")
     ui(f"作者     : {author_str}")
     ui(f"年份     : {l1.get('year') or '?'}  |  期刊: {l1.get('journal') or '?'}")
@@ -3117,6 +3122,28 @@ def _print_header(l1: dict) -> None:
         ui(f"S2       : {ids['semantic_scholar_url']}")
     if ids.get("openalex_url"):
         ui(f"OpenAlex : {ids['openalex_url']}")
+
+
+def _enrich_show_header(l1: dict, *, paper_d: Path, requested_id: str, cfg) -> dict:
+    from scholaraio.index import lookup_paper
+
+    enriched = dict(l1)
+    enriched["dir_name"] = paper_d.name
+    if enriched.get("paper_id") and enriched["paper_id"] != paper_d.name:
+        return enriched
+
+    candidates = [requested_id, enriched.get("doi") or "", paper_d.name]
+    seen: set[str] = set()
+    for candidate in candidates:
+        candidate = str(candidate or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        reg = lookup_paper(cfg.index_db, candidate)
+        if reg and reg.get("id"):
+            enriched["paper_id"] = str(reg["id"])
+            break
+    return enriched
 
 
 def cmd_citation_check(args: argparse.Namespace, cfg) -> None:

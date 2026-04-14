@@ -243,8 +243,30 @@ class TestRepairIdentifierResolution:
         repaired_dir = tmp_papers / "Smith-2023-Recovered-Turbulence-Title"
         assert repaired_dir.exists()
         repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
+        assert repaired_meta["id"]
         assert repaired_meta["title"] == "Recovered Turbulence Title"
         assert (repaired_dir / "paper.md").exists()
+
+
+class TestShowIdentifierDisplay:
+    def test_show_prefers_registry_uuid_when_meta_json_lost_id(self, tmp_papers, tmp_db, monkeypatch):
+        build_index(tmp_papers, tmp_db)
+
+        paper_dir = tmp_papers / "Smith-2023-Turbulence"
+        meta_path = paper_dir / "meta.json"
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data.pop("id", None)
+        meta_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(paper_id="10.1234/jfm.2023.001", layer=1)
+
+        cli.cmd_show(args, cfg)
+
+        assert "论文ID   : aaaa-1111" in messages
 
 
 class TestShowNotesIntegration:
