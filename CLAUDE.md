@@ -66,12 +66,15 @@ Knowledge base management:
 - `translate` - When the user wants to translate papers into a target language while keeping Markdown structure, use this skill.
 
 Academic writing:
+- `academic-writing` - When the user needs help choosing or organizing the right academic-writing workflow by deliverable or final format (review, paper section, rebuttal, PPT, poster, technical report), use this skill as the router.
 - `literature-review` - When the user wants to write a literature review, organize topics, and build a critical narrative, use this skill.
 - `paper-writing` - When the user wants to draft concrete paper sections rather than a generic summary, use this skill.
 - `citation-check` - When the user is worried about fake citations, wrong author-year pairs, or AI citation hallucinations, use this skill.
 - `writing-polish` - When the user wants academic polishing, de-AI-fication, or style transfer, use this skill.
 - `review-response` - When the user wants to answer reviewer comments, write a rebuttal, or prepare a point-by-point response, use this skill.
 - `research-gap` - When the user wants to identify research gaps and open questions from existing literature, use this skill.
+- `technical-report` - When the user wants a technical report, topic report, or research briefing and needs help organizing scope, evidence, recommendations, and packaging, use this skill.
+- `poster` - When the user wants an academic poster or poster-style visual summary and needs help structuring sections, balancing text and figures, and packaging the result, use this skill.
 
 Visualization and document generation:
 - `draw` - When the user wants to visualize a process, structure, timeline, or concept relationships, use this skill.

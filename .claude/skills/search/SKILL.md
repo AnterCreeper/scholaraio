@@ -22,7 +22,7 @@ tags: ["academic", "search", "papers", "semantic", "fts5"]
 
 2. 从用户输入中提取：
    - **查询词**：用户想搜索的内容
-   - **返回数量**：用户指定的 `--top N`，未指定则使用默认值
+   - **返回数量**：优先使用 `--limit N`，`--top N` 仍兼容；未指定则使用默认值
    - **年份过滤**：`--year 2023`（单年）、`--year 2020-2024`（范围）、`--year 2020-`（起始年至今）
    - **期刊过滤**：`--journal "Fluid Mechanics"`（模糊匹配）
    - **类型过滤**：`--type review`（模糊匹配，常见值：`review`、`journal-article`、`book-chapter`）
@@ -31,22 +31,22 @@ tags: ["academic", "search", "papers", "semantic", "fts5"]
 
 **融合检索（默认）：**
 ```bash
-scholaraio usearch "<查询词>" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
+scholaraio usearch "<查询词>" --limit <N> [--year <Y>] [--journal <J>] [--type <T>]
 ```
 
 **关键词搜索：**
 ```bash
-scholaraio search "<查询词>" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
+scholaraio search "<查询词>" --limit <N> [--year <Y>] [--journal <J>] [--type <T>]
 ```
 
 **语义搜索：**
 ```bash
-scholaraio vsearch "<查询词>" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
+scholaraio vsearch "<查询词>" --limit <N> [--year <Y>] [--journal <J>] [--type <T>]
 ```
 
 **作者搜索：**
 ```bash
-scholaraio search-author "<作者名>" --top <N> [--year <Y>] [--journal <J>] [--type <T>]
+scholaraio search-author "<作者名>" --limit <N> [--year <Y>] [--journal <J>] [--type <T>]
 ```
 
 > **引用量排序**：使用 `/citations` skill 中的 `scholaraio top-cited` 命令。
@@ -54,7 +54,7 @@ scholaraio search-author "<作者名>" --top <N> [--year <Y>] [--journal <J>] [-
 **联邦搜索（跨库 + arXiv）：**
 ```bash
 # 同时搜主库和 arXiv
-scholaraio fsearch "<查询词>" --scope main,arxiv --top <N>
+scholaraio fsearch "<查询词>" --scope main,arxiv --limit <N>
 
 # 同时搜主库和 proceedings
 scholaraio fsearch "<查询词>" --scope main,proceedings
@@ -93,7 +93,7 @@ ids, toc, l3_conclusion
 → 执行 `usearch "turbulent boundary layer"`
 
 用户说："用语义搜索找 drag reduction 的文献，给我前5篇"
-→ 执行 `vsearch "drag reduction" --top 5`
+→ 执行 `vsearch "drag reduction" --limit 5`
 
 用户说："找 Liao Z-M 的论文"
 → 执行 `search-author "Liao"`
