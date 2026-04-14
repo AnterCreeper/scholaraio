@@ -1,0 +1,142 @@
+"""Tests for rsync backup configuration, command planning, and execution."""
+
+from __future__ import annotations
+
+import subprocess
+from argparse import Namespace
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from scholaraio import cli
+from scholaraio.config import _build_config
+
+
+def _build_backup_cfg(tmp_path: Path):
+    return _build_config(
+        {
+            "backup": {
+                "source_dir": "data",
+                "targets": {
+                    "lab": {
+                        "host": "backup.example.com",
+                        "user": "alice",
+                        "path": "/srv/scholaraio",
+                        "port": 2222,
+                        "identity_file": "secrets/id_ed25519",
+                        "mode": "append-verify",
+                        "compress": True,
+                        "enabled": True,
+                        "exclude": ["*.tmp", "metrics.db"],
+                    }
+                },
+            }
+        },
+        tmp_path,
+    )
+
+
+def test_build_rsync_command_uses_configured_target_and_flags(tmp_path: Path):
+    from scholaraio.backup import build_rsync_command
+
+    cfg = _build_backup_cfg(tmp_path)
+
+    cmd = build_rsync_command(cfg, "lab", dry_run=True)
+
+    assert cmd[0] == "rsync"
+    assert "-a" in cmd
+    assert "-z" in cmd
+    assert "--append-verify" in cmd
+    assert "--dry-run" in cmd
+    assert "--exclude" in cmd
+    assert cmd[-1] == "alice@backup.example.com:/srv/scholaraio/"
+    assert cmd[-2] == f"{(tmp_path / 'data').resolve()}/"
+    assert "-e" in cmd
+    ssh_cmd = cmd[cmd.index("-e") + 1]
+    assert "ssh" in ssh_cmd
+    assert "-p 2222" in ssh_cmd
+    assert f"-i {(tmp_path / 'secrets' / 'id_ed25519').resolve()}" in ssh_cmd
+
+
+def test_build_rsync_command_rejects_missing_target(tmp_path: Path):
+    from scholaraio.backup import BackupConfigError, build_rsync_command
+
+    cfg = _build_backup_cfg(tmp_path)
+
+    with pytest.raises(BackupConfigError, match="unknown backup target"):
+        build_rsync_command(cfg, "missing")
+
+
+def test_build_rsync_command_rejects_disabled_target(tmp_path: Path):
+    from scholaraio.backup import BackupConfigError, build_rsync_command
+
+    cfg = _build_config(
+        {
+            "backup": {
+                "targets": {
+                    "archive": {
+                        "host": "backup.example.com",
+                        "path": "/srv/archive",
+                        "enabled": False,
+                    }
+                }
+            }
+        },
+        tmp_path,
+    )
+
+    with pytest.raises(BackupConfigError, match="disabled"):
+        build_rsync_command(cfg, "archive")
+
+
+def test_run_backup_invokes_subprocess_with_planned_command(tmp_path: Path, monkeypatch):
+    from scholaraio.backup import run_backup
+
+    cfg = _build_backup_cfg(tmp_path)
+    seen: list[list[str]] = []
+
+    def fake_run(cmd, check, text, **kwargs):
+        seen.append(cmd)
+        assert check is False
+        assert text is True
+        assert kwargs.get("capture_output") is True
+        return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("scholaraio.backup.subprocess.run", fake_run)
+
+    result = run_backup(cfg, "lab", dry_run=False)
+
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+    assert seen
+
+
+def test_cmd_backup_list_displays_configured_targets(tmp_path: Path, monkeypatch):
+    cfg = _build_backup_cfg(tmp_path)
+    messages: list[str] = []
+    monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
+
+    cli.cmd_backup(Namespace(backup_action="list"), cfg)
+
+    assert any("备份源目录" in msg for msg in messages)
+    assert any("[lab] 启用" in msg for msg in messages)
+    assert any("append-verify" in msg for msg in messages)
+
+
+def test_cmd_backup_run_reports_dry_run_completion(tmp_path: Path, monkeypatch):
+    messages: list[str] = []
+    monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
+    monkeypatch.setattr(
+        "scholaraio.backup.build_rsync_command",
+        lambda *_args, **_kwargs: ["rsync", "-a", "/src/", "alice@host:/dst/"],
+    )
+    monkeypatch.setattr(
+        "scholaraio.backup.run_backup",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+
+    cli.cmd_backup(Namespace(backup_action="run", target="lab", dry_run=True), _build_backup_cfg(tmp_path))
+
+    assert any("即将执行备份命令" in msg for msg in messages)
+    assert any("预演完成" in msg for msg in messages)

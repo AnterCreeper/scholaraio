@@ -62,3 +62,29 @@ embed:
   source: modelscope  # default (China)
   # source: huggingface  # for international users
 ```
+
+### Backup Targets
+
+ScholarAIO can sync its `data/` directory to a remote machine through `rsync`.
+
+```yaml
+backup:
+  source_dir: data
+  targets:
+    lab:
+      host: backup.example.com
+      user: alice
+      path: /srv/scholaraio
+      port: 22
+      identity_file: ~/.ssh/id_ed25519
+      mode: append-verify
+      compress: true
+      enabled: true
+      exclude:
+        - "*.tmp"
+        - "metrics.db"
+```
+
+- `mode` supports `default`, `append`, and `append-verify`.
+- `append-verify` is the recommended default for long-term incremental sync because it is safer than raw `--append`.
+- Keep host-specific secrets such as `identity_file` in `config.local.yaml` when possible.

@@ -78,6 +78,7 @@ Visualization and document generation:
 
 System operations:
 - `setup` - When the user wants to install, configure, or diagnose the ScholarAIO environment, start with this skill.
+- `backup` - When the user wants to sync ScholarAIO data to a configured remote machine via rsync, use this skill.
 - `metrics` - When the user wants token usage, call timing, or runtime metrics, use this skill.
 
 Scientific computing:

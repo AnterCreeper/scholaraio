@@ -102,6 +102,16 @@ class TestCliHelpLocalization:
 
         assert "目录名 / UUID / DOI" in refetch_help
 
+    def test_backup_help_exposes_list_and_run_subcommands(self):
+        parser = cli._build_parser()
+        backup_parser = parser._subparsers._group_actions[0].choices["backup"]
+        backup_help = backup_parser.format_help()
+        run_help = backup_parser._subparsers._group_actions[0].choices["run"].format_help()
+
+        assert "rsync 增量备份" in backup_help
+        assert "列出已配置的备份目标" in backup_help
+        assert "预演模式" in run_help
+
 
 class TestShowLayer4Headings:
     def test_translated_full_text_heading_uses_consistent_spacing(self, tmp_papers, monkeypatch):

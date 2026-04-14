@@ -2545,6 +2545,57 @@ def cmd_setup(args: argparse.Namespace, cfg) -> None:
         run_wizard(cfg)
 
 
+def cmd_backup(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.backup import BackupConfigError, build_rsync_command, run_backup
+
+    action = getattr(args, "backup_action", None)
+    if action == "list":
+        ui(f"备份源目录: {cfg.backup_source_dir}")
+        if not cfg.backup.targets:
+            ui("未配置任何备份目标。")
+            return
+        ui()
+        for name, target in sorted(cfg.backup.targets.items()):
+            status = "启用" if target.enabled else "禁用"
+            remote = f"{target.user}@{target.host}" if target.user else target.host
+            ui(f"[{name}] {status}")
+            ui(f"  远端: {remote}:{target.path}")
+            ui(f"  模式: {target.mode}  |  压缩: {'on' if target.compress else 'off'}")
+            if target.exclude:
+                ui(f"  排除: {', '.join(target.exclude)}")
+        return
+
+    if action == "run":
+        try:
+            cmd = build_rsync_command(cfg, args.target, dry_run=args.dry_run)
+        except BackupConfigError as exc:
+            _log.error("%s", exc)
+            sys.exit(1)
+
+        ui("即将执行备份命令：")
+        ui("  " + " ".join(cmd))
+        result = run_backup(cfg, args.target, dry_run=args.dry_run)
+        if result.stdout.strip():
+            ui()
+            ui(result.stdout.rstrip())
+        if result.stderr.strip():
+            ui()
+            ui(result.stderr.rstrip())
+        if result.returncode != 0:
+            _log.error("备份失败，退出码: %s", result.returncode)
+            sys.exit(result.returncode)
+        if args.dry_run:
+            ui()
+            ui("预演完成：未实际传输文件。")
+        else:
+            ui()
+            ui("备份完成。")
+        return
+
+    _log.error("未知 backup 子命令: %s", action)
+    sys.exit(1)
+
+
 def cmd_import_endnote(args: argparse.Namespace, cfg) -> None:
     try:
         from scholaraio.sources.endnote import parse_endnote_full
@@ -3498,6 +3549,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_setup_sub = p_setup.add_subparsers(dest="setup_action")
     p_setup_check = p_setup_sub.add_parser("check", help="检查环境状态")
     p_setup_check.add_argument("--lang", choices=["en", "zh"], default="zh", help="输出语言（zh 或 en，默认 zh）")
+
+    # --- backup ---
+    p_backup = sub.add_parser("backup", help="rsync 增量备份", description="rsync 增量备份")
+    p_backup.set_defaults(func=cmd_backup)
+    p_backup_sub = p_backup.add_subparsers(dest="backup_action", required=True)
+
+    p_backup_list = p_backup_sub.add_parser("list", help="列出已配置的备份目标")
+    del p_backup_list  # no extra args needed
+
+    p_backup_run = p_backup_sub.add_parser("run", help="执行指定备份目标")
+    p_backup_run.add_argument("target", help="备份目标名称（来自 config backup.targets）")
+    p_backup_run.add_argument("--dry-run", action="store_true", help="预演模式，只展示 rsync 计划而不实际传输")
 
     # --- fsearch ---
     p_fsearch = sub.add_parser("fsearch", help="联邦搜索：同时搜索主库、proceedings、explore 库和 arXiv")

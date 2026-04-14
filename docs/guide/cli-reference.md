@@ -81,6 +81,7 @@ scholaraio toolref
 scholaraio arxiv
 scholaraio document
 scholaraio style
+scholaraio backup
 ```
 
 - `toolref` provides versioned scientific tool documentation lookup.
@@ -88,6 +89,7 @@ scholaraio style
 - `arxiv` supports arXiv search and PDF fetch.
 - `document` provides Office-document utilities such as inspection.
 - `style` manages citation styles.
+- `backup` lists configured rsync targets and runs a named backup plan.
 
 ## Audit, Setup, And Runtime Inspection
 
