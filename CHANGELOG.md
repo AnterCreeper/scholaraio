@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **Workspace batch add**: `ws add` now supports `--search "<query>"`, `--topic <id>`, and `--all` flags for bulk paper addition, with `--top`/`--year`/`--journal`/`--type` filter support
+- **Workspace batch add**: `ws add` now supports `--search "<query>"`, `--topic <id>`, and `--all` flags for bulk paper addition, with `--limit`/`--year`/`--journal`/`--type` filter support (`--top` remains a compatibility alias)
 - **PDF optional dependency**: `pymupdf` declared in `pyproject.toml` as `[pdf]` extra (included in `[full]`), fixing undeclared dependency for long PDF splitting
 - **Subagent information tiers**: T1/T2/T3 architecture documented in CLAUDE.md and AGENTS.md for structured context management
 
