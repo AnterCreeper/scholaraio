@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -64,15 +65,15 @@ def extract_document_metadata(
     from scholaraio.ingest.extractor import RegexExtractor
 
     # Step 1: try regex extraction
+    try:
+        extractor = RegexExtractor()
+        meta = extractor.extract(md_path)
+    except Exception as e:
+        _log.debug("regex extraction failed for doc: %s", e)
+        meta = PaperMetadata()
+
     if existing_meta:
-        meta = existing_meta
-    else:
-        try:
-            extractor = RegexExtractor()
-            meta = extractor.extract(md_path)
-        except Exception as e:
-            _log.debug("regex extraction failed for doc: %s", e)
-            meta = PaperMetadata()
+        meta = _merge_seeded_metadata(meta, existing_meta)
 
     text = md_path.read_text(encoding="utf-8", errors="replace")
 
@@ -128,6 +129,29 @@ def extract_document_metadata(
 
     meta.extraction_method = meta.extraction_method or "llm_document"
     return meta
+
+
+def _merge_seeded_metadata(base: PaperMetadata, seeded: PaperMetadata) -> PaperMetadata:
+    """Merge sidecar metadata into extracted document metadata without dropping regex fields."""
+    merged: dict[str, object] = {}
+    for field in fields(PaperMetadata):
+        seeded_value = getattr(seeded, field.name)
+        base_value = getattr(base, field.name)
+        if _has_value(seeded_value):
+            merged[field.name] = seeded_value
+        else:
+            merged[field.name] = base_value
+    return PaperMetadata(**merged)
+
+
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value)
+    return True
 
 
 def _fallback_document_metadata(

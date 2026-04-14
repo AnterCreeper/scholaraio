@@ -7,6 +7,7 @@ from argparse import Namespace
 from types import SimpleNamespace
 
 from scholaraio import cli
+from scholaraio import log as scholaraio_log
 
 
 class TestIngestLinkCommand:
@@ -125,9 +126,7 @@ class TestIngestLinkCommand:
 
         assert seen["steps"] == ["extract_doc", "ingest"]
 
-    def test_ingest_link_json_outputs_extracted_summary(self, tmp_path, monkeypatch):
-        messages: list[str] = []
-        monkeypatch.setattr(cli, "ui", messages.append)
+    def test_ingest_link_json_outputs_extracted_summary(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(
             "scholaraio.sources.webtools.webextract",
             lambda url, *, pdf=None, base_url=None: {
@@ -152,7 +151,7 @@ class TestIngestLinkCommand:
 
         cli.cmd_ingest_link(args, cfg)
 
-        payload = json.loads(messages[-1])
+        payload = json.loads(capsys.readouterr().out)
         assert payload == [
             {
                 "url": "https://example.com/article",
@@ -160,6 +159,59 @@ class TestIngestLinkCommand:
                 "markdown_file": "01-example-page.md",
             }
         ]
+
+    def test_ingest_link_json_keeps_stdout_parseable(self, tmp_path, monkeypatch, capsys):
+        scholaraio_log.reset()
+        scholaraio_log.setup(
+            SimpleNamespace(
+                log_file=tmp_path / "scholaraio.log",
+                log=SimpleNamespace(max_bytes=100000, backup_count=1, level="INFO"),
+            )
+        )
+
+        monkeypatch.setattr(
+            "scholaraio.sources.webtools.webextract",
+            lambda url, *, pdf=None, base_url=None: {
+                "url": url,
+                "title": "Example Page",
+                "text": "Body",
+                "html": "",
+                "error": "",
+            },
+        )
+
+        def fake_run_pipeline(*args, **kwargs):
+            from scholaraio.ingest.pipeline import ui as pipeline_ui
+
+            pipeline_ui("pipeline progress")
+
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
+        args = Namespace(
+            urls=["https://example.com/article"],
+            dry_run=False,
+            force=False,
+            pdf=False,
+            no_index=False,
+            json=True,
+        )
+
+        try:
+            cli.cmd_ingest_link(args, cfg)
+            captured = capsys.readouterr()
+        finally:
+            scholaraio_log.reset()
+
+        payload = json.loads(captured.out)
+        assert payload == [
+            {
+                "url": "https://example.com/article",
+                "title": "Example Page",
+                "markdown_file": "01-example-page.md",
+            }
+        ]
+        assert "pipeline progress" in captured.err
 
     def test_ingest_link_pdf_flag_only_sent_when_requested(self, tmp_path, monkeypatch):
         seen: list[bool | None] = []

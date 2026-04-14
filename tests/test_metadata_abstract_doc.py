@@ -108,3 +108,39 @@ def test_extract_document_metadata_preserves_existing_web_source_fields(tmp_path
     assert meta.source_type == "web"
     assert meta.extracted_at == "2026-04-14T12:00:00"
     assert meta.extraction_method == "qt-web-extractor"
+
+
+def test_extract_document_metadata_merges_regex_fields_with_sidecar(tmp_path, monkeypatch):
+    md = tmp_path / "report.md"
+    md.write_text(
+        "# Example Domain\n\nAlice Smith, Bob Chen\n\n2024 technical report body.\n",
+        encoding="utf-8",
+    )
+
+    class DummyRegexExtractor:
+        def extract(self, _path):
+            return PaperMetadata(
+                title="Example Domain",
+                authors=["Alice Smith", "Bob Chen"],
+                first_author="Alice Smith",
+                first_author_lastname="Smith",
+                year=2024,
+            )
+
+    monkeypatch.setattr("scholaraio.ingest.extractor.RegexExtractor", DummyRegexExtractor)
+
+    existing = PaperMetadata(
+        source_file="report.md",
+        source_url="https://example.com/docs",
+        source_type="web",
+        extracted_at="2026-04-14T12:00:00",
+        extraction_method="qt-web-extractor",
+    )
+
+    meta = extract_document_metadata(md, _NoKeyConfig(), existing_meta=existing)
+
+    assert meta.authors == ["Alice Smith", "Bob Chen"]
+    assert meta.first_author == "Alice Smith"
+    assert meta.year == 2024
+    assert meta.source_url == "https://example.com/docs"
+    assert meta.extraction_method == "qt-web-extractor"

@@ -63,12 +63,13 @@ import shutil
 import sys
 import tempfile
 import time
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from scholaraio.config import load_config
-from scholaraio.log import ui
+from scholaraio.log import redirect_console_ui, ui
 
 _log = logging.getLogger(__name__)
 
@@ -2414,11 +2415,12 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
     if not args.no_index:
         step_names.extend(["embed", "index"])
 
-    ui(f"开始直接入库链接: {len(urls)} 个")
     summaries: list[dict[str, str]] = []
+    output_mode = redirect_console_ui(sys.stderr) if args.json else nullcontext()
 
     try:
-        with tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
+        with output_mode, tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
+            ui(f"开始直接入库链接: {len(urls)} 个")
             tmp_root = Path(tmpdir)
             inbox_dir = tmp_root / "inbox"
             inbox_dir.mkdir(parents=True, exist_ok=True)
@@ -2475,7 +2477,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
         return
 
     if args.json:
-        ui(json.dumps(summaries, ensure_ascii=False, indent=2))
+        sys.stdout.write(json.dumps(summaries, ensure_ascii=False, indent=2) + "\n")
 
 
 # ============================================================================
