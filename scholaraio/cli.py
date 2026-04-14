@@ -37,6 +37,7 @@ cli.py — scholaraio 命令行入口
     scholaraio import-endnote <file.xml|file.ris> [--no-api] [--dry-run] [--no-convert]
     scholaraio import-zotero [--api-key KEY] [--library-id ID] [--local PATH] [--list-collections] ...
     scholaraio attach-pdf <paper-id> <path/to/paper.pdf>
+    scholaraio ingest-link <url> [<url> ...] [--dry-run] [--force] [--pdf] [--no-index] [--json]
     scholaraio citation-check [<file>] [--ws <workspace-name>]
     scholaraio proceedings apply-split <proceeding_dir> <split_plan.json>
     scholaraio proceedings build-clean-candidates <proceeding_dir>
@@ -57,14 +58,18 @@ import argparse
 import concurrent.futures
 import json
 import logging
+import re
 import shutil
 import sys
 import tempfile
 import time
+from contextlib import nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from scholaraio.config import load_config
-from scholaraio.log import ui
+from scholaraio.log import redirect_console_ui, ui
 
 _log = logging.getLogger(__name__)
 
@@ -2402,6 +2407,173 @@ def cmd_arxiv_fetch(args: argparse.Namespace, cfg) -> None:
     ui(f"已下载到 inbox: {pdf_path}")
 
 
+def _slugify_ingest_link_title(title: str, fallback_url: str, index: int) -> str:
+    raw = (title or "").strip() or _fallback_ingest_link_title(fallback_url, index)
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    slug = slug[:240].strip("-")
+    return slug or f"link-{index:02d}"
+
+
+def _fallback_ingest_link_title(source_url: str, index: int) -> str:
+    parsed = urlparse(source_url)
+    return Path(parsed.path).stem or parsed.netloc or f"link-{index:02d}"
+
+
+def _render_ingest_link_markdown(title: str, source_url: str, body: str) -> str:
+    parts = [
+        f"# {title}",
+        "",
+        f"Source URL: {source_url}",
+        "",
+    ]
+    body_text = (body or "").strip()
+    if body_text:
+        parts.append(body_text)
+    return "\n".join(parts).rstrip() + "\n"
+
+
+def _webextract_for_ingest_link(
+    url: str,
+    *,
+    pdf: bool | None,
+    extractor,
+    max_attempts: int = 3,
+    backoff_base: float = 1.0,
+) -> dict:
+    last_result: dict | None = None
+    last_error = ""
+    last_source_url = url
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = extractor(url, pdf=pdf)
+        except Exception as exc:
+            last_result = None
+            last_error = str(exc)
+            last_source_url = url
+        else:
+            result = result or {}
+            source_url = (result.get("url") or url).strip()
+            error = (result.get("error") or "").strip()
+            text = result.get("text") or ""
+            last_result = result
+            last_error = error
+            last_source_url = source_url
+            if not error or text.strip():
+                if attempt > 1:
+                    ui(f"链接提取重试后成功: {source_url} (第 {attempt} 次)")
+                return result
+
+        if attempt >= max_attempts:
+            break
+        wait = backoff_base * float(2 ** (attempt - 1))
+        ui(f"链接提取失败，准备重试: {last_source_url} ({last_error})，{wait:.1f}s 后重试")
+        time.sleep(wait)
+
+    if last_result is not None:
+        return last_result
+    return {
+        "url": last_source_url,
+        "title": "",
+        "text": "",
+        "html": "",
+        "error": last_error or "unknown extraction error",
+    }
+
+
+def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
+    from scholaraio.ingest.pipeline import run_pipeline
+    from scholaraio.sources.webtools import webextract
+
+    urls = [u.strip() for u in args.urls if u.strip()]
+    if not urls:
+        ui("请至少提供一个 URL")
+        return
+
+    if args.dry_run:
+        ui(f"[dry-run] 将抓取 {len(urls)} 个链接并直接入库")
+        for url in urls:
+            ui(f"  - {url}")
+        return
+
+    step_names = ["extract_doc", "ingest"]
+    if not args.no_index:
+        step_names.extend(["embed", "index"])
+
+    summaries: list[dict[str, str]] = []
+    output_mode = redirect_console_ui(sys.stderr) if args.json else nullcontext()
+
+    try:
+        with output_mode, tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
+            ui(f"开始直接入库链接: {len(urls)} 个")
+            tmp_root = Path(tmpdir)
+            inbox_dir = tmp_root / "inbox"
+            inbox_dir.mkdir(parents=True, exist_ok=True)
+            doc_inbox_dir = Path(tmpdir) / "inbox-doc"
+            doc_inbox_dir.mkdir(parents=True, exist_ok=True)
+
+            for idx, url in enumerate(urls, start=1):
+                pdf_mode = True if args.pdf else None
+                result = _webextract_for_ingest_link(url, pdf=pdf_mode, extractor=webextract)
+                source_url = (result.get("url") or url).strip()
+                error = (result.get("error") or "").strip()
+                text = result.get("text") or ""
+                if error and not text.strip():
+                    ui(f"链接提取失败，已跳过: {source_url} ({error})")
+                    continue
+                if error:
+                    ui(f"链接提取有警告，继续入库: {source_url} ({error})")
+
+                title = (result.get("title") or "").strip() or _fallback_ingest_link_title(source_url, idx)
+                slug = _slugify_ingest_link_title(title, source_url, idx)
+                md_name = f"{idx:02d}-{slug}.md"
+                md_path = doc_inbox_dir / md_name
+                sidecar_path = md_path.with_suffix(".json")
+
+                md_text = _render_ingest_link_markdown(title, source_url, text)
+                md_path.write_text(md_text, encoding="utf-8")
+
+                sidecar = {
+                    "title": title,
+                    "source_file": md_name,
+                    "source_url": source_url,
+                    "source_type": "web",
+                    "extracted_at": datetime.now(timezone.utc).isoformat(),
+                    "extraction_method": "qt-web-extractor",
+                }
+                sidecar_path.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+                summaries.append(
+                    {
+                        "url": source_url,
+                        "title": title,
+                        "markdown_file": md_name,
+                    }
+                )
+                ui(f"已抓取: {title[:80]}")
+
+            if not summaries:
+                ui("没有可入库的链接内容")
+                return
+
+            run_pipeline(
+                step_names,
+                cfg,
+                {
+                    "inbox_dir": inbox_dir,
+                    "doc_inbox_dir": doc_inbox_dir,
+                    "force": args.force,
+                    "include_aux_inboxes": False,
+                },
+            )
+    except Exception as e:
+        ui(f"链接抓取或入库失败: {e}")
+        return
+
+    if args.json:
+        sys.stdout.write(json.dumps(summaries, ensure_ascii=False, indent=2) + "\n")
+
+
 # ============================================================================
 #  insights
 # ============================================================================
@@ -3581,6 +3753,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_arxiv_fetch.add_argument("--ingest", action="store_true", help="下载后直接走 ingest pipeline 入库")
     p_arxiv_fetch.add_argument("--force", action="store_true", help="覆盖已有同名 PDF 或强制 pipeline 处理")
     p_arxiv_fetch.add_argument("--dry-run", action="store_true", help="预览将要执行的操作")
+
+    # --- ingest-link ---
+    p_ingest_link = sub.add_parser("ingest-link", help="抓取渲染后的网页/在线 PDF，并按文档流程直接入库")
+    p_ingest_link.set_defaults(func=cmd_ingest_link)
+    p_ingest_link.add_argument("urls", nargs="+", help="一个或多个网页/在线 PDF URL")
+    p_ingest_link.add_argument("--dry-run", action="store_true", help="预览将要执行的操作")
+    p_ingest_link.add_argument("--force", action="store_true", help="强制重新处理生成的文档")
+    p_ingest_link.add_argument("--pdf", action="store_true", help="仅在自动识别不稳时，提示 webextract 按 PDF 模式抓取")
+    p_ingest_link.add_argument("--no-index", action="store_true", help="仅入库，不执行 embed/index")
+    p_ingest_link.add_argument("--json", action="store_true", help="输出抓取结果摘要 JSON")
 
     # --- insights ---
     p_insights = sub.add_parser("insights", help="研究行为分析：搜索热词、最常阅读论文等")

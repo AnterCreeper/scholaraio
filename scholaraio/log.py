@@ -14,6 +14,8 @@ import logging
 import logging.handlers
 import sys
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -105,6 +107,27 @@ def ui(msg: str = "", *args, logger: logging.Logger | None = None) -> None:
     """
     _logger = logger or logging.getLogger("scholaraio.ui")
     _logger.info(msg, *args)
+
+
+@contextmanager
+def redirect_console_ui(stream) -> Iterator[None]:
+    """Temporarily redirect console UI handlers to another stream."""
+    root = logging.getLogger()
+    redirected: list[tuple[logging.StreamHandler, object]] = []
+
+    for handler in root.handlers:
+        if isinstance(handler, logging.FileHandler):
+            continue
+        if not isinstance(handler, logging.StreamHandler):
+            continue
+        redirected.append((handler, handler.stream))
+        handler.setStream(stream)
+
+    try:
+        yield
+    finally:
+        for handler, original_stream in redirected:
+            handler.setStream(original_stream)
 
 
 def reset() -> None:

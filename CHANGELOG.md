@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Academic writing router** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added the `academic-writing` skill as a stable top-level entry point that routes users by deliverable and writing stage instead of forcing them to guess among multiple writing skills
 - **Deliverable-first writing workflows** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added lightweight `poster` and `technical-report` skills so conference posters, poster-style summaries, topic reports, and research briefings are first-class workflows rather than implicit combinations of lower-level skills
 - **Writing workflow regression coverage**: Added tests for skill frontmatter validity, router references, approximate host-style skill selection, and 11 rounds of documentation-alignment checks across docs, agent instructions, and marketplace metadata
+- **Rendered web URL ingestion** ([#52](https://github.com/ZimoLiao/scholaraio/issues/52)): Added the native `scholaraio ingest-link` CLI, `ingest-link` skill, and `sources.webtools` connector flow so webpages and online PDFs can be ingested through an external `qt-web-extractor` daemon while preserving provenance fields such as `source_url`, `source_type`, `extracted_at`, and `extraction_method`
 
 ### Fixed
 
 - **macOS semantic/unified search crash** ([#65](https://github.com/ZimoLiao/scholaraio/issues/65)): main-library and explore semantic search now embed and normalize the query before loading or searching FAISS indexes, avoiding a known `faiss` / `sentence-transformers` import-order segfault pattern on macOS while preserving existing ranking behavior
 - **Academic writing docs alignment** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Synchronized `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` around a router-first writing model so poster/report workflows and the academic-writing entry point are discoverable consistently across user and agent surfaces
+- **`ingest-link` reliability and isolation** ([#52](https://github.com/ZimoLiao/scholaraio/issues/52)): URL ingest now preserves extractor PDF autodetect unless `--pdf` is explicitly requested, isolates both temporary inboxes from the real library, skips only failed URLs in multi-link batches, keeps warning-bearing extractions with usable text, retries transient extraction failures with exponential backoff, and avoids overlong fallback filenames for title-less URLs
 
 ## [1.3.1] — 2026-04-14
 

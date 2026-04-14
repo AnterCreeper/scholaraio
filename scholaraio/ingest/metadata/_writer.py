@@ -49,10 +49,12 @@ def metadata_to_dict(meta: PaperMetadata) -> dict:
         "citation_count": {},
         "ids": {},
         "source_file": meta.source_file,
+        "source_url": meta.source_url,
+        "source_type": meta.source_type,
         "extraction_method": meta.extraction_method,
         "api_sources": meta.api_sources,
         "references": meta.references,
-        "extracted_at": "",
+        "extracted_at": meta.extracted_at,
     }
     # Citation counts
     if meta.citation_count_crossref is not None:
@@ -135,6 +137,9 @@ def refetch_metadata(json_path: Path) -> bool:
         publisher=data.get("publisher", ""),
         issn=data.get("issn", ""),
         source_file=data.get("source_file", ""),
+        source_url=data.get("source_url", ""),
+        source_type=data.get("source_type", ""),
+        extracted_at=data.get("extracted_at", ""),
         extraction_method=data.get("extraction_method", ""),
         references=data.get("references", []),
         api_sources=[],  # reset so enrich_metadata re-populates
