@@ -66,7 +66,20 @@ Then open the repository in Codex, Claude Code, or another supported agent. In t
 | **Federated Discovery** | Cross-library search | Search your main library, exploration libraries, and arXiv from one entry point instead of hopping across tools |
 | **AI-for-Science Runtime** | Use scientific software more accurately | Use scientific software against official documentation at runtime instead of guessing commands and parameters |
 | **Extensible Tool Onboarding** | Keep adding the tools that matter | As new scientific tools and workflows become important, the system can keep expanding |
-| **Academic Writing** | AI-assisted writing | Literature review, paper sections, citation check, rebuttal, and gap analysis — with every citation traceable to your own library |
+| **Academic Writing** | AI-assisted writing | Router-first workflows for literature review, paper sections, citation check, rebuttal, gap analysis, poster packages, and technical reports — with every citation traceable to your own library |
+
+For writing tasks, start with the router-style writing entry when the deliverable is clear but the workflow is not. The current writing stack is organized around:
+
+- `academic-writing`: route by deliverable and writing stage
+- `literature-review`: long-form review and survey writing
+- `paper-writing`: manuscript sections and paper-focused drafting
+- `review-response`: rebuttal and response-letter workflows
+- `research-gap`: gap analysis and open-question reports
+- `technical-report`: technical briefings and topic reports
+- `poster`: poster-oriented content packaging
+- `document`: final DOCX / PPTX packaging
+
+See [`docs/guide/writing.md`](docs/guide/writing.md) for the full writing map.
 
 ## Works With Your Agent
 

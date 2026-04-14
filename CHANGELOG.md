@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Academic writing router** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added the `academic-writing` skill as a stable top-level entry point that routes users by deliverable and writing stage instead of forcing them to guess among multiple writing skills
+- **Deliverable-first writing workflows** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added lightweight `poster` and `technical-report` skills so conference posters, poster-style summaries, topic reports, and research briefings are first-class workflows rather than implicit combinations of lower-level skills
+- **Writing workflow regression coverage**: Added tests for skill frontmatter validity, router references, approximate host-style skill selection, and 11 rounds of documentation-alignment checks across docs, agent instructions, and marketplace metadata
+
+### Fixed
+
+- **Academic writing docs alignment** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Synchronized `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` around a router-first writing model so poster/report workflows and the academic-writing entry point are discoverable consistently across user and agent surfaces
+
 ## [1.3.1] — 2026-04-14
 
 ### Added
