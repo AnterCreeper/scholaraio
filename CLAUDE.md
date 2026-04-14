@@ -62,6 +62,7 @@ Knowledge base management:
 - `import` - When the user wants to bring in Endnote, Zotero, or existing PDFs, use this skill.
 - `rename` - When the user wants to normalize paper directory names, use this skill.
 - `audit` - When the user wants to inspect data quality, find missing fields or duplicates, or batch-repair metadata, use this skill.
+- `scrub` - When the user wants to incrementally review and repair low-quality metadata after enrich, especially for non-standard documents, use this skill.
 - `translate` - When the user wants to translate papers into a target language while keeping Markdown structure, use this skill.
 
 Academic writing:

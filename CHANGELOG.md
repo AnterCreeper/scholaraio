@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Incremental metadata scrub workflow**: Added the `scrub` skill for post-enrich metadata cleanup of low-quality paper records, plus reusable `.scrubbed` marker helpers in `papers.py` and conservative scrub-suspect detection helpers in `audit.py`
+
 ## [1.3.1] — 2026-04-14
 
 ### Added

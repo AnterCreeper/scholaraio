@@ -26,6 +26,7 @@ Common skills:
 - `show`: read metadata, abstract, conclusion, or full text
 - `ingest`: process inbox items into the library
 - `workspace`: manage paper subsets for a project
+- `scrub`: incrementally review and repair low-quality metadata after enrich
 - `literature-review`: organize a review narrative
 - `paper-writing`: draft concrete manuscript sections
 - `citation-check`: verify whether citations are real and correctly matched
