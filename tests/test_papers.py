@@ -1,4 +1,4 @@
-"""Contract tests for papers.py — path helpers and iteration.
+"""Contract tests for papers.py — path helpers, scrub markers, and iteration.
 
 Verifies: directory iteration yields only valid paper dirs, path helpers
 compose correctly.
@@ -7,7 +7,15 @@ Does NOT test: UUID generation randomness, internal sorting.
 
 from __future__ import annotations
 
-from scholaraio.papers import iter_paper_dirs, md_path, meta_path, paper_dir
+from scholaraio.papers import (
+    is_scrubbed,
+    iter_paper_dirs,
+    mark_scrubbed,
+    md_path,
+    meta_path,
+    paper_dir,
+    scrub_marker_path,
+)
 
 
 class TestPathHelpers:
@@ -47,3 +55,33 @@ class TestIterPaperDirs:
     def test_nonexistent_dir_yields_nothing(self, tmp_path):
         dirs = list(iter_paper_dirs(tmp_path / "nonexistent"))
         assert dirs == []
+
+
+class TestScrubMarkers:
+    """Scrub marker contract: papers can be marked as reviewed incrementally."""
+
+    def test_is_scrubbed_false_when_marker_missing(self, tmp_path):
+        paper_d = tmp_path / "Paper"
+        paper_d.mkdir()
+
+        assert is_scrubbed(paper_d) is False
+
+    def test_mark_scrubbed_creates_marker(self, tmp_path):
+        paper_d = tmp_path / "Paper"
+        paper_d.mkdir()
+
+        mark_scrubbed(paper_d)
+
+        assert scrub_marker_path(paper_d) == paper_d / ".scrubbed"
+        assert scrub_marker_path(paper_d).exists()
+        assert is_scrubbed(paper_d) is True
+
+    def test_mark_scrubbed_is_idempotent(self, tmp_path):
+        paper_d = tmp_path / "Paper"
+        paper_d.mkdir()
+
+        mark_scrubbed(paper_d)
+        mark_scrubbed(paper_d)
+
+        assert scrub_marker_path(paper_d).exists()
+        assert is_scrubbed(paper_d) is True

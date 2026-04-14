@@ -1,0 +1,170 @@
+---
+name: scrub
+description: Incrementally scrub low-quality paper metadata after enrich. Repairs bad titles, suspicious authors, and missing years, skips already reviewed papers via `.scrubbed`, then normalizes names and rebuilds indexes.
+version: 1.0.0
+author: ZimoLiao/scholaraio
+license: MIT
+tags: ["academic", "metadata", "cleanup", "data-quality", "repair"]
+---
+# Scrub Metadata
+
+Use this skill when the library contains already-ingested papers whose metadata is still clearly low quality after ingest or enrich, especially for non-standard documents that MinerU or fallback parsers converted successfully but described poorly.
+
+`scrub` is a review-and-repair workflow, not a blind batch rewrite. It should reuse existing ScholarAIO repair and rename primitives, and it should treat `.scrubbed` as the durable marker for "reviewed and currently acceptable."
+
+## When To Use
+
+Use this skill when the user wants to:
+
+- clean bad metadata after enrich
+- repair placeholder or garbled titles
+- fix suspicious author names
+- fill in missing years when the paper content supports it
+- incrementally review a large library without reprocessing already-reviewed papers
+
+Do not use this skill for:
+
+- normal ingest
+- DOI or citation-count refresh
+- paper-content enrichment such as TOC/L3 extraction
+- directory normalization when metadata is already trustworthy and `rename` alone is enough
+
+## Workflow
+
+### 1. Find unreviewed candidates
+
+Skip papers that already contain `.scrubbed`.
+
+You can list suspicious, unreviewed papers with a Python helper:
+
+```bash
+python - <<'PY'
+from pathlib import Path
+from scholaraio.audit import list_scrub_suspects
+
+for issue in list_scrub_suspects(Path("data/papers")):
+    print(f"{issue.paper_id}\t{issue.rule}\t{issue.message}")
+PY
+```
+
+If the user asked for a broad quality pass, it is also reasonable to start with:
+
+```bash
+scholaraio audit
+```
+
+Then narrow to papers that are both:
+
+- not already `.scrubbed`
+- obviously bad enough to justify manual review
+
+### 2. Inspect one paper at a time
+
+For each candidate, inspect:
+
+```bash
+scholaraio show "<paper-id>" --layer 1
+```
+
+Then read the source text as needed:
+
+```bash
+sed -n '1,160p' "data/papers/<paper-id>/paper.md"
+```
+
+If the head of the file is insufficient, inspect a larger section or search relevant phrases in `paper.md`.
+
+Focus on extracting only the identity-critical metadata needed to make the paper usable:
+
+- real title or at least a concise, accurate keyword title
+- real first author or organization when clearly stated
+- publication year when clearly supported by the document
+
+### 3. Repair conservatively
+
+Use `repair` to update only the fields you can support from the source:
+
+```bash
+scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024 --dry-run
+```
+
+Then run the real repair:
+
+```bash
+scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024
+```
+
+Use `--no-api` only when API enrichment would be misleading or unnecessary.
+
+Decision policy:
+
+- Title quality is the top priority.
+- Authors and year should be repaired when evidence is strong.
+- Do not fabricate DOI, journal, or venue.
+- If author or year cannot be confirmed reliably, leave them unresolved rather than guessing.
+
+### 4. Normalize directory names
+
+If the repair changed identity fields, normalize the directory name:
+
+```bash
+scholaraio rename "<paper-id>"
+```
+
+For a batch after several repairs:
+
+```bash
+scholaraio rename --all
+```
+
+Because rename may change the directory path, always create the marker using the post-rename directory name.
+
+### 5. Mark reviewed papers
+
+Once a paper has been reviewed and is acceptable for current library use, create the marker:
+
+```bash
+touch "data/papers/<Author-Year-Title>/.scrubbed"
+```
+
+Only mark a paper when:
+
+- you have reviewed the record
+- the remaining metadata quality is acceptable
+- there is no known blocking issue that should force future re-review
+
+`.scrubbed` means reviewed, not perfect.
+
+### 6. Rebuild indexes once per batch
+
+After finishing the batch:
+
+```bash
+scholaraio pipeline reindex
+```
+
+This keeps search and registry state aligned with renamed or repaired records.
+
+## Heuristics
+
+The most common scrub targets are:
+
+- placeholder titles such as `Introduction`, `TLDR`, `Overview`, `Summary`
+- garbled titles containing replacement characters like `�`
+- missing or suspicious author names such as `Unknown`
+- missing years or placeholder-style directory names like `XXXX`
+- malformed directory names created from bad metadata
+
+These are candidate heuristics, not auto-rewrite authority. The paper content is the final source of truth.
+
+## Acceptance Standard
+
+A scrubbed paper should be:
+
+- identifiable in the library
+- searchable by a meaningful title
+- attributed to a plausible first author or organization when known
+- assigned a real year when known
+- normalized into the standard directory naming scheme
+
+If you cannot achieve that threshold from the source text, stop short of marking the paper and report the ambiguity to the user.
