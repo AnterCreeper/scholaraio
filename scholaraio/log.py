@@ -10,12 +10,12 @@ log.py -- ScholarAIO 日志初始化
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import logging
 import logging.handlers
 import sys
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

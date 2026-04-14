@@ -255,3 +255,147 @@ class TestIngestLinkCommand:
         )
 
         assert seen == [None, True]
+
+    def test_ingest_link_skips_failed_urls_but_keeps_successful_items(self, tmp_path, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        responses = {
+            "https://example.com/good": {
+                "url": "https://example.com/good",
+                "title": "First Page",
+                "text": "First body",
+                "html": "",
+                "error": "",
+            },
+            "https://example.com/bad": {
+                "url": "https://example.com/bad",
+                "title": "",
+                "text": "",
+                "html": "",
+                "error": "network timeout",
+            },
+            "https://example.com/also-good": {
+                "url": "https://example.com/also-good",
+                "title": "Second Page",
+                "text": "Second body",
+                "html": "",
+                "error": "",
+            },
+        }
+        monkeypatch.setattr(
+            "scholaraio.sources.webtools.webextract",
+            lambda url, *, pdf=None, base_url=None: responses[url],
+        )
+
+        seen: dict[str, object] = {}
+
+        def fake_run_pipeline(step_names, cfg, opts):
+            seen["steps"] = step_names
+            seen["files"] = sorted(path.name for path in opts["doc_inbox_dir"].glob("*.md"))
+
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=[
+                    "https://example.com/good",
+                    "https://example.com/bad",
+                    "https://example.com/also-good",
+                ],
+                dry_run=False,
+                force=False,
+                pdf=False,
+                no_index=True,
+                json=False,
+            ),
+            SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers"),
+        )
+
+        assert seen["steps"] == ["extract_doc", "ingest"]
+        assert seen["files"] == ["01-first-page.md", "03-second-page.md"]
+        assert any("已跳过" in message and "network timeout" in message for message in messages)
+
+    def test_ingest_link_keeps_warned_extractions_with_text(self, tmp_path, monkeypatch):
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        monkeypatch.setattr(
+            "scholaraio.sources.webtools.webextract",
+            lambda url, *, pdf=None, base_url=None: {
+                "url": url,
+                "title": "Warned Page",
+                "text": "Recovered body",
+                "html": "",
+                "error": "partial extraction",
+            },
+        )
+
+        seen: dict[str, object] = {}
+
+        def fake_run_pipeline(step_names, cfg, opts):
+            md_files = sorted(opts["doc_inbox_dir"].glob("*.md"))
+            seen["steps"] = step_names
+            seen["files"] = [path.name for path in md_files]
+            seen["md_text"] = md_files[0].read_text(encoding="utf-8")
+
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=["https://example.com/warned"],
+                dry_run=False,
+                force=False,
+                pdf=False,
+                no_index=True,
+                json=False,
+            ),
+            SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers"),
+        )
+
+        assert seen["steps"] == ["extract_doc", "ingest"]
+        assert seen["files"] == ["01-warned-page.md"]
+        assert "Recovered body" in seen["md_text"]
+        assert any("继续入库" in message and "partial extraction" in message for message in messages)
+
+    def test_ingest_link_uses_short_fallback_name_for_titleless_long_urls(self, tmp_path, monkeypatch):
+        long_url = "https://example.com/download?token=" + ("a" * 400)
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        monkeypatch.setattr(
+            "scholaraio.sources.webtools.webextract",
+            lambda url, *, pdf=None, base_url=None: {
+                "url": url,
+                "title": "",
+                "text": "Recovered body",
+                "html": "",
+                "error": "",
+            },
+        )
+
+        seen: dict[str, object] = {}
+
+        def fake_run_pipeline(step_names, cfg, opts):
+            md_files = sorted(opts["doc_inbox_dir"].glob("*.md"))
+            seen["steps"] = step_names
+            seen["md_name"] = md_files[0].name
+
+        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=[long_url],
+                dry_run=False,
+                force=False,
+                pdf=False,
+                no_index=True,
+                json=False,
+            ),
+            SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers"),
+        )
+
+        assert seen["steps"] == ["extract_doc", "ingest"]
+        assert seen["md_name"] == "01-download.md"
+        assert len(seen["md_name"].encode("utf-8")) < 255
+        assert not any("失败" in message for message in messages)

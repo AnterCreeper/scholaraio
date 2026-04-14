@@ -2408,12 +2408,15 @@ def cmd_arxiv_fetch(args: argparse.Namespace, cfg) -> None:
 
 
 def _slugify_ingest_link_title(title: str, fallback_url: str, index: int) -> str:
-    raw = (title or "").strip()
-    if not raw:
-        parsed = urlparse(fallback_url)
-        raw = Path(parsed.path).stem or parsed.netloc or f"link-{index:02d}"
+    raw = (title or "").strip() or _fallback_ingest_link_title(fallback_url, index)
     slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    slug = slug[:240].strip("-")
     return slug or f"link-{index:02d}"
+
+
+def _fallback_ingest_link_title(source_url: str, index: int) -> str:
+    parsed = urlparse(source_url)
+    return Path(parsed.path).stem or parsed.netloc or f"link-{index:02d}"
 
 
 def _render_ingest_link_markdown(title: str, source_url: str, body: str) -> str:
@@ -2464,16 +2467,21 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 pdf_mode = True if args.pdf else None
                 result = webextract(url, pdf=pdf_mode)
                 source_url = (result.get("url") or url).strip()
-                if result.get("error"):
-                    raise RuntimeError(f"{source_url}: {result['error']}")
+                error = (result.get("error") or "").strip()
+                text = result.get("text") or ""
+                if error and not text.strip():
+                    ui(f"链接提取失败，已跳过: {source_url} ({error})")
+                    continue
+                if error:
+                    ui(f"链接提取有警告，继续入库: {source_url} ({error})")
 
-                title = (result.get("title") or "").strip() or source_url
+                title = (result.get("title") or "").strip() or _fallback_ingest_link_title(source_url, idx)
                 slug = _slugify_ingest_link_title(title, source_url, idx)
                 md_name = f"{idx:02d}-{slug}.md"
                 md_path = doc_inbox_dir / md_name
                 sidecar_path = md_path.with_suffix(".json")
 
-                md_text = _render_ingest_link_markdown(title, source_url, result.get("text") or "")
+                md_text = _render_ingest_link_markdown(title, source_url, text)
                 md_path.write_text(md_text, encoding="utf-8")
 
                 sidecar = {
@@ -2494,6 +2502,10 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                     }
                 )
                 ui(f"已抓取: {title[:80]}")
+
+            if not summaries:
+                ui("没有可入库的链接内容")
+                return
 
             run_pipeline(
                 step_names,
