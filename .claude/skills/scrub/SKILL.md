@@ -1,7 +1,7 @@
 ---
 name: scrub
 description: Incrementally scrub low-quality paper metadata after enrich. Repairs bad titles, suspicious authors, and missing years, skips already reviewed papers via `.scrubbed`, then normalizes names and rebuilds indexes.
-version: 1.0.1
+version: 1.0.2
 author: ZimoLiao/scholaraio
 license: MIT
 tags: ["academic", "metadata", "cleanup", "data-quality", "repair"]
@@ -68,21 +68,24 @@ For each candidate, inspect:
 scholaraio show "<paper-id>" --layer 1
 ```
 
+Before changing anything, record the stable paper UUID shown in the L1 header as `stable_id`. `repair` preserves this UUID even when the directory name changes.
+
 Then read the source text as needed:
 
 ```bash
 scholaraio show "<paper-id>" --layer 4
 ```
 
-If the default view is too long, resolve the actual `paper.md` path from config first and then inspect only the needed slice:
+If the default view is too long, resolve the actual `paper.md` path with the same identifier semantics as `show` / `repair`, then inspect only the needed slice:
 
 ```bash
 python - <<'PY'
+from scholaraio.cli import _resolve_paper
 from scholaraio.config import load_config
 
 paper_id = "<paper-id>"
 cfg = load_config()
-print((cfg.papers_dir / paper_id / "paper.md").resolve())
+print((_resolve_paper(paper_id, cfg) / "paper.md").resolve())
 PY
 ```
 
@@ -99,16 +102,18 @@ Focus on extracting only the identity-critical metadata needed to make the paper
 Use `repair` to update only the fields you can support from the source:
 
 ```bash
-scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024 --dry-run
+scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024 --no-api --dry-run
 ```
 
 Then run the real repair:
 
 ```bash
-scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024
+scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024 --no-api
 ```
 
-Use `--no-api` only when API enrichment would be misleading or unnecessary.
+In scrub mode, `--no-api` should be the default. These records are often low-quality documents or weakly identified items, and conservative local repair is safer than letting API matches overwrite title, author, or year.
+
+Only drop `--no-api` when the user explicitly wants metadata refetch behavior and has checked that the identifier quality is strong enough to support it.
 
 Decision policy:
 
@@ -121,27 +126,16 @@ Decision policy:
 
 `scholaraio repair` already rewrites `meta.json` and renames the paper directory immediately when title, author, or year changes.
 
-That means the original `<paper-id>` may stop existing right after the real repair. Before marking the paper, resolve the current paper id from the updated metadata:
+That means the original directory name may stop existing right after the real repair. Resolve the current directory from the stable UUID you recorded before editing:
 
 ```bash
 python - <<'PY'
-import json
+from scholaraio.cli import _resolve_paper
 from scholaraio.config import load_config
-from scholaraio.papers import iter_paper_dirs
 
-title = "Correct Title"
+stable_id = "<uuid-from-layer-1>"
 cfg = load_config()
-
-for pdir in iter_paper_dirs(cfg.papers_dir):
-    meta_path = pdir / "meta.json"
-    if not meta_path.exists():
-        continue
-    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    if meta.get("title") == title:
-        print(pdir.name)
-        break
-else:
-    raise SystemExit(f"could not resolve paper id for title: {title}")
+print(_resolve_paper(stable_id, cfg).name)
 PY
 ```
 
@@ -159,13 +153,15 @@ Once a paper has been reviewed and is acceptable for current library use, create
 
 ```bash
 python - <<'PY'
+from scholaraio.cli import _resolve_paper
 from scholaraio.config import load_config
 from scholaraio.papers import mark_scrubbed
 
-paper_id = "<Author-Year-Title>"
+stable_id = "<uuid-from-layer-1>"
 cfg = load_config()
-mark_scrubbed(cfg.papers_dir / paper_id)
-print(f"marked {paper_id} as scrubbed")
+paper_d = _resolve_paper(stable_id, cfg)
+mark_scrubbed(paper_d)
+print(f"marked {paper_d.name} as scrubbed")
 PY
 ```
 

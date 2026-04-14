@@ -166,6 +166,36 @@ class TestRefetchIdentifierResolution:
         assert any("Smith-2023-Turbulence" in m for m in messages)
 
 
+class TestRepairIdentifierResolution:
+    def test_repair_help_accepts_uuid_and_doi_identifiers(self):
+        parser = cli._build_parser()
+        repair_help = parser._subparsers._group_actions[0].choices["repair"].format_help()
+
+        assert "目录名 / UUID / DOI" in repair_help
+
+    def test_repair_resolves_uuid_via_registry(self, tmp_papers, tmp_db):
+        build_index(tmp_papers, tmp_db)
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(
+            paper_id="aaaa-1111",
+            title="Updated Turbulence Title",
+            doi="",
+            author="John Smith",
+            year=2023,
+            no_api=True,
+            dry_run=False,
+        )
+
+        cli.cmd_repair(args, cfg)
+
+        repaired_dir = tmp_papers / "Smith-2023-Updated-Turbulence-Title"
+        assert repaired_dir.exists()
+        repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
+        assert repaired_meta["id"] == "aaaa-1111"
+        assert repaired_meta["title"] == "Updated Turbulence Title"
+
+
 class TestShowNotesIntegration:
     def test_notes_displayed_after_header(self, tmp_papers, monkeypatch):
         paper_dir = tmp_papers / "Smith-2023-Turbulence"

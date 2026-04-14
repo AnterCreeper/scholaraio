@@ -484,9 +484,8 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
     )
 
     papers_dir = cfg.papers_dir
-    paper_id = args.paper_id
-
-    paper_d = papers_dir / paper_id
+    paper_d = _resolve_paper(args.paper_id, cfg)
+    paper_id = paper_d.name
     md_path = paper_d / "paper.md"
     json_path = paper_d / "meta.json"
 
@@ -3309,7 +3308,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- repair ---
     p_repair = sub.add_parser("repair", help="修复论文元数据（手动指定 title/DOI，跳过 MD 解析）")
     p_repair.set_defaults(func=cmd_repair)
-    p_repair.add_argument("paper_id", help="论文 ID（文件名 stem）")
+    p_repair.add_argument("paper_id", help="论文 ID（目录名 / UUID / DOI）")
     p_repair.add_argument("--title", required=True, help="正确的论文标题")
     p_repair.add_argument("--doi", default="", help="已知 DOI（加速 API 查询）")
     p_repair.add_argument("--author", default="", help="一作全名")
