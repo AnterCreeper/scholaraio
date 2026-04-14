@@ -426,3 +426,21 @@ class TestRefetchMetadata:
 
         assert result is None
         assert suffixed_dir.exists()
+
+class TestMetadataToDictWebFields:
+    def test_preserves_web_source_fields(self):
+        meta = PaperMetadata(
+            title="Example Domain",
+            paper_type="document",
+            source_url="https://example.com/docs",
+            source_type="web",
+            extracted_at="2026-04-14T12:00:00",
+            extraction_method="qt-web-extractor",
+        )
+
+        data = metadata_to_dict(meta)
+
+        assert data["source_url"] == "https://example.com/docs"
+        assert data["source_type"] == "web"
+        assert data["extracted_at"] == "2026-04-14T12:00:00"
+        assert data["extraction_method"] == "qt-web-extractor"

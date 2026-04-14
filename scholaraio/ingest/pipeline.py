@@ -30,6 +30,7 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import fields as dataclass_fields
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -380,7 +381,8 @@ def step_extract_doc(ctx: InboxCtx) -> StepResult:
     from scholaraio.ingest.metadata._doc_extract import extract_document_metadata
 
     try:
-        meta = extract_document_metadata(ctx.md_path, ctx.cfg)
+        existing_meta = _load_doc_sidecar_metadata(ctx.md_path)
+        meta = extract_document_metadata(ctx.md_path, ctx.cfg, existing_meta=existing_meta)
     except Exception as e:
         _log.error("document extraction failed: %s", e)
         ctx.status = "failed"
@@ -396,6 +398,24 @@ def step_extract_doc(ctx: InboxCtx) -> StepResult:
     ui(f"Title: {meta.title[:80]}")
     ui(f"Type: {meta.paper_type} | Author: {meta.first_author or '?'} | Year: {meta.year or '?'}")
     return StepResult.OK
+
+
+def _load_doc_sidecar_metadata(md_path: Path) -> Any | None:
+    """Load same-stem JSON sidecar as pre-seeded document metadata when available."""
+    sidecar_path = md_path.with_suffix(".json")
+    if not sidecar_path.exists():
+        return None
+
+    try:
+        from scholaraio.ingest.metadata._models import PaperMetadata
+
+        data = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        allowed = {field.name for field in dataclass_fields(PaperMetadata)}
+        payload = {key: value for key, value in data.items() if key in allowed}
+        return PaperMetadata(**payload)
+    except Exception as exc:
+        _log.warning("failed to load document sidecar metadata %s: %s", sidecar_path.name, exc)
+        return None
 
 
 def step_extract(ctx: InboxCtx) -> StepResult:
@@ -1268,6 +1288,7 @@ def run_pipeline(
             - ``max_retries`` (int): l3 最大重试次数。
             - ``rebuild`` (bool): 重建索引（index/embed）。
             - ``inbox_dir`` (Path): 自定义 inbox 目录。
+            - ``doc_inbox_dir`` (Path): 自定义 document inbox 目录。
             - ``papers_dir`` (Path): 自定义 papers 目录。
     """
     # Auto-inject translate step when config.translate.auto_translate is enabled.
@@ -1289,6 +1310,8 @@ def run_pipeline(
             sys.exit(1)
 
     inbox_dir: Path = opts.get("inbox_dir", cfg._root / "data/inbox")
+    doc_inbox: Path = opts.get("doc_inbox_dir", cfg._root / "data" / "inbox-doc")
+    has_custom_doc_inbox = "doc_inbox_dir" in opts
     papers_dir: Path = opts.get("papers_dir", cfg.papers_dir)
     pending_dir: Path = cfg._root / "data" / "pending"
     include_aux_inboxes: bool = opts.get("include_aux_inboxes", True)
@@ -1357,8 +1380,7 @@ def run_pipeline(
             )
 
         # Process document inbox (data/inbox-doc/)
-        doc_inbox = cfg._root / "data" / "inbox-doc"
-        if include_aux_inboxes and doc_inbox.exists():
+        if (include_aux_inboxes or has_custom_doc_inbox) and doc_inbox.exists():
             # Documents use extract_doc + ingest (skip dedup/API queries)
             doc_steps = [s for s in _DOC_INBOX_STEPS if s in STEPS]
             _process_inbox(

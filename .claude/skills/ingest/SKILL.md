@@ -123,6 +123,9 @@ scholaraio proceedings apply-clean <proceeding_dir> <clean_plan.json>
 用户说："我放了几篇新论文到 inbox，帮我入库"
 → 执行 `pipeline ingest`
 
+用户说："把这个网页/在线 PDF 直接收进库里"
+→ 不要先让用户手动放 inbox，优先使用 `scholaraio ingest-link <url>`（它会通过 `qt-web-extractor` 抓取渲染后的网页内容或在线 PDF）
+
 用户说："把新论文全部处理完，包括提取目录和结论"
 → 执行 `pipeline full`
 
