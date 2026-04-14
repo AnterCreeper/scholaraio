@@ -507,6 +507,7 @@ def cmd_audit(args: argparse.Namespace, cfg) -> None:
 def cmd_repair(args: argparse.Namespace, cfg) -> None:
     import json
 
+    from scholaraio.index import lookup_paper
     from scholaraio.ingest.metadata import (
         PaperMetadata,
         _extract_lastname,
@@ -515,7 +516,6 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         rename_files,
         write_metadata_json,
     )
-    from scholaraio.index import lookup_paper
 
     papers_dir = cfg.papers_dir
     direct_dir = papers_dir / args.paper_id
