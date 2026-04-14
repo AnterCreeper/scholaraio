@@ -35,6 +35,7 @@ scholaraio top-cited
 
 ```text
 scholaraio pipeline [preset]
+scholaraio ingest-link <url> [<url> ...]
 scholaraio enrich-toc
 scholaraio enrich-l3
 scholaraio backfill-abstract
@@ -44,6 +45,7 @@ scholaraio attach-pdf
 ```
 
 - `pipeline` is the main composable ingest entrypoint.
+- `ingest-link` fetches one or more web URLs through an external `qt-web-extractor` service and routes them into the existing document ingest flow.
 - Current preset values are `full`, `ingest`, `enrich`, and `reindex`.
 - Run `scholaraio pipeline --help` for pipeline options such as `--steps`, `--dry-run`, `--no-api`, and `--rebuild`.
 

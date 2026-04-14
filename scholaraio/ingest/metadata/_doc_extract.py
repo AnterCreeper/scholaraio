@@ -126,7 +126,7 @@ def extract_document_metadata(
     if not (meta.title or "").strip():
         meta.title = md_path.stem.replace("-", " ").replace("_", " ")
 
-    meta.extraction_method = "llm_document"
+    meta.extraction_method = meta.extraction_method or "llm_document"
     return meta
 
 
@@ -156,7 +156,7 @@ def _fallback_document_metadata(
         meta.abstract = " ".join(words)
 
     meta.paper_type = meta.paper_type or "document"
-    meta.extraction_method = "fallback_document"
+    meta.extraction_method = meta.extraction_method or "fallback_document"
     return meta
 
 
