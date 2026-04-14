@@ -162,3 +162,12 @@ class TestScrubSuspects:
         issues = list_scrub_suspects(tmp_papers)
 
         assert all(i.paper_id != "Smith-2023-Turbulence" for i in issues)
+
+    def test_includes_dirs_without_meta_json_when_paper_md_exists(self, tmp_path):
+        d = tmp_path / "Broken-2024-OnlyMarkdown"
+        d.mkdir()
+        (d / "paper.md").write_text("# Broken metadata\n\nOnly markdown remains.", encoding="utf-8")
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "invalid_metadata" for i in issues)

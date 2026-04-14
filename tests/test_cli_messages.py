@@ -195,6 +195,33 @@ class TestRepairIdentifierResolution:
         assert repaired_meta["id"] == "aaaa-1111"
         assert repaired_meta["title"] == "Updated Turbulence Title"
 
+    def test_repair_preserves_registry_uuid_when_meta_json_lost_id(self, tmp_papers, tmp_db):
+        build_index(tmp_papers, tmp_db)
+
+        paper_dir = tmp_papers / "Smith-2023-Turbulence"
+        meta_path = paper_dir / "meta.json"
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data.pop("id", None)
+        meta_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(
+            paper_id="10.1234/jfm.2023.001",
+            title="Recovered Turbulence Title",
+            doi="10.1234/jfm.2023.001",
+            author="John Smith",
+            year=2023,
+            no_api=True,
+            dry_run=False,
+        )
+
+        cli.cmd_repair(args, cfg)
+
+        repaired_dir = tmp_papers / "Smith-2023-Recovered-Turbulence-Title"
+        assert repaired_dir.exists()
+        repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
+        assert repaired_meta["id"] == "aaaa-1111"
+
     def test_repair_accepts_direct_dir_when_meta_json_is_missing(self, tmp_papers, tmp_path):
         paper_dir = tmp_papers / "Broken-2023-Turbulence"
         paper_dir.mkdir()

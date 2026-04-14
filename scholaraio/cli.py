@@ -515,6 +515,7 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         rename_files,
         write_metadata_json,
     )
+    from scholaraio.index import lookup_paper
 
     papers_dir = cfg.papers_dir
     direct_dir = papers_dir / args.paper_id
@@ -538,6 +539,10 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
             existing_uuid = existing_data.get("id", "")
         except (json.JSONDecodeError, OSError) as e:
             _log.debug("failed to read existing meta.json: %s", e)
+    if not existing_uuid:
+        reg = lookup_paper(cfg.index_db, args.paper_id)
+        if reg and reg.get("dir_name") == paper_d.name:
+            existing_uuid = str(reg.get("id") or "")
 
     # Build PaperMetadata from CLI args (skip md parsing)
     meta = PaperMetadata()

@@ -109,7 +109,7 @@ def list_scrub_suspects(papers_dir: Path, *, include_scrubbed: bool = False) -> 
     """Return conservative metadata-quality suspects for the scrub workflow."""
     issues: list[Issue] = []
 
-    for pdir in iter_paper_dirs(papers_dir):
+    for pdir in _iter_scrub_candidate_dirs(papers_dir):
         if not include_scrubbed and is_scrubbed(pdir):
             continue
 
@@ -139,6 +139,17 @@ def list_scrub_suspects(papers_dir: Path, *, include_scrubbed: bool = False) -> 
             issues.append(Issue(pid, "warning", "suspicious_dirname", "目录名格式异常，可能由坏元数据生成"))
 
     return issues
+
+
+def _iter_scrub_candidate_dirs(papers_dir: Path):
+    """Yield directories relevant to scrub, including partially broken records."""
+    if not papers_dir.exists():
+        return
+    for d in sorted(papers_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        if (d / "meta.json").exists() or (d / "paper.md").exists():
+            yield d
 
 
 def _check_missing(issues: list[Issue], pid: str, data: dict) -> None:
