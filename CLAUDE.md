@@ -48,6 +48,7 @@ The right mental model is to treat skills as "reusable workflows": when the user
 Knowledge base management:
 - `search` - When the user wants to find papers, search authors, or run keyword / semantic / hybrid retrieval, start with this skill.
 - `arxiv` - When the user wants to browse arXiv preprints, search arXiv directly, or fetch a preprint PDF into inbox or ingest, use this skill.
+- `ingest-link` - When the user wants to ingest one or more rendered web URLs or online PDFs into the library through `qt-web-extractor`, use this skill.
 - `show` - When the user wants to read paper metadata, abstract, conclusion, or full text, use this skill for progressive L1-L4 loading.
 - `enrich` - When the user wants to add TOC, conclusion, abstract, citation counts, or other enrichment fields, use this skill.
 - `ingest` - When the user wants to process inbox items, ingest PDF / Office / Markdown files, and rebuild indexes, use this skill.
@@ -182,7 +183,7 @@ Workflow:
 | `citation_styles.py` | Citation style management (built-in APA/Vancouver/Chicago/MLA + dynamically loaded custom styles stored in `data/citation_styles/`) |
 | `citation_check.py` | Citation verification (extract author-year citations from text + cross-check against the local library) |
 | `audit.py` | Data-quality auditing + repair |
-| `sources/` | External source adapters (endnote / zotero / arxiv) |
+| `sources/` | External source adapters (endnote / zotero / arxiv / webtools) |
 | `cli.py` | Main CLI entry point |
 | `setup.py` | Environment detection + setup wizard |
 | `metrics.py` | LLM token usage + API timing |
@@ -195,7 +196,7 @@ Besides skills, the current CLI also provides several important capabilities wor
 - Retrieval-related: `search-author`, `embed`, `vsearch`, `usearch`, `fsearch`, `top-cited`
 - Graph-related: `refs`, `citing`, `shared-refs`
 - Enrichment and repair: `enrich-toc`, `enrich-l3`, `backfill-abstract`, `refetch`, `repair`
-- Data maintenance: `attach-pdf`
+- Data maintenance: `attach-pdf`, `ingest-link`
 - Workspace: `ws` (subcommands such as `init`, `add`, `remove`, `show`, `search`, `export`, and more)
 - Proceedings: `proceedings` (`apply-split`, `build-clean-candidates`, `apply-clean`) and `fsearch --scope proceedings`
 - External and scientific runtime: `arxiv`, `toolref`, `insights`, `style`, `document`
@@ -388,7 +389,7 @@ data/explore/<name>/
 ### `sources/` Abstraction Layer
 
 `papers.py` is the path-helper layer for the local library under `data/papers/`, and modules use it directly to iterate paper directories and read `meta.json`.
-`sources/` holds external-source adapters such as arXiv, Endnote, and Zotero.
+`sources/` holds external-source adapters such as arXiv, Endnote, Zotero, and webtools-style HTTP backends.
 
 ## Configuration
 

@@ -15,6 +15,7 @@ from scholaraio.ingest.pipeline import (
     run_pipeline,
     step_dedup,
     step_extract,
+    step_extract_doc,
     step_office_convert,
     step_translate,
 )
@@ -265,6 +266,41 @@ def test_step_extract_labels_arxiv_id_as_generic_id(tmp_path: Path, monkeypatch)
     assert all("DOI: arXiv:" not in msg for msg in messages)
 
 
+def test_step_extract_doc_reads_same_stem_json_sidecar(tmp_path: Path):
+    md_path = tmp_path / "page.md"
+    md_path.write_text("# Example Page\n\nBody text", encoding="utf-8")
+    md_path.with_suffix(".json").write_text(
+        json.dumps(
+            {
+                "title": "Example Page",
+                "source_url": "https://example.com/article",
+                "source_type": "web",
+                "extracted_at": "2026-04-14T00:00:00+00:00",
+                "extraction_method": "qt-web-extractor",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cfg = SimpleNamespace(resolved_api_key=lambda: None)
+    ctx = InboxCtx(
+        pdf_path=None,
+        inbox_dir=tmp_path,
+        papers_dir=tmp_path / "papers",
+        existing_dois={},
+        cfg=cfg,
+        opts={"dry_run": False},
+        md_path=md_path,
+    )
+
+    result = step_extract_doc(ctx)
+
+    assert result == StepResult.OK
+    assert ctx.meta.source_url == "https://example.com/article"
+    assert ctx.meta.source_type == "web"
+    assert ctx.meta.extraction_method == "qt-web-extractor"
+
+
 def test_step_translate_treats_all_chunks_failed_as_failure(tmp_path: Path, monkeypatch):
     paper_dir = tmp_path / "papers" / "Smith-2023-Test"
     paper_dir.mkdir(parents=True)
@@ -359,3 +395,75 @@ def test_run_pipeline_auto_injects_translate_for_new_ingest(tmp_path: Path, monk
 
     assert seen_steps == ["mineru", "extract", "dedup", "ingest"]
     assert paper_calls == ["toc", "translate", "embed", "index"]
+
+
+def test_run_pipeline_uses_custom_doc_inbox(tmp_path: Path, monkeypatch):
+    cfg = SimpleNamespace(
+        translate=SimpleNamespace(auto_translate=False),
+        llm=SimpleNamespace(concurrency=1),
+        _root=tmp_path,
+        papers_dir=tmp_path / "data" / "papers",
+    )
+
+    seen_dirs: list[Path] = []
+
+    def fake_process_inbox(
+        inbox_dir,
+        papers_dir,
+        pending_dir,
+        existing_dois,
+        inbox_steps,
+        cfg,
+        opts,
+        dry_run,
+        ingested_jsons,
+        **kwargs,
+    ):
+        seen_dirs.append(inbox_dir)
+
+    monkeypatch.setattr("scholaraio.ingest.pipeline._collect_existing_ids", lambda *_: ({}, {}, {}))
+    monkeypatch.setattr("scholaraio.ingest.pipeline._process_inbox", fake_process_inbox)
+
+    custom_doc_inbox = tmp_path / "tmp-docs"
+    custom_doc_inbox.mkdir()
+    run_pipeline(["extract_doc", "ingest"], cfg, {"doc_inbox_dir": custom_doc_inbox})
+
+    assert custom_doc_inbox in seen_dirs
+
+
+def test_run_pipeline_processes_custom_doc_inbox_even_when_aux_inboxes_disabled(tmp_path: Path, monkeypatch):
+    cfg = SimpleNamespace(
+        translate=SimpleNamespace(auto_translate=False),
+        llm=SimpleNamespace(concurrency=1),
+        _root=tmp_path,
+        papers_dir=tmp_path / "data" / "papers",
+    )
+
+    seen_dirs: list[Path] = []
+
+    def fake_process_inbox(
+        inbox_dir,
+        papers_dir,
+        pending_dir,
+        existing_dois,
+        inbox_steps,
+        cfg,
+        opts,
+        dry_run,
+        ingested_jsons,
+        **kwargs,
+    ):
+        seen_dirs.append(inbox_dir)
+
+    monkeypatch.setattr("scholaraio.ingest.pipeline._collect_existing_ids", lambda *_: ({}, {}, {}))
+    monkeypatch.setattr("scholaraio.ingest.pipeline._process_inbox", fake_process_inbox)
+
+    custom_doc_inbox = tmp_path / "tmp-docs"
+    custom_doc_inbox.mkdir()
+    run_pipeline(
+        ["extract_doc", "ingest"],
+        cfg,
+        {"doc_inbox_dir": custom_doc_inbox, "include_aux_inboxes": False},
+    )
+
+    assert custom_doc_inbox in seen_dirs

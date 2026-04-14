@@ -36,6 +36,9 @@ class PaperMetadata:
         api_sources: 成功返回数据的 API 列表。
         references: 参考文献 DOI 列表（从 Semantic Scholar 获取）。
         source_file: 原始文件名。
+        source_url: 外部来源 URL（适用于网页/在线文档导入）。
+        source_type: 来源类型（如 ``"web"``）。
+        extracted_at: 外部内容抓取时间（ISO 8601 字符串）。
         arxiv_id: arXiv 标识符（如 ``2401.12345`` 或 ``hep-th/9901001``，不含版本后缀）。
         extraction_method: 提取方式（``doi_lookup`` | ``arxiv_lookup`` | ``title_search`` |
             ``title_search_relaxed`` | ``title_search_s2`` | ``local_only``）。
@@ -67,6 +70,9 @@ class PaperMetadata:
     publisher: str = ""
     issn: str = ""
     source_file: str = ""
+    source_url: str = ""
+    source_type: str = ""
+    extracted_at: str = ""
     extraction_method: str = ""
 
 
