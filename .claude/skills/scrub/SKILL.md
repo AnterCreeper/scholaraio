@@ -1,7 +1,7 @@
 ---
 name: scrub
-description: Incrementally scrub low-quality paper metadata after enrich. Repairs bad titles, suspicious authors, and missing years, skips already reviewed papers via `.scrubbed`, then normalizes names and rebuilds indexes.
-version: 1.0.2
+description: Use when incrementally reviewing and repairing low-quality metadata after enrich, especially for non-standard documents that may need title, author, or year correction while skipping already reviewed records via `.scrubbed`.
+version: 1.0.3
 author: ZimoLiao/scholaraio
 license: MIT
 tags: ["academic", "metadata", "cleanup", "data-quality", "repair"]
@@ -123,9 +123,13 @@ Then run the real repair:
 scholaraio repair "<paper-id>" --title "Correct Title" --author "First Author" --year 2024 --no-api
 ```
 
+`repair` now preserves existing metadata and only overwrites the fields you explicitly update through the CLI. Existing journal, abstract, paper type, citation counts, IDs, TOC/L3 fields, and other enriched metadata stay in place unless you intentionally replace them.
+
 In scrub mode, `--no-api` should be the default. These records are often low-quality documents or weakly identified items, and conservative local repair is safer than letting API matches overwrite title, author, or year.
 
 Only drop `--no-api` when the user explicitly wants metadata refetch behavior and has checked that the identifier quality is strong enough to support it.
+
+Only pass `--doi` when you are intentionally correcting or adding the DOI. If you omit `--doi`, `repair` preserves the existing DOI.
 
 Decision policy:
 
@@ -136,7 +140,7 @@ Decision policy:
 
 ### 4. Handle directory renames correctly
 
-`scholaraio repair` already rewrites `meta.json` and renames the paper directory immediately when title, author, or year changes.
+`scholaraio repair` already rewrites `meta.json` and renames the paper directory immediately when title, author, year, or DOI changes. The rename is derived from the updated identity fields, while the rest of the metadata is preserved unless explicitly overwritten.
 
 That means the original directory name may stop existing right after the real repair. Resolve the current directory from the stable UUID you recorded before editing:
 
