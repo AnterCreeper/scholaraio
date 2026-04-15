@@ -12,6 +12,9 @@ cli.py — scholaraio 命令行入口
     scholaraio show <paper-id> [--layer 1|2|3|4]
     scholaraio enrich-toc [<paper-id> | --all] [--force] [--inspect]
     scholaraio enrich-l3 [<paper-id> | --all] [--force] [--inspect] [--max-retries N]
+    scholaraio diagram <paper-id> [--type TYPE] [--format FMT] [-o DIR] [--critic] [--critic-rounds N]
+    scholaraio diagram --from-text "..." [--type TYPE] [--format FMT] [-o DIR]
+    scholaraio diagram --from-ir <path> [--format FMT] [-o DIR]
     scholaraio top-cited [--limit N] [--year Y] [--journal J] [--type T]
     scholaraio refs <paper-id>
     scholaraio citing <paper-id>
@@ -1747,6 +1750,131 @@ def _cmd_document_inspect(args: argparse.Namespace, cfg) -> None:
         _log.error("%s", e)
         sys.exit(1)
     print(result)
+
+
+def cmd_diagram(args: argparse.Namespace, cfg) -> None:
+    """论文/文字 → 可编辑科研图表（多后端渲染）。"""
+    from scholaraio.diagram import (
+        generate_diagram,
+        generate_diagram_from_text,
+        generate_diagram_with_critic,
+        render_ir,
+    )
+
+    out_dir = Path(args.output) if args.output else None
+    from_text = getattr(args, "from_text", None)
+    from_ir = getattr(args, "from_ir", None)
+
+    # Validate: need exactly one input source among paper_id / --from-text / --from-ir
+    sources = [bool(args.paper_id), bool(from_text), bool(from_ir)]
+    if sum(sources) != 1:
+        _log.error("请提供且仅提供一个输入来源：paper_id、--from-text 或 --from-ir")
+        sys.exit(1)
+
+    # Mode 1: 从已有 IR 文件直接渲染（Critic 不参与，因为无原文对照）
+    if from_ir:
+        ir_path = Path(from_ir)
+        if not ir_path.exists():
+            _log.error("IR 文件不存在: %s", ir_path)
+            sys.exit(1)
+        try:
+            ir = json.loads(ir_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            _log.error("IR 文件解析失败: %s", e)
+            sys.exit(1)
+        try:
+            out_path = render_ir(ir, args.format, out_path=_build_diagram_out_path(ir, args.format, out_dir))
+        except (ValueError, RuntimeError) as e:
+            _log.error("%s", e)
+            sys.exit(1)
+        ui(f"已生成: {out_path}")
+        _print_diagram_hint(args.format, out_path)
+        return
+
+    # Mode 2: 从文字描述生成（用于写作流程中的插图辅助）
+    if from_text:
+        try:
+            out_path = generate_diagram_from_text(
+                description=from_text,
+                diagram_type=args.type,
+                fmt=args.format,
+                cfg=cfg,
+                out_dir=out_dir,
+                dump_ir=args.dump_ir,
+            )
+            ui(f"已生成: {out_path}")
+            if not args.dump_ir:
+                _print_diagram_hint(args.format, out_path)
+        except (ValueError, RuntimeError) as e:
+            _log.error("%s", e)
+            sys.exit(1)
+        return
+
+    # Mode 3: 从论文提取（可选 Critic 闭环迭代）
+    paper_d = _resolve_paper(args.paper_id, cfg)
+    try:
+        if args.critic:
+            result = generate_diagram_with_critic(
+                paper_d=paper_d,
+                diagram_type=args.type,
+                fmt=args.format,
+                cfg=cfg,
+                out_dir=out_dir,
+                dump_ir=args.dump_ir,
+                max_rounds=args.critic_rounds,
+            )
+            out_path = result["out_path"]
+            critique_log = result["critique_log"]
+            ui(f"已生成: {out_path}")
+            if not args.dump_ir:
+                _print_diagram_hint(args.format, out_path)
+            if args.critic_rounds > 0:
+                ui(f"Critic 闭环完成，共 {len(critique_log)} 轮")
+                for c in critique_log:
+                    verdict = c.get("verdict", "unknown")
+                    issue_count = len(c.get("issues", []))
+                    ui(f"  轮次 {c.get('round', '?')}: verdict={verdict}, issues={issue_count}")
+        else:
+            out_path = generate_diagram(
+                paper_d=paper_d,
+                diagram_type=args.type,
+                fmt=args.format,
+                cfg=cfg,
+                out_dir=out_dir,
+                dump_ir=args.dump_ir,
+            )
+            ui(f"已生成: {out_path}")
+            if not args.dump_ir:
+                _print_diagram_hint(args.format, out_path)
+    except (ValueError, RuntimeError) as e:
+        _log.error("%s", e)
+        sys.exit(1)
+
+
+def _build_diagram_out_path(ir: dict, fmt: str, out_dir: Path | None) -> Path:
+    if out_dir is None:
+        out_dir = Path("workspace/figures")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_title = re.sub(r"[^\w\-]", "_", ir.get("title", "diagram"))[:40]
+    return out_dir / f"diagram_{safe_title}.{fmt}"
+
+
+def _print_diagram_hint(fmt: str, out_path: Path) -> None:
+    if fmt == "svg":
+        dot_path = out_path.with_suffix(".dot")
+        ui(f"DOT 源码: {dot_path}")
+        ui("Beamer 插入代码:")
+        ui(r"  \begin{frame}")
+        ui(r"  \centering")
+        try:
+            display_path = out_path.resolve().relative_to(Path.cwd().resolve())
+        except ValueError:
+            display_path = out_path
+        ui(f"  \\includesvg[width=0.8\\columnwidth]{{{display_path}}}")
+        ui(r"  \end{frame}")
+        ui("注意: 编译时需带 -shell-escape 参数，且已安装 Inkscape")
+    elif fmt == "drawio":
+        ui("可用浏览器打开 https://app.diagrams.net 后导入编辑")
 
 
 def cmd_style(args: argparse.Namespace, cfg) -> None:
@@ -3800,6 +3928,57 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["docx", "pptx", "xlsx"],
         default=None,
         help="文件格式（默认从扩展名推断）",
+    )
+
+    # --- diagram ---
+    p_diagram = sub.add_parser("diagram", help="论文 → 可编辑科研图表（DOT/SVG / drawio XML / Mermaid）")
+    p_diagram.set_defaults(func=cmd_diagram)
+    p_diagram.add_argument("paper_id", nargs="?", help="论文 ID（目录名 / UUID / DOI）；与 --from-ir 二选一")
+    p_diagram.add_argument(
+        "--type",
+        choices=["model_arch", "tech_route", "exp_setup"],
+        default="model_arch",
+        help="图表类型（默认 model_arch）",
+    )
+    p_diagram.add_argument(
+        "--format",
+        choices=["svg", "drawio", "dot", "mermaid"],
+        default="svg",
+        help="输出格式（默认 svg）",
+    )
+    p_diagram.add_argument(
+        "--dump-ir",
+        action="store_true",
+        help="仅提取并保存 IR（JSON），不渲染",
+    )
+    p_diagram.add_argument(
+        "--from-ir",
+        type=str,
+        default=None,
+        help="从已有的 IR JSON 文件直接渲染（与 paper_id / --from-text 三选一）",
+    )
+    p_diagram.add_argument(
+        "--from-text",
+        type=str,
+        default=None,
+        help="从文字描述直接生成图表（与 paper_id / --from-ir 三选一）",
+    )
+    p_diagram.add_argument(
+        "-o", "--output",
+        type=str,
+        default=None,
+        help="输出目录（默认 workspace/figures/）",
+    )
+    p_diagram.add_argument(
+        "--critic",
+        action="store_true",
+        help="启用 Critic-Agent 闭环迭代自审（参考 PaperVizAgent 的 Critic-Visualizer loop）",
+    )
+    p_diagram.add_argument(
+        "--critic-rounds",
+        type=int,
+        default=3,
+        help="Critic 最大迭代轮次（默认 3，仅 --critic 时生效）",
     )
 
     # --- enrich-l3 ---
