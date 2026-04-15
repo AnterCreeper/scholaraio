@@ -37,6 +37,8 @@ cli.py — scholaraio 命令行入口
     scholaraio import-endnote <file.xml|file.ris> [--no-api] [--dry-run] [--no-convert]
     scholaraio import-zotero [--api-key KEY] [--library-id ID] [--local PATH] [--list-collections] ...
     scholaraio attach-pdf <paper-id> <path/to/paper.pdf>
+    scholaraio websearch <query> [--count N]
+    scholaraio webextract <url> [--pdf]
     scholaraio ingest-link <url> [<url> ...] [--dry-run] [--force] [--pdf] [--no-index] [--json]
     scholaraio citation-check [<file>] [--ws <workspace-name>]
     scholaraio proceedings apply-split <proceeding_dir> <split_plan.json>
@@ -2481,6 +2483,56 @@ def _webextract_for_ingest_link(
     }
 
 
+def cmd_websearch(args: argparse.Namespace, cfg) -> None:
+    """实时网页搜索 (Bing via GUILessBingSearch)."""
+    from scholaraio.sources import webtools
+
+    query = " ".join(args.query)
+    count = args.count
+
+    try:
+        results = webtools.search_and_display(query, count=count, cfg=cfg)
+    except webtools.ServiceUnavailableError as e:
+        ui(f"错误: {e}")
+        ui("提示: 请确保 GUILessBingSearch 服务已启动")
+        ui("  安装: https://github.com/wszqkzqk/GUILessBingSearch")
+        ui("  启动: python guiless_bing_search.py")
+        sys.exit(1)
+    except webtools.WebSearchError as e:
+        ui(f"搜索失败: {e}")
+        sys.exit(1)
+
+    if not results:
+        ui(f"未找到与 '{query}' 相关的结果")
+        return
+
+    ui(f"\n找到 {len(results)} 条网页搜索结果")
+
+
+def cmd_webextract(args: argparse.Namespace, cfg) -> None:
+    """网页内容提取 (qt-web-extractor)."""
+    from scholaraio.sources import webtools
+
+    url = args.url
+    pdf = args.pdf
+
+    try:
+        result = webtools.extract_web(url, pdf=pdf, cfg=cfg)
+    except webtools.WebExtractServiceUnavailableError as e:
+        ui(f"错误: {e}")
+        ui("提示: 请确保 qt-web-extractor 服务已启动")
+        sys.exit(1)
+    except webtools.WebExtractError as e:
+        ui(f"提取失败: {e}")
+        sys.exit(1)
+
+    title = result.get("title", "")
+    text = result.get("text", "")
+    ui(f"提取成功: {title or url}")
+    if text:
+        print(text)
+
+
 def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
     from scholaraio.ingest.pipeline import run_pipeline
     from scholaraio.sources.webtools import webextract
@@ -3753,6 +3805,18 @@ def _build_parser() -> argparse.ArgumentParser:
     p_arxiv_fetch.add_argument("--ingest", action="store_true", help="下载后直接走 ingest pipeline 入库")
     p_arxiv_fetch.add_argument("--force", action="store_true", help="覆盖已有同名 PDF 或强制 pipeline 处理")
     p_arxiv_fetch.add_argument("--dry-run", action="store_true", help="预览将要执行的操作")
+
+    # --- websearch ---
+    p_web = sub.add_parser("websearch", help="实时网页搜索 (Bing via GUILessBingSearch)")
+    p_web.set_defaults(func=cmd_websearch)
+    p_web.add_argument("query", nargs="+", help="搜索查询词")
+    p_web.add_argument("--count", type=int, default=10, help="返回结果数量（默认 10）")
+
+    # --- webextract ---
+    p_wext = sub.add_parser("webextract", help="网页内容提取 (qt-web-extractor)")
+    p_wext.set_defaults(func=cmd_webextract)
+    p_wext.add_argument("url", help="要提取的网页 URL")
+    p_wext.add_argument("--pdf", action="store_true", help="目标为 PDF 文件")
 
     # --- ingest-link ---
     p_ingest_link = sub.add_parser("ingest-link", help="抓取渲染后的网页/在线 PDF，并按文档流程直接入库")
