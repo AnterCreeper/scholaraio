@@ -1,6 +1,7 @@
 # Data & index (not tracked)
 data/
 workspace/
+published/
 !.claude/skills/workspace/
 
 # Python
