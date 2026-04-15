@@ -315,7 +315,7 @@ def cmd_show(args: argparse.Namespace, cfg) -> None:
             else:
                 ui(f"已追加笔记到 {paper_d.name}/notes.md")
 
-    l1 = load_l1(json_path)
+    l1 = _enrich_show_header(load_l1(json_path), paper_d=paper_d, requested_id=args.paper_id, cfg=cfg)
     _print_header(l1)
 
     # Show existing agent notes (T2 layer) if available
@@ -518,14 +518,94 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         _extract_lastname,
         enrich_metadata,
         generate_new_stem,
+        metadata_to_dict,
         rename_files,
-        write_metadata_json,
     )
+    from scholaraio.papers import generate_uuid, write_meta
+
+    def _coerce_str(value: object) -> str:
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return ""
+        return str(value)
+
+    def _coerce_str_list(value: object) -> list[str]:
+        if isinstance(value, str):
+            return [value] if value.strip() else []
+        if isinstance(value, (list, tuple, set)):
+            items = [_coerce_str(item).strip() for item in value]
+            return [item for item in items if item]
+        return []
+
+    def _coerce_citation_count(citation_count: object, *keys: str) -> int | None:
+        if not isinstance(citation_count, dict):
+            return None
+        for key in keys:
+            value = citation_count.get(key)
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                try:
+                    return int(value)
+                except ValueError:
+                    continue
+        return None
+
+    def _meta_from_existing(
+        existing_data: dict,
+        *,
+        existing_uuid: str,
+        fallback_source_file: str,
+    ) -> PaperMetadata:
+        ids = existing_data.get("ids") or {}
+        citation_count = existing_data.get("citation_count") or {}
+        authors = _coerce_str_list(existing_data.get("authors"))
+        first_author = _coerce_str(existing_data.get("first_author")) or (authors[0] if authors else "")
+        first_author_lastname = _coerce_str(existing_data.get("first_author_lastname"))
+        if not first_author_lastname and first_author:
+            first_author_lastname = _extract_lastname(first_author)
+
+        return PaperMetadata(
+            id=existing_uuid,
+            title=_coerce_str(existing_data.get("title")),
+            authors=authors,
+            first_author=first_author,
+            first_author_lastname=first_author_lastname,
+            year=existing_data.get("year"),
+            doi=_coerce_str(existing_data.get("doi")),
+            arxiv_id=_coerce_str(ids.get("arxiv")),
+            publication_number=_coerce_str(ids.get("patent_publication_number")),
+            journal=_coerce_str(existing_data.get("journal")),
+            abstract=_coerce_str(existing_data.get("abstract")),
+            paper_type=_coerce_str(existing_data.get("paper_type")),
+            citation_count_s2=_coerce_citation_count(citation_count, "semantic_scholar", "s2"),
+            citation_count_openalex=_coerce_citation_count(citation_count, "openalex"),
+            citation_count_crossref=_coerce_citation_count(citation_count, "crossref"),
+            s2_paper_id=_coerce_str(ids.get("semantic_scholar")),
+            openalex_id=_coerce_str(ids.get("openalex")),
+            crossref_doi=_coerce_str(ids.get("doi")) or _coerce_str(existing_data.get("doi")),
+            api_sources=_coerce_str_list(existing_data.get("api_sources")),
+            references=_coerce_str_list(existing_data.get("references")),
+            volume=_coerce_str(existing_data.get("volume")),
+            issue=_coerce_str(existing_data.get("issue")),
+            pages=_coerce_str(existing_data.get("pages")),
+            publisher=_coerce_str(existing_data.get("publisher")),
+            issn=_coerce_str(existing_data.get("issn")),
+            source_file=_coerce_str(existing_data.get("source_file")) or fallback_source_file,
+            source_url=_coerce_str(existing_data.get("source_url")),
+            source_type=_coerce_str(existing_data.get("source_type")),
+            extracted_at=_coerce_str(existing_data.get("extracted_at")),
+            extraction_method=_coerce_str(existing_data.get("extraction_method")),
+        )
 
     papers_dir = cfg.papers_dir
-    paper_id = args.paper_id
-
-    paper_d = papers_dir / paper_id
+    direct_dir = papers_dir / args.paper_id
+    if direct_dir.is_dir():
+        paper_d = direct_dir
+    else:
+        paper_d = _resolve_paper(args.paper_id, cfg)
+    paper_id = paper_d.name
     md_path = paper_d / "paper.md"
     json_path = paper_d / "meta.json"
 
@@ -534,21 +614,45 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         sys.exit(1)
 
     # Preserve existing UUID
+    existing_data: dict = {}
     existing_uuid = ""
     if json_path.exists():
         try:
             existing_data = json.loads(json_path.read_text(encoding="utf-8"))
-            existing_uuid = existing_data.get("id", "")
+            existing_uuid = str(existing_data.get("id") or "")
         except (json.JSONDecodeError, OSError) as e:
             _log.debug("failed to read existing meta.json: %s", e)
+    ids = existing_data.get("ids") or {}
+    strong_registry_match = _lookup_registry_by_candidates(
+        cfg,
+        args.paper_id if args.paper_id != paper_d.name else "",
+        existing_data.get("doi") or "",
+        ids.get("doi") or "",
+        ids.get("patent_publication_number") or "",
+    )
+    if strong_registry_match and strong_registry_match.get("id"):
+        existing_uuid = str(strong_registry_match.get("id") or "")
+    elif not existing_uuid:
+        weak_registry_match = _lookup_registry_by_candidates(cfg, paper_d.name)
+        if weak_registry_match and weak_registry_match.get("id"):
+            existing_uuid = str(weak_registry_match.get("id") or "")
+    if not existing_uuid:
+        existing_uuid = generate_uuid()
 
-    # Build PaperMetadata from CLI args (skip md parsing)
-    meta = PaperMetadata()
+    # Start from existing metadata and only override fields explicitly provided by the user.
+    meta = _meta_from_existing(
+        existing_data,
+        existing_uuid=existing_uuid,
+        fallback_source_file=md_path.name,
+    )
     meta.id = existing_uuid
     meta.title = args.title
-    meta.doi = args.doi or ""
-    meta.year = args.year
-    meta.source_file = md_path.name
+    if args.doi:
+        meta.doi = args.doi
+        meta.crossref_doi = args.doi
+    if args.year is not None:
+        meta.year = args.year
+    meta.source_file = meta.source_file or md_path.name
     if args.author:
         meta.authors = [args.author]
         meta.first_author = args.author
@@ -586,8 +690,10 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         ui("  [dry-run] 未写入任何文件")
         return
 
-    # Write new JSON
-    write_metadata_json(meta, json_path)
+    # Preserve existing enriched or custom top-level fields while updating metadata.
+    new_data = dict(existing_data)
+    new_data.update(metadata_to_dict(meta))
+    write_meta(json_path.parent, new_data)
     ui(f"  已写入: {json_path.name}")
 
     new_stem = generate_new_stem(meta)
@@ -3309,6 +3415,22 @@ def _format_citations(cc: dict) -> str:
     return " | ".join(parts)
 
 
+def _lookup_registry_by_candidates(cfg, *candidates: object) -> dict | None:
+    """Try registry lookups in order and return the first match."""
+    from scholaraio.index import lookup_paper
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        candidate_str = str(candidate or "").strip()
+        if not candidate_str or candidate_str in seen:
+            continue
+        seen.add(candidate_str)
+        reg = lookup_paper(cfg.index_db, candidate_str)
+        if reg:
+            return reg
+    return None
+
+
 def _resolve_paper(paper_id: str, cfg) -> Path:
     """Resolve a paper identifier (dir_name, UUID, or DOI) to its directory.
 
@@ -3357,6 +3479,8 @@ def _print_header(l1: dict) -> None:
     if len(authors) > 3:
         author_str += f" et al. ({len(authors)} total)"
     ui(f"论文ID   : {l1['paper_id']}")
+    if l1.get("dir_name") and l1["dir_name"] != l1["paper_id"]:
+        ui(f"目录名   : {l1['dir_name']}")
     ui(f"标题     : {l1['title']}")
     ui(f"作者     : {author_str}")
     ui(f"年份     : {l1.get('year') or '?'}  |  期刊: {l1.get('journal') or '?'}")
@@ -3374,6 +3498,21 @@ def _print_header(l1: dict) -> None:
         ui(f"S2       : {ids['semantic_scholar_url']}")
     if ids.get("openalex_url"):
         ui(f"OpenAlex : {ids['openalex_url']}")
+
+
+def _enrich_show_header(l1: dict, *, paper_d: Path, requested_id: str, cfg) -> dict:
+    enriched = dict(l1)
+    enriched["dir_name"] = paper_d.name
+    current_paper_id = str(enriched.get("paper_id") or "").strip()
+    reg = _lookup_registry_by_candidates(
+        cfg,
+        requested_id if requested_id != paper_d.name else "",
+        enriched.get("doi") or "",
+        paper_d.name if not current_paper_id or current_paper_id == paper_d.name else "",
+    )
+    if reg and reg.get("id"):
+        enriched["paper_id"] = str(reg["id"])
+    return enriched
 
 
 def cmd_citation_check(args: argparse.Namespace, cfg) -> None:
@@ -3607,7 +3746,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- repair ---
     p_repair = sub.add_parser("repair", help="修复论文元数据（手动指定 title/DOI，跳过 MD 解析）")
     p_repair.set_defaults(func=cmd_repair)
-    p_repair.add_argument("paper_id", help="论文 ID（文件名 stem）")
+    p_repair.add_argument("paper_id", help="论文 ID（目录名 / UUID / DOI）")
     p_repair.add_argument("--title", required=True, help="正确的论文标题")
     p_repair.add_argument("--doi", default="", help="已知 DOI（加速 API 查询）")
     p_repair.add_argument("--author", default="", help="一作全名")

@@ -61,6 +61,7 @@ Skills 定义在 `.claude/skills/` 目录，遵循 [Agent Skills](https://agents
 - `import` — 当用户要从 Endnote、Zotero 或已有 PDF 补充知识库时，用这个 skill。
 - `rename` — 当用户要把论文目录统一成规范命名时，用这个 skill。
 - `audit` — 当用户要查数据质量、找缺失项、重复项或批量修复元数据时，用这个 skill。
+- `scrub` — 当用户要在 enrich 之后增量清洗和修复低质量元数据，尤其是非标准文档产生的坏标题、坏作者和缺少年份时，用这个 skill。
 - `translate` — 当用户要把论文翻译到目标语言并保留 Markdown 结构时，用这个 skill。
 
 学术写作：

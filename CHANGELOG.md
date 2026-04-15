@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Incremental metadata scrub workflow**: Added the `scrub` skill for post-enrich metadata cleanup of low-quality paper records, plus reusable `.scrubbed` marker helpers in `papers.py` and conservative scrub-suspect detection helpers in `audit.py`
 - **Rsync backup workflow** ([#54](https://github.com/ZimoLiao/scholaraio/issues/54)): Added typed `backup` configuration, the `scholaraio.backup` module, `scholaraio backup list/run`, and the `backup` skill so ScholarAIO data can be synced to named remote targets through rsync instead of hand-written shell commands
 - **macOS semantic-search smoke workflow**: Added a dedicated GitHub Actions job on `macos-14` to exercise the `sentence-transformers` -> `faiss-cpu` semantic-search stack and run targeted regression tests for vector-search paths
 - **Academic writing router** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Added the `academic-writing` skill as a stable top-level entry point that routes users by deliverable and writing stage instead of forcing them to guess among multiple writing skills
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **macOS semantic/unified search crash** ([#65](https://github.com/ZimoLiao/scholaraio/issues/65)): main-library and explore semantic search now embed and normalize the query before loading or searching FAISS indexes, avoiding a known `faiss` / `sentence-transformers` import-order segfault pattern on macOS while preserving existing ranking behavior
 - **Academic writing docs alignment** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Synchronized `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` around a router-first writing model so poster/report workflows and the academic-writing entry point are discoverable consistently across user and agent surfaces
 - **`ingest-link` reliability and isolation** ([#52](https://github.com/ZimoLiao/scholaraio/issues/52)): URL ingest now preserves extractor PDF autodetect unless `--pdf` is explicitly requested, isolates both temporary inboxes from the real library, skips only failed URLs in multi-link batches, keeps warning-bearing extractions with usable text, retries transient extraction failures with exponential backoff, and avoids overlong fallback filenames for title-less URLs
+- **Scrub workflow edge cases** ([#51](https://github.com/ZimoLiao/scholaraio/issues/51)): `show` now surfaces the stable UUID for partially corrupted records, direct-directory `repair` generates a UUID when recovering markdown-only papers, collision-suffixed directory names no longer get renumbered again by `rename`, and the scrub skill docs now distinguish `invalid_metadata` records from normal `show`-first review paths
 
 ## [1.3.1] — 2026-04-14
 

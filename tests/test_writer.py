@@ -405,6 +405,75 @@ class TestRefetchMetadata:
         assert result is not None
         assert old_dir.exists()  # original not moved
 
+    def test_collision_suffix_name_is_idempotent(self, tmp_path):
+        papers = tmp_path / "papers"
+        (papers / "Smith-2023-Test").mkdir(parents=True)
+        suffixed_dir = papers / "Smith-2023-Test-2"
+        suffixed_dir.mkdir(parents=True)
+        (suffixed_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "test-uuid",
+                    "title": "Test",
+                    "first_author_lastname": "Smith",
+                    "year": 2023,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = rename_paper(suffixed_dir / "meta.json")
+
+        assert result is None
+        assert suffixed_dir.exists()
+
+    def test_collision_suffix_reclaims_canonical_name_when_available(self, tmp_path):
+        papers = tmp_path / "papers"
+        suffixed_dir = papers / "Smith-2023-Test-2"
+        suffixed_dir.mkdir(parents=True)
+        (suffixed_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "test-uuid",
+                    "title": "Test",
+                    "first_author_lastname": "Smith",
+                    "year": 2023,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = rename_paper(suffixed_dir / "meta.json")
+
+        assert result is not None
+        assert result.parent.name == "Smith-2023-Test"
+        assert result.parent.exists()
+        assert not suffixed_dir.exists()
+
+    def test_numeric_old_name_is_re_normalized_to_smallest_collision_suffix(self, tmp_path):
+        papers = tmp_path / "papers"
+        (papers / "Smith-2023-Test").mkdir(parents=True)
+        numeric_dir = papers / "Smith-2023-Test-2024"
+        numeric_dir.mkdir(parents=True)
+        (numeric_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "test-uuid",
+                    "title": "Test",
+                    "first_author_lastname": "Smith",
+                    "year": 2023,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = rename_paper(numeric_dir / "meta.json")
+
+        assert result is not None
+        assert result.parent.name == "Smith-2023-Test-2"
+        assert result.parent.exists()
+        assert not numeric_dir.exists()
+
 
 class TestMetadataToDictWebFields:
     def test_preserves_web_source_fields(self):

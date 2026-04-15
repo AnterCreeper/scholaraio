@@ -33,6 +33,21 @@ def md_path(papers_dir: Path, dir_name: str) -> Path:
     return papers_dir / dir_name / "paper.md"
 
 
+def scrub_marker_path(paper_d: Path) -> Path:
+    """Return the `.scrubbed` marker path for a paper directory."""
+    return paper_d / ".scrubbed"
+
+
+def is_scrubbed(paper_d: Path) -> bool:
+    """Return True when the paper directory has already been scrub-reviewed."""
+    return scrub_marker_path(paper_d).exists()
+
+
+def mark_scrubbed(paper_d: Path) -> None:
+    """Create the `.scrubbed` marker file for a paper directory."""
+    scrub_marker_path(paper_d).touch(exist_ok=True)
+
+
 def iter_paper_dirs(papers_dir: Path) -> Iterator[Path]:
     """Yield sorted subdirectories containing meta.json.
 

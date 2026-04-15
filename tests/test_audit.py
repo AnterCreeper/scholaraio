@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from scholaraio.audit import Issue, audit_papers
+from scholaraio.audit import Issue, audit_papers, list_scrub_suspects
 
 
 class TestAuditDetection:
@@ -58,3 +58,116 @@ class TestAuditDetection:
             assert issue.severity in ("error", "warning", "info")
             assert issue.rule
             assert issue.message
+
+
+class TestScrubSuspects:
+    """Scrub suspect detection should flag obvious metadata problems conservatively."""
+
+    def test_flags_placeholder_title(self, tmp_path):
+        d = tmp_path / "Unknown-2024-Introduction"
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "placeholder-title",
+                    "title": "Introduction",
+                    "authors": ["Alice Example"],
+                    "first_author_lastname": "Example",
+                    "year": 2024,
+                }
+            )
+        )
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "placeholder_title" for i in issues)
+
+    def test_flags_garbled_title(self, tmp_path):
+        d = tmp_path / "Example-2024-Trainium"
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "garbled-title",
+                    "title": "Trainium�/� Architecture",
+                    "authors": ["Alice Example"],
+                    "first_author_lastname": "Example",
+                    "year": 2024,
+                }
+            )
+        )
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "garbled_title" for i in issues)
+
+    def test_flags_unknown_author(self, tmp_path):
+        d = tmp_path / "Unknown-2024-Network"
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "unknown-author",
+                    "title": "Network Scheduling for Training",
+                    "authors": ["Unknown"],
+                    "first_author_lastname": "Unknown",
+                    "year": 2024,
+                }
+            )
+        )
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "suspicious_author" for i in issues)
+
+    def test_flags_scalar_author_metadata_without_crashing(self, tmp_path):
+        d = tmp_path / "Malformed-2024-Network"
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "scalar-author",
+                    "title": "Network Scheduling for Training",
+                    "authors": 123,
+                    "first_author_lastname": "",
+                    "year": 2024,
+                }
+            )
+        )
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "suspicious_author" for i in issues)
+
+    def test_flags_missing_year(self, tmp_path):
+        d = tmp_path / "Contributor-XXXX-Distributed-Systems"
+        d.mkdir()
+        (d / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "missing-year",
+                    "title": "Distributed Systems for Large-Scale Training",
+                    "authors": ["Alice Example"],
+                    "first_author_lastname": "Example",
+                    "year": None,
+                }
+            )
+        )
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "suspicious_year" for i in issues)
+
+    def test_skips_healthy_record(self, tmp_papers):
+        issues = list_scrub_suspects(tmp_papers)
+
+        assert all(i.paper_id != "Smith-2023-Turbulence" for i in issues)
+
+    def test_includes_dirs_without_meta_json_when_paper_md_exists(self, tmp_path):
+        d = tmp_path / "Broken-2024-OnlyMarkdown"
+        d.mkdir()
+        (d / "paper.md").write_text("# Broken metadata\n\nOnly markdown remains.", encoding="utf-8")
+
+        issues = list_scrub_suspects(tmp_path)
+
+        assert any(i.paper_id == d.name and i.rule == "invalid_metadata" for i in issues)
