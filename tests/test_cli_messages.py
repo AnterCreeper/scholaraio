@@ -262,6 +262,63 @@ class TestRepairIdentifierResolution:
         repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
         assert repaired_meta["id"] == "aaaa-1111"
 
+    def test_repair_recovers_registry_uuid_by_existing_doi_when_called_by_dir_name(self, tmp_papers, tmp_db):
+        build_index(tmp_papers, tmp_db)
+
+        original_dir = tmp_papers / "Smith-2023-Turbulence"
+        renamed_dir = tmp_papers / "Smith-2023-Turbulence-Renamed"
+        original_dir.rename(renamed_dir)
+
+        meta_path = renamed_dir / "meta.json"
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data.pop("id", None)
+        meta_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(
+            paper_id=renamed_dir.name,
+            title="Recovered Turbulence Title",
+            doi="",
+            author="John Smith",
+            year=2023,
+            no_api=True,
+            dry_run=False,
+        )
+
+        cli.cmd_repair(args, cfg)
+
+        repaired_dir = tmp_papers / "Smith-2023-Recovered-Turbulence-Title"
+        assert repaired_dir.exists()
+        repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
+        assert repaired_meta["id"] == "aaaa-1111"
+
+    def test_repair_replaces_bogus_meta_uuid_when_registry_has_stable_doi_match(self, tmp_papers, tmp_db):
+        build_index(tmp_papers, tmp_db)
+
+        paper_dir = tmp_papers / "Smith-2023-Turbulence"
+        meta_path = paper_dir / "meta.json"
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data["id"] = "bogus-9999"
+        meta_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(
+            paper_id="10.1234/jfm.2023.001",
+            title="Recovered Turbulence Title",
+            doi="",
+            author="John Smith",
+            year=2023,
+            no_api=True,
+            dry_run=False,
+        )
+
+        cli.cmd_repair(args, cfg)
+
+        repaired_dir = tmp_papers / "Smith-2023-Recovered-Turbulence-Title"
+        assert repaired_dir.exists()
+        repaired_meta = json.loads((repaired_dir / "meta.json").read_text(encoding="utf-8"))
+        assert repaired_meta["id"] == "aaaa-1111"
+
     def test_repair_preserves_existing_metadata_when_no_api(self, tmp_papers, tmp_db):
         build_index(tmp_papers, tmp_db)
 
@@ -365,6 +422,26 @@ class TestShowIdentifierDisplay:
         cli.cmd_show(args, cfg)
 
         assert "论文ID   : aaaa-1111" in messages
+
+    def test_show_replaces_bogus_meta_uuid_with_registry_uuid(self, tmp_papers, tmp_db, monkeypatch):
+        build_index(tmp_papers, tmp_db)
+
+        paper_dir = tmp_papers / "Smith-2023-Turbulence"
+        meta_path = paper_dir / "meta.json"
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data["id"] = "bogus-9999"
+        meta_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_db)
+        args = Namespace(paper_id="10.1234/jfm.2023.001", layer=1)
+
+        cli.cmd_show(args, cfg)
+
+        assert "论文ID   : aaaa-1111" in messages
+        assert "论文ID   : bogus-9999" not in messages
 
 
 class TestShowNotesIntegration:

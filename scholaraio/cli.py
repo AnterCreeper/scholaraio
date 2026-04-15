@@ -513,7 +513,6 @@ def cmd_audit(args: argparse.Namespace, cfg) -> None:
 def cmd_repair(args: argparse.Namespace, cfg) -> None:
     import json
 
-    from scholaraio.index import lookup_paper
     from scholaraio.ingest.metadata import (
         PaperMetadata,
         _extract_lastname,
@@ -623,10 +622,20 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
             existing_uuid = str(existing_data.get("id") or "")
         except (json.JSONDecodeError, OSError) as e:
             _log.debug("failed to read existing meta.json: %s", e)
-    if not existing_uuid:
-        reg = lookup_paper(cfg.index_db, args.paper_id)
-        if reg and reg.get("id"):
-            existing_uuid = str(reg.get("id") or "")
+    ids = existing_data.get("ids") or {}
+    strong_registry_match = _lookup_registry_by_candidates(
+        cfg,
+        args.paper_id if args.paper_id != paper_d.name else "",
+        existing_data.get("doi") or "",
+        ids.get("doi") or "",
+        ids.get("patent_publication_number") or "",
+    )
+    if strong_registry_match and strong_registry_match.get("id"):
+        existing_uuid = str(strong_registry_match.get("id") or "")
+    elif not existing_uuid:
+        weak_registry_match = _lookup_registry_by_candidates(cfg, paper_d.name)
+        if weak_registry_match and weak_registry_match.get("id"):
+            existing_uuid = str(weak_registry_match.get("id") or "")
     if not existing_uuid:
         existing_uuid = generate_uuid()
 
@@ -3406,6 +3415,22 @@ def _format_citations(cc: dict) -> str:
     return " | ".join(parts)
 
 
+def _lookup_registry_by_candidates(cfg, *candidates: object) -> dict | None:
+    """Try registry lookups in order and return the first match."""
+    from scholaraio.index import lookup_paper
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        candidate_str = str(candidate or "").strip()
+        if not candidate_str or candidate_str in seen:
+            continue
+        seen.add(candidate_str)
+        reg = lookup_paper(cfg.index_db, candidate_str)
+        if reg:
+            return reg
+    return None
+
+
 def _resolve_paper(paper_id: str, cfg) -> Path:
     """Resolve a paper identifier (dir_name, UUID, or DOI) to its directory.
 
@@ -3476,24 +3501,17 @@ def _print_header(l1: dict) -> None:
 
 
 def _enrich_show_header(l1: dict, *, paper_d: Path, requested_id: str, cfg) -> dict:
-    from scholaraio.index import lookup_paper
-
     enriched = dict(l1)
     enriched["dir_name"] = paper_d.name
-    if enriched.get("paper_id") and enriched["paper_id"] != paper_d.name:
-        return enriched
-
-    candidates = [requested_id, enriched.get("doi") or "", paper_d.name]
-    seen: set[str] = set()
-    for candidate in candidates:
-        candidate = str(candidate or "").strip()
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        reg = lookup_paper(cfg.index_db, candidate)
-        if reg and reg.get("id"):
-            enriched["paper_id"] = str(reg["id"])
-            break
+    current_paper_id = str(enriched.get("paper_id") or "").strip()
+    reg = _lookup_registry_by_candidates(
+        cfg,
+        requested_id if requested_id != paper_d.name else "",
+        enriched.get("doi") or "",
+        paper_d.name if not current_paper_id or current_paper_id == paper_d.name else "",
+    )
+    if reg and reg.get("id"):
+        enriched["paper_id"] = str(reg["id"])
     return enriched
 
 
