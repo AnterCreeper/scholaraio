@@ -38,6 +38,7 @@ cli.py — scholaraio 命令行入口
     scholaraio import-zotero [--api-key KEY] [--library-id ID] [--local PATH] [--list-collections] ...
     scholaraio attach-pdf <paper-id> <path/to/paper.pdf>
     scholaraio ingest-link <url> [<url> ...] [--dry-run] [--force] [--pdf] [--no-index] [--json]
+    scholaraio publish-site [--out-dir DIR] [--symlink]
     scholaraio citation-check [<file>] [--ws <workspace-name>]
     scholaraio proceedings apply-split <proceeding_dir> <split_plan.json>
     scholaraio proceedings build-clean-candidates <proceeding_dir>
@@ -2575,6 +2576,31 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
 
 
 # ============================================================================
+#  publish-site
+# ============================================================================
+
+
+def cmd_publish_site(args: argparse.Namespace, cfg) -> None:
+    from pathlib import Path
+    from scholaraio.publish_site.generator import generate_site
+
+    published_dir = cfg.published_dir
+    out_dir_str = args.out_dir or (cfg.site_output_dir.as_posix() if cfg.site_output_dir else None)
+    if not out_dir_str:
+        ui("错误：未指定 --out-dir，且 config.publish.site_output_dir 为空")
+        sys.exit(1)
+    out_dir = Path(out_dir_str).expanduser().resolve()
+    copy_assets = not args.symlink
+
+    ui(f"生成站点: {out_dir}")
+    ui(f"论文来源: {published_dir}")
+    ui(f"资源模式: {'复制' if copy_assets else '符号链接'}")
+
+    generate_site(published_dir=published_dir, out_dir=out_dir, copy_assets=copy_assets)
+    ui("站点生成完成")
+
+
+# ============================================================================
 #  insights
 # ============================================================================
 
@@ -3763,6 +3789,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ingest_link.add_argument("--pdf", action="store_true", help="仅在自动识别不稳时，提示 webextract 按 PDF 模式抓取")
     p_ingest_link.add_argument("--no-index", action="store_true", help="仅入库，不执行 embed/index")
     p_ingest_link.add_argument("--json", action="store_true", help="输出抓取结果摘要 JSON")
+
+    # --- publish-site ---
+    p_ps = sub.add_parser("publish-site", help="生成论文展示站点（GitHub Pages）")
+    p_ps.set_defaults(func=cmd_publish_site)
+    p_ps.add_argument("--out-dir", default=None, help="站点输出目录（默认读取 config.publish.site_output_dir）")
+    p_ps.add_argument("--symlink", action="store_true", help="使用符号链接模式（本地开发，不复制大文件）")
 
     # --- insights ---
     p_insights = sub.add_parser("insights", help="研究行为分析：搜索热词、最常阅读论文等")

@@ -270,6 +270,18 @@ class ZoteroConfig:
 
 
 @dataclass
+class PublishConfig:
+    """发布与站点生成配置。
+
+    Attributes:
+        site_output_dir: 站点输出目录的绝对或相对路径。
+            如 ~/generated-report。默认值空字符串表示每次通过 CLI --out-dir 指定。
+    """
+
+    site_output_dir: str = ""
+
+
+@dataclass
 class Config:
     """ScholarAIO 全局配置，由 :func:`load_config` 构建。
 
@@ -294,6 +306,7 @@ class Config:
     log: LogConfig = field(default_factory=LogConfig)
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     zotero: ZoteroConfig = field(default_factory=ZoteroConfig)
+    publish: PublishConfig = field(default_factory=PublishConfig)
 
     # Root directory of the config file (used to resolve relative paths)
     _root: Path = field(default_factory=Path.cwd, repr=False, compare=False)
@@ -327,6 +340,22 @@ class Config:
     def workspace_dir(self) -> Path:
         """工作区根目录的绝对路径。"""
         return (self._root / "workspace").resolve()
+
+    @property
+    def published_dir(self) -> Path:
+        """已发布论文归档目录的绝对路径（默认 published）。"""
+        return (self._root / "published").resolve()
+
+    @property
+    def site_output_dir(self) -> Path | None:
+        """站点输出目录的绝对路径（若配置为空则返回 None）。"""
+        d = self.publish.site_output_dir
+        if not d:
+            return None
+        p = Path(d).expanduser()
+        if p.is_absolute():
+            return p.resolve()
+        return (self._root / p).resolve()
 
     def ensure_dirs(self) -> None:
         """创建运行所需的目录（data/papers, data/inbox, data/pending, workspace 等）。"""
