@@ -43,6 +43,7 @@ VALID_LOCAL_MINERU_BACKENDS = {
 VALID_PDF_CLOUD_MODEL_VERSIONS = {"pipeline", "vlm"}
 VALID_MINERU_PARSE_METHODS = {"auto", "txt", "ocr"}
 VALID_PDF_PREFERRED_PARSERS = {"mineru", "docling", "pymupdf"}
+VALID_BACKUP_MODES = {"default", "append", "append-verify"}
 
 # ============================================================================
 #  Config dataclasses
@@ -278,6 +279,52 @@ class WebServiceConfig:
 
 
 @dataclass
+class BackupTargetConfig:
+    """Rsync backup target configuration.
+
+    Attributes:
+        host: Remote SSH host.
+        user: Optional SSH username.
+        path: Remote destination path.
+        port: SSH port.
+        identity_file: Optional SSH identity file path.
+        password: Optional SSH password for non-interactive backup flows.
+        mode: Transfer mode, ``"default"`` | ``"append"`` | ``"append-verify"``.
+        compress: Whether to enable rsync compression.
+        enabled: Whether the target is available for use.
+        exclude: Rsync exclude patterns.
+    """
+
+    host: str = ""
+    user: str = ""
+    path: str = ""
+    port: int = 22
+    identity_file: str = ""
+    password: str = ""
+    mode: str = "default"
+    compress: bool = True
+    enabled: bool = True
+    exclude: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BackupConfig:
+    """Backup configuration for rsync-based data sync.
+
+    Attributes:
+        source_dir: Local directory to sync, relative to config root by default.
+        rsync_bin: Rsync executable name or absolute path.
+        ssh_bin: SSH executable name or absolute path.
+        targets: Named remote backup targets.
+    """
+
+    source_dir: str = "data"
+    rsync_bin: str = "rsync"
+    ssh_bin: str = "ssh"
+    targets: dict[str, BackupTargetConfig] = field(default_factory=dict)
+
+
+@dataclass
 class Config:
     """ScholarAIO 全局配置，由 :func:`load_config` 构建。
 
@@ -293,6 +340,7 @@ class Config:
         zotero: Zotero 集成配置。
         websearch: 外部网页搜索服务配置。
         webextract: 外部网页提取服务配置。
+        backup: 备份配置。
     """
 
     paths: PathsConfig = field(default_factory=PathsConfig)
@@ -306,6 +354,7 @@ class Config:
     zotero: ZoteroConfig = field(default_factory=ZoteroConfig)
     websearch: WebServiceConfig = field(default_factory=WebServiceConfig)
     webextract: WebServiceConfig = field(default_factory=WebServiceConfig)
+    backup: BackupConfig = field(default_factory=BackupConfig)
 
     # Root directory of the config file (used to resolve relative paths)
     _root: Path = field(default_factory=Path.cwd, repr=False, compare=False)
@@ -339,6 +388,14 @@ class Config:
     def workspace_dir(self) -> Path:
         """工作区根目录的绝对路径。"""
         return (self._root / "workspace").resolve()
+
+    @property
+    def backup_source_dir(self) -> Path:
+        """备份源目录的绝对路径。"""
+        path = Path(self.backup.source_dir).expanduser()
+        if not path.is_absolute():
+            path = self._root / path
+        return path.resolve()
 
     def ensure_dirs(self) -> None:
         """创建运行所需的目录（data/papers, data/inbox, data/pending, workspace 等）。"""
@@ -769,6 +826,42 @@ def _build_config(data: dict, root: Path) -> Config:
         api_key=str(webextract_data.get("api_key") or "").strip(),
     )
 
+    backup_data = data.get("backup", {}) or {}
+    raw_targets = backup_data.get("targets", {}) or {}
+    targets: dict[str, BackupTargetConfig] = {}
+    if isinstance(raw_targets, dict):
+        for name, target_data in raw_targets.items():
+            if not isinstance(target_data, dict):
+                continue
+            targets[str(name)] = BackupTargetConfig(
+                host=str(target_data.get("host") or "").strip(),
+                user=str(target_data.get("user") or "").strip(),
+                path=str(target_data.get("path") or "").strip(),
+                port=_normalize_positive_int(
+                    target_data.get("port"),
+                    default=22,
+                    field_name=f"backup.targets.{name}.port",
+                ),
+                identity_file=str(target_data.get("identity_file") or "").strip(),
+                password=str(target_data.get("password") or "").strip(),
+                mode=_normalize_choice(
+                    target_data.get("mode", "default"),
+                    default="default",
+                    valid=VALID_BACKUP_MODES,
+                    field_name=f"backup.targets.{name}.mode",
+                ),
+                compress=_bool_or_default(target_data.get("compress"), True),
+                enabled=_bool_or_default(target_data.get("enabled"), True),
+                exclude=_coerce_str_list(target_data.get("exclude"), default=[]),
+            )
+
+    backup = BackupConfig(
+        source_dir=str(backup_data.get("source_dir") or "data").strip() or "data",
+        rsync_bin=str(backup_data.get("rsync_bin") or "rsync").strip() or "rsync",
+        ssh_bin=str(backup_data.get("ssh_bin") or "ssh").strip() or "ssh",
+        targets=targets,
+    )
+
     return Config(
         paths=paths,
         llm=llm,
@@ -781,6 +874,7 @@ def _build_config(data: dict, root: Path) -> Config:
         zotero=zotero,
         websearch=websearch,
         webextract=webextract,
+        backup=backup,
         _root=root,
     )
 

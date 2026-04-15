@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from scholaraio.config import _build_config, _deep_merge, load_config
 
@@ -179,6 +180,72 @@ class TestBuildConfig:
         assert cfg.websearch.api_key == "search-key"
         assert cfg.webextract.base_url == "http://localhost:8766"
         assert cfg.webextract.api_key == "extract-key"
+
+    def test_backup_defaults_are_exposed(self, tmp_path):
+        cfg = _build_config({}, tmp_path)
+        assert cfg.backup.source_dir == "data"
+        assert cfg.backup.rsync_bin == "rsync"
+        assert cfg.backup.ssh_bin == "ssh"
+        assert cfg.backup.targets == {}
+
+    def test_backup_target_mode_defaults_to_safe_full_sync(self, tmp_path):
+        cfg = _build_config(
+            {
+                "backup": {
+                    "targets": {
+                        "lab": {
+                            "host": "backup.example.com",
+                            "path": "/srv/scholaraio",
+                        }
+                    }
+                }
+            },
+            tmp_path,
+        )
+
+        assert cfg.backup.targets["lab"].mode == "default"
+
+    def test_backup_targets_are_parsed_and_normalized(self, tmp_path):
+        cfg = _build_config(
+            {
+                "backup": {
+                    "source_dir": "library-data",
+                    "targets": {
+                        "lab": {
+                            "host": "backup.example.com",
+                            "user": "alice",
+                            "path": "/srv/scholaraio",
+                            "port": 2222,
+                            "identity_file": "keys/id_ed25519",
+                            "password": "secret",
+                            "mode": "Append-Verify",
+                            "compress": "false",
+                            "enabled": "true",
+                            "exclude": ["*.tmp", None, 123, "metrics.db"],
+                        }
+                    },
+                }
+            },
+            tmp_path,
+        )
+
+        assert cfg.backup.source_dir == "library-data"
+        assert "lab" in cfg.backup.targets
+        target = cfg.backup.targets["lab"]
+        assert target.host == "backup.example.com"
+        assert target.user == "alice"
+        assert target.path == "/srv/scholaraio"
+        assert target.port == 2222
+        assert target.identity_file == "keys/id_ed25519"
+        assert target.password == "secret"
+        assert target.mode == "append-verify"
+        assert target.compress is False
+        assert target.enabled is True
+        assert target.exclude == ["*.tmp", "metrics.db"]
+
+    def test_backup_source_dir_expands_user_home(self, tmp_path):
+        cfg = _build_config({"backup": {"source_dir": "~/scholaraio-backup-source"}}, tmp_path)
+        assert cfg.backup_source_dir == Path("~/scholaraio-backup-source").expanduser().resolve()
 
     def test_zotero_library_type_default_and_override(self, tmp_path):
         cfg = _build_config({}, tmp_path)

@@ -107,6 +107,26 @@ translate:
   chunk_size: 4000 # Max chars per translation chunk 分块翻译最大字符数
   concurrency: 20 # Total translation concurrency budget; single-paper uses it for chunk parallelism, batch mode splits it across papers 总翻译并发预算
 
+# Rsync backup 远程增量备份
+backup:
+  source_dir: data # Local directory to sync 本地备份源目录（默认整个 data）
+  rsync_bin: rsync # rsync executable 可执行文件名或绝对路径
+  ssh_bin: ssh # ssh executable 可执行文件名或绝对路径；backup run 会强制追加 -o BatchMode=yes
+  targets: {}
+  # targets:
+  #   lab:
+  #     host: backup.example.com
+  #     user: alice
+  #     path: /srv/scholaraio
+  #     port: 22
+  #     identity_file: ~/.ssh/id_ed25519 # Prefer placing secrets/host-specific overrides in config.local.yaml
+  #     password: "" # Optional fallback for password-only hosts; keep it only in config.local.yaml
+  #     mode: default # default | append | append-verify
+  #     compress: true
+  #     enabled: true
+  #     exclude: ["*.tmp", "metrics.db"]
+  # Prepare SSH keys or a config.local.yaml password override, plus known_hosts; backup run is non-interactive.
+
 # Zotero integration Zotero 集成
 zotero:
   library_type: user # user | group

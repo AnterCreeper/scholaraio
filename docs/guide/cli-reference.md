@@ -83,6 +83,7 @@ scholaraio toolref
 scholaraio arxiv
 scholaraio document
 scholaraio style
+scholaraio backup
 ```
 
 - `toolref` provides versioned scientific tool documentation lookup.
@@ -90,6 +91,10 @@ scholaraio style
 - `arxiv` supports arXiv search and PDF fetch.
 - `document` provides Office-document utilities such as inspection.
 - `style` manages citation styles.
+- `backup` lists configured rsync targets and runs a named backup plan.
+- `backup run` is intentionally non-interactive: SSH is launched with `BatchMode=yes`, so key-based auth and host trust must already be prepared.
+- If a target stores `password` in `config.local.yaml`, ScholarAIO switches to an internal non-interactive askpass path instead of waiting for a terminal prompt.
+- A good first-run sequence is `ssh-keyscan ... >> ~/.ssh/known_hosts`, then `ssh -i <key> -p <port> <user>@<host> true`, then `scholaraio backup run <target> --dry-run`.
 
 ## Audit, Setup, And Runtime Inspection
 

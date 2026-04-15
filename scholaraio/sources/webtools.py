@@ -258,12 +258,14 @@ def search_and_fetch_arxiv(
         match = arxiv_pattern.search(r.link)
         if match:
             arxiv_id = match.group(1)
-            arxiv_papers.append({
-                "arxiv_id": arxiv_id,
-                "title": r.title,
-                "link": r.link,
-                "snippet": r.snippet,
-            })
+            arxiv_papers.append(
+                {
+                    "arxiv_id": arxiv_id,
+                    "title": r.title,
+                    "link": r.link,
+                    "snippet": r.snippet,
+                }
+            )
 
     if arxiv_papers:
         ui(f"找到 {len(arxiv_papers)} 篇 arXiv 论文：")
@@ -385,8 +387,7 @@ def extract_web(
 
     if not check_webextract_service(cfg, timeout=3.0):
         raise WebExtractServiceUnavailableError(
-            f"提取服务未启动或不可达: {base_url}\n"
-            "请确保 qt-web-extractor 服务已运行"
+            f"提取服务未启动或不可达: {base_url}\n请确保 qt-web-extractor 服务已运行"
         )
 
     body: dict[str, object] = {"url": url, "pdf": pdf}

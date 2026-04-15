@@ -21,9 +21,14 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from scholaraio.papers import iter_paper_dirs
+from scholaraio.papers import is_scrubbed, iter_paper_dirs
 
 _log = logging.getLogger(__name__)
+
+_PLACEHOLDER_TITLES = {"introduction", "tldr", "overview", "summary"}
+_SUSPICIOUS_AUTHOR_VALUES = {"unknown", "anonymous", "contributor", "contributors"}
+_DIRNAME_YEAR_PLACEHOLDER = re.compile(r"(^|-)XXXX(-|$)")
+_AUTHOR_YEAR_TITLE_PATTERN = re.compile(r"^(.+?)-(\d{4})-(.+)$")
 
 
 @dataclass
@@ -100,6 +105,53 @@ def audit_papers(papers_dir: Path) -> list[Issue]:
     return issues
 
 
+def list_scrub_suspects(papers_dir: Path, *, include_scrubbed: bool = False) -> list[Issue]:
+    """Return conservative metadata-quality suspects for the scrub workflow."""
+    issues: list[Issue] = []
+
+    for pdir in _iter_scrub_candidate_dirs(papers_dir):
+        if not include_scrubbed and is_scrubbed(pdir):
+            continue
+
+        pid = pdir.name
+        try:
+            from scholaraio.papers import read_meta
+
+            data = read_meta(pdir)
+        except Exception as e:
+            issues.append(Issue(pid, "warning", "invalid_metadata", f"无法读取元数据: {e}"))
+            continue
+
+        title = str(data.get("title") or "").strip()
+        authors = data.get("authors") or []
+        first_author_lastname = str(data.get("first_author_lastname") or "").strip()
+        year = data.get("year")
+
+        if _is_garbled_title(title):
+            issues.append(Issue(pid, "warning", "garbled_title", "标题包含乱码或替换字符"))
+        if _is_placeholder_title(title):
+            issues.append(Issue(pid, "warning", "placeholder_title", "标题是占位词，需人工确认真实主题"))
+        if _has_suspicious_author(authors, first_author_lastname):
+            issues.append(Issue(pid, "warning", "suspicious_author", "作者信息缺失、占位或明显异常"))
+        if _has_suspicious_year(year, pid):
+            issues.append(Issue(pid, "warning", "suspicious_year", "年份缺失或目录名仍含占位年份"))
+        if _has_suspicious_dirname(pid):
+            issues.append(Issue(pid, "warning", "suspicious_dirname", "目录名格式异常，可能由坏元数据生成"))
+
+    return issues
+
+
+def _iter_scrub_candidate_dirs(papers_dir: Path):
+    """Yield directories relevant to scrub, including partially broken records."""
+    if not papers_dir.exists():
+        return
+    for d in sorted(papers_dir.iterdir()):
+        if not d.is_dir():
+            continue
+        if (d / "meta.json").exists() or (d / "paper.md").exists():
+            yield d
+
+
 def _check_missing(issues: list[Issue], pid: str, data: dict) -> None:
     """Check for missing critical fields."""
     from scholaraio.ingest.metadata._doc_extract import DOCUMENT_TYPES
@@ -117,6 +169,62 @@ def _check_missing(issues: list[Issue], pid: str, data: dict) -> None:
         issues.append(Issue(pid, "warning", "missing_journal", "缺少期刊名"))
     if not data.get("title"):
         issues.append(Issue(pid, "error", "missing_title", "缺少标题"))
+
+
+def _is_garbled_title(title: str) -> bool:
+    return "�" in title
+
+
+def _is_placeholder_title(title: str) -> bool:
+    normalized = title.strip().lower()
+    return normalized in _PLACEHOLDER_TITLES
+
+
+def _has_suspicious_author(authors: object, first_author_lastname: object) -> bool:
+    if isinstance(authors, str):
+        author_values = [authors]
+    elif isinstance(authors, (list, tuple, set)):
+        author_values = [str(author) for author in authors]
+    else:
+        author_values = []
+
+    if not author_values:
+        return True
+    if not isinstance(first_author_lastname, str) or not first_author_lastname.strip():
+        return True
+
+    normalized_lastname = first_author_lastname.strip().lower()
+    if normalized_lastname in _SUSPICIOUS_AUTHOR_VALUES:
+        return True
+
+    for author in author_values:
+        normalized = author.strip().lower()
+        if not normalized:
+            return True
+        if normalized in _SUSPICIOUS_AUTHOR_VALUES:
+            return True
+        if re.fullmatch(r"[a-z]", normalized):
+            return True
+
+    return False
+
+
+def _has_suspicious_year(year: object, pid: str) -> bool:
+    if year in (None, "", "XXXX"):
+        return True
+    if isinstance(year, str) and not year.isdigit():
+        return True
+    return bool(_DIRNAME_YEAR_PLACEHOLDER.search(pid))
+
+
+def _has_suspicious_dirname(pid: str) -> bool:
+    if pid.startswith("-"):
+        return True
+    if _DIRNAME_YEAR_PLACEHOLDER.search(pid):
+        return True
+    if re.match(r"^\d+-", pid):
+        return True
+    return _AUTHOR_YEAR_TITLE_PATTERN.match(pid) is None
 
 
 def _check_content_consistency(

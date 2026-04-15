@@ -294,15 +294,18 @@ def rename_paper(json_path: Path, *, dry_run: bool = False) -> Path | None:
     new_dir = papers_root / new_stem
 
     # Avoid collision with existing directories
-    if new_dir.exists():
+    if new_dir.exists() and new_dir != paper_d:
         suffix = 2
         while True:
             candidate = f"{new_stem}-{suffix}"
-            if not (papers_root / candidate).exists():
-                new_stem = candidate
-                new_dir = papers_root / new_stem
+            candidate_dir = papers_root / candidate
+            if candidate_dir == paper_d or not candidate_dir.exists():
+                new_dir = candidate_dir
                 break
             suffix += 1
+
+    if new_dir == paper_d:
+        return None
 
     if dry_run:
         return new_dir / "meta.json"
@@ -415,6 +418,13 @@ def rename_files(md_path: Path, json_path: Path, new_stem: str, dry_run: bool = 
 
     if paper_d != new_dir:
         paper_d.rename(new_dir)
+        try:
+            data = json.loads(new_json.read_text(encoding="utf-8"))
+            uuid = str(data.get("id") or "").strip()
+            if uuid:
+                _update_registry_dir_name(papers_root.parent / "index.db", uuid, new_dir.name)
+        except Exception as e:
+            _log.debug("failed to update papers_registry during rename_files: %s", e)
     _log.debug("renamed dir: %s -> %s", paper_d.name, new_dir.name)
     return new_md, new_json
 

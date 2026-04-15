@@ -63,6 +63,7 @@ Knowledge base management:
 - `import` - When the user wants to bring in Endnote, Zotero, or existing PDFs, use this skill.
 - `rename` - When the user wants to normalize paper directory names, use this skill.
 - `audit` - When the user wants to inspect data quality, find missing fields or duplicates, or batch-repair metadata, use this skill.
+- `scrub` - When the user wants to incrementally review and repair low-quality metadata after enrich, especially for non-standard documents, use this skill.
 - `translate` - When the user wants to translate papers into a target language while keeping Markdown structure, use this skill.
 
 Academic writing:
@@ -82,6 +83,7 @@ Visualization and document generation:
 
 System operations:
 - `setup` - When the user wants to install, configure, or diagnose the ScholarAIO environment, start with this skill.
+- `backup` - When the user wants to sync ScholarAIO data to a configured remote machine via rsync, use this skill.
 - `metrics` - When the user wants token usage, call timing, or runtime metrics, use this skill.
 
 Scientific computing:
