@@ -592,6 +592,13 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
         existing_json = ctx.existing_dois[doi_key]
         existing_md = existing_json.parent / "paper.md"
         if not existing_md.exists() and ctx.md_path and ctx.md_path.exists():
+            existing_dir = existing_json.parent
+            if not existing_dir.exists():
+                # Stale registry entry (dir was deleted or renamed): treat as new paper
+                _log.warning(
+                    "stale registry entry for DOI %s, dir missing: %s", doi_key, existing_dir
+                )
+                return StepResult.OK
             # MD missing from existing paper: restore it automatically
             pdf_stem = ctx.pdf_path.stem if ctx.pdf_path else ""
             md_stem = ctx.md_path.stem if ctx.md_path else ""
@@ -1217,10 +1224,16 @@ def _process_inbox(
             stats[final_status] += 1
             continue
         for step_name in file_steps:
-            with timer(f"pipeline.inbox.{step_name}", "step") as t:
-                result = STEPS[step_name].fn(ctx)
-            step_times[step_name] = step_times.get(step_name, 0) + t.elapsed
-            _log.debug("%s: %.1fs", step_name, t.elapsed)
+            try:
+                with timer(f"pipeline.inbox.{step_name}", "step") as t:
+                    result = STEPS[step_name].fn(ctx)
+                step_times[step_name] = step_times.get(step_name, 0) + t.elapsed
+                _log.debug("%s: %.1fs", step_name, t.elapsed)
+            except Exception as exc:
+                _log.exception("step %s failed for %s: %s", step_name, file_label, exc)
+                ctx.status = "failed"
+                result = StepResult.FAIL
+                break
             if is_proceedings and step_name == "mineru" and result == StepResult.OK and ctx.md_path:
                 if _ingest_proceedings_ctx(ctx, force=True):
                     result = StepResult.FAIL

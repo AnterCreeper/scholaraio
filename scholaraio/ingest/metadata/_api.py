@@ -32,6 +32,41 @@ _log = logging.getLogger(__name__)
 # ============================================================================
 
 
+def _request_with_retry(url: str, max_retries: int = 3) -> requests.Response:
+    """GET request with exponential backoff for rate-limit and transient errors."""
+    for attempt in range(max_retries + 1):
+        resp = SESSION.get(url, timeout=TIMEOUT)
+        if resp.status_code == 429:
+            if attempt < max_retries:
+                wait = int(resp.headers.get("Retry-After", 2 ** attempt))
+                _log.warning(
+                    "[API] Rate limited on %s, waiting %ds (attempt %d/%d)",
+                    url,
+                    wait,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                time.sleep(min(wait, 30))
+                continue
+            return resp
+        if resp.status_code in (502, 503, 504):
+            if attempt < max_retries:
+                wait = 2 ** attempt
+                _log.warning(
+                    "[API] %d on %s, waiting %ds (attempt %d/%d)",
+                    resp.status_code,
+                    url,
+                    wait,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                time.sleep(wait)
+                continue
+            return resp
+        return resp
+    return resp
+
+
 def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -> dict:
     """查询 Semantic Scholar API。
 
@@ -56,12 +91,7 @@ def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -
         return {}
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
-        if resp.status_code == 429:
-            wait = int(resp.headers.get("Retry-After", 5))
-            _log.warning("[S2] Rate limited, waiting %ds", wait)
-            time.sleep(min(wait, 30))
-            resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
@@ -103,7 +133,7 @@ def query_openalex(doi: str = "", title: str = "") -> dict:
         return {}
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
@@ -148,7 +178,7 @@ def query_crossref(doi: str = "", title: str = "") -> dict:
         return {}
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
