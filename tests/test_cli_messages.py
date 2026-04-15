@@ -157,6 +157,26 @@ class TestWebsearchCli:
 
 
 class TestWebextractCli:
+    def test_cmd_webextract_exits_when_result_contains_error_without_text(self, monkeypatch):
+        import scholaraio.sources.webtools as webtools
+
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+        monkeypatch.setattr(
+            webtools,
+            "extract_web",
+            lambda *args, **kwargs: {"title": "", "text": "", "error": "partial extraction failed"},
+        )
+
+        args = Namespace(url="https://example.com", pdf=False, full=False, max_chars=10)
+
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_webextract(args, SimpleNamespace())
+
+        assert exc.value.code == 1
+        assert any("提取失败: partial extraction failed" in message for message in messages)
+        assert all("提取成功" not in message for message in messages)
+
     def test_cmd_webextract_truncates_long_text_by_default(self, monkeypatch, capsys):
         import scholaraio.sources.webtools as webtools
 

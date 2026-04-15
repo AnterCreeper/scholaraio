@@ -360,7 +360,7 @@ def check_webextract_service(cfg: Config | None = None, timeout: float = 3.0) ->
 def extract_web(
     url: str,
     *,
-    pdf: bool = False,
+    pdf: bool | None = None,
     include_html: bool = False,
     cfg: Config | None = None,
     timeout: float = 120.0,
@@ -371,7 +371,7 @@ def extract_web(
 
     Args:
         url: 要提取的 URL。
-        pdf: 是否为 PDF 文件（默认 False）。
+        pdf: 是否为 PDF 文件；为 ``None`` 时交给服务端自动判断。
         include_html: 是否包含原始 HTML（默认 False）。
         cfg: 配置对象，用于读取服务地址和 API key。
         timeout: 请求超时（秒）。
@@ -390,7 +390,9 @@ def extract_web(
             f"提取服务未启动或不可达: {base_url}\n请确保 qt-web-extractor 服务已运行"
         )
 
-    body: dict[str, object] = {"url": url, "pdf": pdf}
+    body: dict[str, object] = {"url": url}
+    if pdf is not None:
+        body["pdf"] = pdf
     if include_html:
         body["include_html"] = include_html
 

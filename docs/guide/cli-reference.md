@@ -36,6 +36,8 @@ scholaraio top-cited
 ```text
 scholaraio pipeline [preset]
 scholaraio ingest-link <url> [<url> ...]
+scholaraio websearch <query> [--count N]
+scholaraio webextract <url> [--pdf] [--full] [--max-chars N]
 scholaraio enrich-toc
 scholaraio enrich-l3
 scholaraio backfill-abstract
@@ -46,6 +48,8 @@ scholaraio attach-pdf
 
 - `pipeline` is the main composable ingest entrypoint.
 - `ingest-link` pulls one or more rendered web URLs or online PDFs through an external `qt-web-extractor` service and routes them into the existing document ingest flow.
+- `websearch` performs live web search through an external `GUILessBingSearch` service.
+- `webextract` extracts rendered web content through `qt-web-extractor`; by default it prints a preview, and `--full` expands to the full body.
 - Current preset values are `full`, `ingest`, `enrich`, and `reindex`.
 - Run `scholaraio pipeline --help` for pipeline options such as `--steps`, `--dry-run`, `--no-api`, and `--rebuild`.
 
