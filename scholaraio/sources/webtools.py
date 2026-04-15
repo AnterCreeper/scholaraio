@@ -33,6 +33,19 @@ def _resolve_api_key(env_name: str) -> str:
     return os.environ.get(env_name, "").strip()
 
 
+def _get_cfg_section_value(cfg: object | None, section_name: str, field_name: str) -> str:
+    if cfg is None:
+        return ""
+    section = getattr(cfg, section_name, None)
+    if section is None:
+        return ""
+    if isinstance(section, dict):
+        value = section.get(field_name, "")
+    else:
+        value = getattr(section, field_name, "")
+    return str(value or "").strip()
+
+
 def _headers(api_key: str) -> dict[str, str]:
     headers = {
         "Content-Type": "application/json",
@@ -75,12 +88,17 @@ def check_websearch_health(base_url: str | None = None) -> dict:
     return _load_json_response(req, timeout=5, error_prefix="搜索服务健康检查失败")
 
 
-def websearch(query: str, count: int = 10, base_url: str | None = None) -> list[dict]:
+def websearch(
+    query: str,
+    count: int = 10,
+    base_url: str | None = None,
+    api_key: str | None = None,
+) -> list[dict]:
     """Run a web search request against the configured external service."""
     base = _resolve_base_url(base_url, "WEBSEARCH_URL", _DEFAULT_WEBSEARCH_URL)
-    api_key = _resolve_api_key("WEBSEARCH_API_KEY")
+    resolved_api_key = _resolve_api_key("WEBSEARCH_API_KEY") if api_key is None else api_key.strip()
     payload = json.dumps({"query": query, "count": count}).encode("utf-8")
-    req = Request(f"{base}/search", data=payload, headers=_headers(api_key), method="POST")
+    req = Request(f"{base}/search", data=payload, headers=_headers(resolved_api_key), method="POST")
     return _load_json_response(req, timeout=30, error_prefix="搜索失败")
 
 
@@ -110,13 +128,9 @@ class ServiceUnavailableError(WebSearchError):
 
 def _get_websearch_base_url(cfg: Config | None = None) -> str:
     """从配置或环境变量获取搜索服务地址。"""
-    if cfg is not None:
-        try:
-            url = getattr(cfg, "websearch", {}).get("base_url", "")
-            if url:
-                return url.rstrip("/")
-        except Exception:
-            pass
+    url = _get_cfg_section_value(cfg, "websearch", "base_url")
+    if url:
+        return url.rstrip("/")
     env_url = os.environ.get("WEBSEARCH_URL", "")
     if env_url:
         return env_url.rstrip("/")
@@ -125,13 +139,9 @@ def _get_websearch_base_url(cfg: Config | None = None) -> str:
 
 def _get_websearch_api_key(cfg: Config | None = None) -> str | None:
     """获取 API key（如配置了认证）。"""
-    if cfg is not None:
-        try:
-            key = getattr(cfg, "websearch", {}).get("api_key", "")
-            if key:
-                return key
-        except Exception:
-            pass
+    key = _get_cfg_section_value(cfg, "websearch", "api_key")
+    if key:
+        return key
     return os.environ.get("WEBSEARCH_API_KEY") or None
 
 
@@ -182,7 +192,12 @@ def search_web(
         )
 
     try:
-        data = websearch(query, count=count, base_url=base_url)
+        data = websearch(
+            query,
+            count=count,
+            base_url=base_url,
+            api_key=_get_websearch_api_key(cfg),
+        )
     except RuntimeError as e:
         raise WebSearchError(str(e)) from e
 
@@ -210,15 +225,7 @@ def search_and_display(
     """执行搜索并输出到 UI。"""
     from scholaraio.log import ui
 
-    try:
-        results = search_web(query, count=count, cfg=cfg)
-    except ServiceUnavailableError as e:
-        ui(f"错误: {e}")
-        return []
-    except WebSearchError as e:
-        ui(f"搜索失败: {e}")
-        return []
-
+    results = search_web(query, count=count, cfg=cfg)
     if not results:
         ui(f"未找到与 '{query}' 相关的结果")
         return []
@@ -321,13 +328,9 @@ class WebExtractServiceUnavailableError(WebExtractError):
 
 def _get_webextract_base_url(cfg: Config | None = None) -> str:
     """从配置或环境变量获取提取服务地址。"""
-    if cfg is not None:
-        try:
-            url = getattr(cfg, "webextract", {}).get("base_url", "")
-            if url:
-                return url.rstrip("/")
-        except Exception:
-            pass
+    url = _get_cfg_section_value(cfg, "webextract", "base_url")
+    if url:
+        return url.rstrip("/")
     env_url = os.environ.get("WEBEXTRACT_URL", "")
     if env_url:
         return env_url.rstrip("/")
@@ -336,13 +339,9 @@ def _get_webextract_base_url(cfg: Config | None = None) -> str:
 
 def _get_webextract_api_key(cfg: Config | None = None) -> str | None:
     """获取 API key（如配置了认证）。"""
-    if cfg is not None:
-        try:
-            key = getattr(cfg, "webextract", {}).get("api_key", "")
-            if key:
-                return key
-        except Exception:
-            pass
+    key = _get_cfg_section_value(cfg, "webextract", "api_key")
+    if key:
+        return key
     return os.environ.get("WEBEXTRACT_API_KEY") or None
 
 

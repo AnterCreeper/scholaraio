@@ -8,6 +8,8 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from scholaraio import cli
 from scholaraio.index import build_index
 from scholaraio.ingest.mineru import ConvertResult, PDFValidationResult
@@ -101,6 +103,28 @@ class TestCliHelpLocalization:
         refetch_help = parser._subparsers._group_actions[0].choices["refetch"].format_help()
 
         assert "目录名 / UUID / DOI" in refetch_help
+
+
+class TestWebsearchCli:
+    def test_cmd_websearch_exits_on_service_unavailable(self, monkeypatch):
+        import scholaraio.sources.webtools as webtools
+
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+
+        def fake_search_and_display(*args, **kwargs):
+            raise webtools.ServiceUnavailableError("service down")
+
+        monkeypatch.setattr(webtools, "search_and_display", fake_search_and_display)
+
+        args = Namespace(query=["test"], count=3)
+
+        with pytest.raises(SystemExit) as exc:
+            cli.cmd_websearch(args, SimpleNamespace())
+
+        assert exc.value.code == 1
+        assert any("错误: service down" in message for message in messages)
+        assert any("GUILessBingSearch" in message for message in messages)
 
 
 class TestShowLayer4Headings:

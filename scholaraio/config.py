@@ -270,6 +270,14 @@ class ZoteroConfig:
 
 
 @dataclass
+class WebServiceConfig:
+    """HTTP web service endpoint config."""
+
+    base_url: str = ""
+    api_key: str = ""
+
+
+@dataclass
 class Config:
     """ScholarAIO 全局配置，由 :func:`load_config` 构建。
 
@@ -283,6 +291,8 @@ class Config:
         log: 日志与指标配置。
         translate: 自动翻译配置。
         zotero: Zotero 集成配置。
+        websearch: 外部网页搜索服务配置。
+        webextract: 外部网页提取服务配置。
     """
 
     paths: PathsConfig = field(default_factory=PathsConfig)
@@ -294,6 +304,8 @@ class Config:
     log: LogConfig = field(default_factory=LogConfig)
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     zotero: ZoteroConfig = field(default_factory=ZoteroConfig)
+    websearch: WebServiceConfig = field(default_factory=WebServiceConfig)
+    webextract: WebServiceConfig = field(default_factory=WebServiceConfig)
 
     # Root directory of the config file (used to resolve relative paths)
     _root: Path = field(default_factory=Path.cwd, repr=False, compare=False)
@@ -745,6 +757,18 @@ def _build_config(data: dict, root: Path) -> Config:
         library_type=zotero_data.get("library_type", "user"),
     )
 
+    websearch_data = data.get("websearch", {}) or {}
+    websearch = WebServiceConfig(
+        base_url=str(websearch_data.get("base_url") or "").strip(),
+        api_key=str(websearch_data.get("api_key") or "").strip(),
+    )
+
+    webextract_data = data.get("webextract", {}) or {}
+    webextract = WebServiceConfig(
+        base_url=str(webextract_data.get("base_url") or "").strip(),
+        api_key=str(webextract_data.get("api_key") or "").strip(),
+    )
+
     return Config(
         paths=paths,
         llm=llm,
@@ -755,6 +779,8 @@ def _build_config(data: dict, root: Path) -> Config:
         log=log,
         translate=translate,
         zotero=zotero,
+        websearch=websearch,
+        webextract=webextract,
         _root=root,
     )
 

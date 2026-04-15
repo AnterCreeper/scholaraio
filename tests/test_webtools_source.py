@@ -187,6 +187,34 @@ class TestWebtoolsConnector:
 
 
 class TestWebtoolsEnhancedSearch:
+    def test_search_web_uses_cfg_base_url_and_api_key(self, monkeypatch, tmp_path):
+        seen: dict[str, object] = {}
+
+        def fake_urlopen(req, timeout=0):
+            seen["url"] = req.full_url
+            seen["auth"] = req.headers.get("Authorization")
+            return _FakeResponse([])
+
+        monkeypatch.setattr("scholaraio.sources.webtools.urlopen", fake_urlopen)
+
+        from scholaraio.config import _build_config
+        from scholaraio.sources.webtools import search_web
+
+        cfg = _build_config(
+            {
+                "websearch": {
+                    "base_url": "http://localhost:9999",
+                    "api_key": "cfg-secret",
+                }
+            },
+            tmp_path,
+        )
+
+        search_web("query", cfg=cfg)
+
+        assert seen["url"] == "http://localhost:9999/search"
+        assert seen["auth"] == "Bearer cfg-secret"
+
     def test_search_web_returns_websearchresult_list(self, monkeypatch):
         def fake_urlopen(req, timeout=0):
             return _FakeResponse(
@@ -232,6 +260,17 @@ class TestWebtoolsEnhancedSearch:
         captured = capsys.readouterr()
         assert "T" in captured.out
         assert "https://x.com" in captured.out
+
+    def test_search_and_display_propagates_service_unavailable(self, monkeypatch):
+        from scholaraio.sources.webtools import ServiceUnavailableError, search_and_display
+
+        def fake_search_web(*args, **kwargs):
+            raise ServiceUnavailableError("service down")
+
+        monkeypatch.setattr("scholaraio.sources.webtools.search_web", fake_search_web)
+
+        with pytest.raises(ServiceUnavailableError, match="service down"):
+            search_and_display("q")
 
     def test_search_and_fetch_arxiv_filters_results(self, monkeypatch):
         def fake_urlopen(req, timeout=0):
