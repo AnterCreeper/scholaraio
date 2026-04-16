@@ -174,6 +174,7 @@ def _build_filter(
 def _oa_api_key() -> str:
     try:
         from scholaraio.config import load_config
+
         return load_config().openalex.api_key or ""
     except Exception:
         return ""

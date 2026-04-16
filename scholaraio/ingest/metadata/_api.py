@@ -82,6 +82,7 @@ def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -
 def _oa_api_key() -> str:
     try:
         from scholaraio.config import load_config
+
         return load_config().openalex.api_key or ""
     except Exception:
         return ""
