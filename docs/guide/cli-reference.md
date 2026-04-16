@@ -50,6 +50,8 @@ scholaraio attach-pdf
 - `ingest-link` pulls one or more rendered web URLs or online PDFs through an external `qt-web-extractor` service and routes them into the existing document ingest flow.
 - `websearch` performs live web search through an external `GUILessBingSearch` service.
 - `webextract` extracts rendered web content through `qt-web-extractor`; by default it prints a preview, and `--full` expands to the full body.
+- `refetch` refreshes citation counts, bibliographic metadata, and structured `references` for already ingested papers.
+- `refetch --references-only` / `--refs-only` limits the run to DOI papers whose `references` field is still empty; in single-paper mode it only updates `references`.
 - Current preset values are `full`, `ingest`, `enrich`, and `reindex`.
 - Run `scholaraio pipeline --help` for pipeline options such as `--steps`, `--dry-run`, `--no-api`, and `--rebuild`.
 
@@ -113,6 +115,8 @@ scholaraio proceedings
 scholaraio citation-check
 ```
 
+- `audit` checks missing metadata, duplicate DOIs, filename issues, and title/content mismatches.
+- `audit` uses paper-type-aware skips so documents, patents, dissertations, and similar front matter do not create spurious `title_mismatch` warnings.
 - `setup` is the environment check and setup wizard entrypoint.
 - `insights` analyzes research behavior such as hot keywords and reading trends.
 - `metrics` shows LLM token and runtime usage.

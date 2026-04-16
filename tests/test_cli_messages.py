@@ -281,6 +281,54 @@ class TestRefetchIdentifierResolution:
         assert any("并发 refetch（1 workers，共 1 篇）" in m for m in messages)
         assert any("Smith-2023-Turbulence" in m for m in messages)
 
+    def test_refetch_all_references_only_targets_doi_papers_with_empty_references(
+        self, tmp_papers, tmp_path, monkeypatch
+    ):
+        seeded = tmp_papers / "Doe-2022-Seeded-References"
+        seeded.mkdir()
+        (seeded / "meta.json").write_text(
+            json.dumps(
+                {
+                    "id": "cccc-3333",
+                    "title": "Seeded references paper",
+                    "authors": ["Jane Doe"],
+                    "first_author_lastname": "Doe",
+                    "year": 2022,
+                    "journal": "Physics of Fluids",
+                    "doi": "10.9999/pof.2022.001",
+                    "abstract": "Has references already.",
+                    "paper_type": "journal-article",
+                    "citation_count": {"crossref": 1},
+                    "references": ["10.9999/ref-1"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (seeded / "paper.md").write_text("# Seeded references paper\n\nBody.", encoding="utf-8")
+
+        seen: list[tuple[Path, bool]] = []
+        messages: list[str] = []
+        monkeypatch.setattr(cli, "ui", messages.append)
+        monkeypatch.setattr(
+            "scholaraio.ingest.metadata.refetch_metadata",
+            lambda jp, references_only=False: seen.append((jp, references_only)) or True,
+        )
+
+        cfg = SimpleNamespace(papers_dir=tmp_papers, index_db=tmp_path / "missing-index.db")
+        args = Namespace(
+            paper_id=None,
+            all=True,
+            force=False,
+            jobs=5,
+            references_only=True,
+        )
+
+        cli.cmd_refetch(args, cfg)
+
+        assert seen == [(tmp_papers / "Smith-2023-Turbulence" / "meta.json", True)]
+        assert any("1 篇需要补全 references" in m for m in messages)
+        assert any("并发 refetch（1 workers，共 1 篇）" in m for m in messages)
+
 
 class TestRepairIdentifierResolution:
     def test_repair_help_accepts_uuid_and_doi_identifiers(self):
