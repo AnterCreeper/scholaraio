@@ -258,9 +258,7 @@ class TestCrossBackendConsistency:
         mermaid_nodes = [
             l
             for l in mmd_text.splitlines()
-            if not l.startswith("flowchart")
-            and not any(token in l for token in mermaid_edge_tokens)
-            and l.strip()
+            if not l.startswith("flowchart") and not any(token in l for token in mermaid_edge_tokens) and l.strip()
         ]
         mermaid_edges = [l for l in mmd_text.splitlines() if any(token in l for token in mermaid_edge_tokens)]
         assert len(mermaid_nodes) == len(realistic_ir["nodes"])
