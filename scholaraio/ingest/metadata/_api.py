@@ -79,6 +79,15 @@ def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -
         return {}
 
 
+def _oa_api_key() -> str:
+    try:
+        from scholaraio.config import load_config
+
+        return load_config().openalex.api_key or ""
+    except Exception:
+        return ""
+
+
 def query_openalex(doi: str = "", title: str = "") -> dict:
     """查询 OpenAlex API。
 
@@ -101,6 +110,10 @@ def query_openalex(doi: str = "", title: str = "") -> dict:
         url = f"{OA_BASE}?{urlencode(params)}"
     else:
         return {}
+
+    api_key = _oa_api_key()
+    if api_key:
+        url = f"{url}&api_key={api_key}" if "?" in url else f"{url}?api_key={api_key}"
 
     try:
         resp = SESSION.get(url, timeout=TIMEOUT)
