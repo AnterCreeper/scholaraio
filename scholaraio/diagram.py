@@ -32,8 +32,9 @@ import logging
 import re
 import subprocess
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from scholaraio.config import Config
@@ -59,16 +60,67 @@ _DIAGRAM_TYPES: dict[str, str] = {
 }
 
 
+class _HeaderEntry(TypedDict):
+    line: int
+    level: int
+    text: str
+
+
+def _escape_dot_text(text: object) -> str:
+    """Escape text for DOT quoted strings."""
+    return json.dumps(str(text), ensure_ascii=False)[1:-1]
+
+
+def _quote_dot_id(raw_id: object) -> str:
+    """Quote arbitrary node ids so DOT accepts punctuation and spaces safely."""
+    return json.dumps(str(raw_id), ensure_ascii=False)
+
+
+def _escape_mermaid_text(text: object) -> str:
+    """Escape Mermaid label text while preserving visible newlines."""
+    return str(text).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _build_mermaid_id_map(nodes: list[dict]) -> dict[str, str]:
+    """Sanitize arbitrary node ids into Mermaid-safe identifiers."""
+    id_map: dict[str, str] = {}
+    used: set[str] = set()
+
+    for idx, node in enumerate(nodes, start=1):
+        raw_id = str(node.get("id", f"n{idx}"))
+        base = re.sub(r"[^A-Za-z0-9_]", "_", raw_id)
+        if not base:
+            base = f"n_{idx}"
+        if base[0].isdigit():
+            base = f"n_{base}"
+        candidate = base
+        suffix = 2
+        while candidate in used:
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        used.add(candidate)
+        id_map[raw_id] = candidate
+
+    return id_map
+
+
+def _render_sidecar_paths(path: Path, fmt: str) -> list[Path]:
+    """Return auxiliary files produced alongside the main render output."""
+    if fmt == "svg":
+        return [path.with_suffix(".dot")]
+    return []
+
+
 def _extract_method_section(md_text: str, max_chars: int = 12000) -> str:
     """从 markdown 文本中定位并截取方法/架构相关章节。"""
     lines = md_text.splitlines()
-    headers = []
+    headers: list[_HeaderEntry] = []
     for i, line in enumerate(lines, start=1):
         m = re.match(r"^(#{1,4})\s+(.+)", line.rstrip())
         if m:
             headers.append({"line": i, "level": len(m.group(1)), "text": m.group(2).strip()})
 
-    target = None
+    target: _HeaderEntry | None = None
     for h in headers:
         if _METHOD_SECTION_RE.search(h["text"]):
             target = h
@@ -152,9 +204,7 @@ def extract_diagram_ir(md_text: str, diagram_type: str, cfg: Config) -> dict:
         ValueError: 当 ``diagram_type`` 不支持或 LLM 返回格式错误时抛出。
     """
     if diagram_type not in _DIAGRAM_TYPES:
-        raise ValueError(
-            f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）"
-        )
+        raise ValueError(f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）")
 
     section_text = _extract_method_section(md_text)
 
@@ -202,9 +252,11 @@ _RENDERERS: dict[str, Renderer] = {}
 
 def _register(fmt: str) -> Callable[[Renderer], Renderer]:
     """装饰器：注册渲染后端。"""
+
     def wrapper(fn: Renderer) -> Renderer:
         _RENDERERS[fmt] = fn
         return fn
+
     return wrapper
 
 
@@ -215,10 +267,11 @@ def list_renderers() -> list[str]:
 
 # --- 2.1 Graphviz DOT 后端 ---
 
+
 @_register("dot")
 def _render_dot(ir: dict, out_path: Path | None = None) -> Path | str:
     """IR → Graphviz DOT 源码。"""
-    title = ir.get("title", "Diagram").replace('"', '\\"')
+    title = _escape_dot_text(ir.get("title", "Diagram"))
     nodes = ir.get("nodes", [])
     edges = ir.get("edges", [])
     layout_hint = ir.get("layout_hint", "hierarchical")
@@ -233,8 +286,7 @@ def _render_dot(ir: dict, out_path: Path | None = None) -> Path | str:
         "    fontsize=18;",
         '    fontname="Helvetica";',
         f"    rankdir={rankdir};",
-        '    node [shape=box, style="rounded,filled", fillcolor="#f0f4f8", '
-        'fontname="Helvetica", fontsize=12];',
+        '    node [shape=box, style="rounded,filled", fillcolor="#f0f4f8", fontname="Helvetica", fontsize=12];',
         '    edge [fontname="Helvetica", fontsize=10, color="#555566"];',
         "",
     ]
@@ -245,12 +297,13 @@ def _render_dot(ir: dict, out_path: Path | None = None) -> Path | str:
 
     for layer in sorted(layers):
         ns = layers[layer]
-        lines.append(f'    subgraph cluster_layer{layer} {{')
+        lines.append(f"    subgraph cluster_layer{layer} {{")
         lines.append(f'        label="Layer {layer}";')
         lines.append("        style=invis;")
         for n in ns:
             nid = n["id"]
-            label = n.get("label", nid).replace('"', '\\"')
+            dot_id = _quote_dot_id(nid)
+            label = _escape_dot_text(n.get("label", nid))
             ntype = n.get("type", "module")
             shape = "box"
             fillcolor = "#f0f4f8"
@@ -262,17 +315,14 @@ def _render_dot(ir: dict, out_path: Path | None = None) -> Path | str:
             elif ntype == "decision":
                 fillcolor = "#fce4ec"
                 shape = "diamond"
-            lines.append(
-                f'        {nid} [label="{label}", '
-                f'shape={shape}, fillcolor="{fillcolor}"];'
-            )
+            lines.append(f'        {dot_id} [label="{label}", shape={shape}, fillcolor="{fillcolor}"];')
         lines.append("    }")
         lines.append("")
 
     for e in edges:
-        src = e["from"]
-        dst = e["to"]
-        label = e.get("label", "").replace('"', '\\"')
+        src = _quote_dot_id(e["from"])
+        dst = _quote_dot_id(e["to"])
+        label = _escape_dot_text(e.get("label", ""))
         style = e.get("style", "solid")
         if label:
             lines.append(f'    {src} -> {dst} [label="{label}", style={style}];')
@@ -322,6 +372,7 @@ def _render_svg(ir: dict, out_path: Path | None = None) -> Path | str:
 
 
 # --- 2.2 draw.io 后端 ---
+
 
 @_register("drawio")
 def _render_drawio(ir: dict, out_path: Path | None = None) -> Path | str:
@@ -377,16 +428,13 @@ def _render_drawio(ir: dict, out_path: Path | None = None) -> Path | str:
         x, y = positions.get(nid, (x0, y0))
         fill = fill_map.get(ntype, "#f0f4f8")
         shape_style = shape_map.get(ntype, "rounded=1;arcSize=10;")
-        style = (
-            f"{shape_style}whiteSpace=wrap;html=1;strokeColor=#333333;"
-            f"fillColor={fill};fontColor=#1a1a2e;spacing=4;"
-        )
+        style = f"{shape_style}whiteSpace=wrap;html=1;strokeColor=#333333;fillColor={fill};fontColor=#1a1a2e;spacing=4;"
         mx_cells.append(
             f'        <mxCell id="{cell_id}" value="{_esc(label)}" style="{style}" '
             f'vertex="1" parent="1">\n'
             f'          <mxGeometry x="{x}" y="{y}" '
             f'width="{node_width}" height="{node_height}" as="geometry" />\n'
-            f'        </mxCell>'
+            f"        </mxCell>"
         )
         node_cell_map[nid] = cell_id
         cell_id += 1
@@ -407,7 +455,7 @@ def _render_drawio(ir: dict, out_path: Path | None = None) -> Path | str:
             f'        <mxCell id="{cell_id}" value="{_esc(label)}" style="{style}" '
             f'edge="1" parent="1" source="{src_cell}" target="{dst_cell}">\n'
             '          <mxGeometry relative="1" as="geometry" />\n'
-            '        </mxCell>'
+            "        </mxCell>"
         )
         cell_id += 1
 
@@ -420,14 +468,14 @@ def _render_drawio(ir: dict, out_path: Path | None = None) -> Path | str:
         '    <mxGraphModel dx="1422" dy="822" grid="1" gridSize="10" '
         'guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" '
         'pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">\n'
-        '      <root>\n'
+        "      <root>\n"
         '        <mxCell id="0" />\n'
         '        <mxCell id="1" parent="0" />\n'
         f"{cells_str}\n"
-        '      </root>\n'
-        '    </mxGraphModel>\n'
-        '  </diagram>\n'
-        '</mxfile>'
+        "      </root>\n"
+        "    </mxGraphModel>\n"
+        "  </diagram>\n"
+        "</mxfile>"
     )
 
     if out_path is None:
@@ -438,6 +486,7 @@ def _render_drawio(ir: dict, out_path: Path | None = None) -> Path | str:
 
 # --- 2.3 Mermaid 后端 ---
 
+
 @_register("mermaid")
 def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
     """IR → Mermaid flowchart 代码。"""
@@ -445,11 +494,13 @@ def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
     direction = "LR" if layout_hint in ("horizontal", "bipartite") else "TD"
     nodes = ir.get("nodes", [])
     edges = ir.get("edges", [])
+    id_map = _build_mermaid_id_map(nodes)
 
     lines = [f"flowchart {direction}"]
     for n in nodes:
-        nid = n["id"]
-        label = n.get("label", nid)
+        raw_id = str(n["id"])
+        nid = id_map.get(raw_id, raw_id)
+        label = _escape_mermaid_text(n.get("label", raw_id))
         ntype = n.get("type", "module")
         # Mermaid 形状语法映射
         if ntype == "data":
@@ -460,9 +511,9 @@ def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
             lines.append(f'    {nid}["{label}"]')
 
     for e in edges:
-        src = e["from"]
-        dst = e["to"]
-        label = e.get("label", "")
+        src = id_map.get(str(e["from"]), str(e["from"]))
+        dst = id_map.get(str(e["to"]), str(e["to"]))
+        label = _escape_mermaid_text(e.get("label", ""))
         style = e.get("style", "solid")
         arrow = "--"
         if style == "dashed":
@@ -472,7 +523,7 @@ def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
         if label:
             lines.append(f'    {src} {arrow}>|"{label}"| {dst}')
         else:
-            lines.append(f'    {src} {arrow}> {dst}')
+            lines.append(f"    {src} {arrow}> {dst}")
 
     mermaid_text = "\n".join(lines)
     if out_path is None:
@@ -482,8 +533,8 @@ def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
 
 
 # --- 2.4 未来扩展占位（Inkscape / AI 文生图） ---
-#@_register("png")
-#def _render_png(ir: dict, out_path: Path | None = None) -> Path | str:
+# @_register("png")
+# def _render_png(ir: dict, out_path: Path | None = None) -> Path | str:
 #    """IR → cli-anything-inkscape → PNG。"""
 #    raise NotImplementedError("png 渲染器尚未实现")
 
@@ -508,9 +559,7 @@ def render_ir(ir: dict, fmt: str, out_path: Path | None = None) -> Path | str:
         ValueError: 当 ``fmt`` 不支持时抛出。
     """
     if fmt not in _RENDERERS:
-        raise ValueError(
-            f"不支持的渲染格式: {fmt}（支持: {', '.join(_RENDERERS.keys())}）"
-        )
+        raise ValueError(f"不支持的渲染格式: {fmt}（支持: {', '.join(_RENDERERS.keys())}）")
     return _RENDERERS[fmt](ir, out_path)
 
 
@@ -555,15 +604,15 @@ def critique_diagram_ir(
         f"3. clarity: 标签是否学术化（避免口语化），是否简洁清晰，同层节点是否并列合理。\n"
         f"4. consistency: 所有 edges 中的 from/to 节点是否都存在于 nodes 列表中。\n\n"
         f"返回严格的 JSON（不要有任何额外说明）：\n"
-        f'{{\n'
+        f"{{\n"
         f'  "round": {round_idx},\n'
         f'  "verdict": "needs_revision|acceptable",\n'
         f'  "issues": [\n'
         f'    {{"aspect": "completeness|accuracy|clarity|consistency", '
         f'"description": "...", "severity": "major|minor"}}\n'
-        f'  ],\n'
+        f"  ],\n"
         f'  "suggestions": ["..."]\n'
-        f'}}\n\n'
+        f"}}\n\n"
         f"论文内容：\n{section_text}\n\n"
         f"当前 IR：\n{json.dumps(ir, ensure_ascii=False, indent=2)}"
     )
@@ -721,12 +770,19 @@ def generate_diagram_with_critic(
         final_path = out_dir / f"{base_name}.{fmt}"
         # 复制最后一轮产物到最终路径
         import shutil
+
         shutil.copy(str(out_path), str(final_path))
+        for sidecar in _render_sidecar_paths(Path(out_path), fmt):
+            if sidecar.exists():
+                shutil.copy(str(sidecar), str(final_path.with_suffix(sidecar.suffix)))
         # 清理中间产物
         for r in range(1, max_rounds + 1):
             mid = out_dir / f"{base_name}_r{r}.{fmt}"
             if mid.exists():
                 mid.unlink()
+            for sidecar in _render_sidecar_paths(mid, fmt):
+                if sidecar.exists():
+                    sidecar.unlink()
         out_path = final_path
         _log.info("Critic 闭环完成，最终输出: %s", out_path)
 
@@ -812,9 +868,7 @@ def extract_diagram_ir_from_text(description: str, diagram_type: str, cfg: Confi
         解析后的 IR 字典。
     """
     if diagram_type not in _DIAGRAM_TYPES:
-        raise ValueError(
-            f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）"
-        )
+        raise ValueError(f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）")
 
     prompt = (
         f"你是一位专业的科研可视化专家。请根据以下文字描述，"

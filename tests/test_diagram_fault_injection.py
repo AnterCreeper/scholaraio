@@ -7,13 +7,11 @@ IO failures, and orphan-edge handling.
 from __future__ import annotations
 
 import json
-import os
-import shutil
 import sys
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +19,6 @@ from scholaraio import cli
 from scholaraio.config import Config
 from scholaraio.diagram import (
     _call_llm,
-    _dot_to_svg,
     _extract_method_section,
     _parse_json,
     critique_diagram_ir,
@@ -31,7 +28,6 @@ from scholaraio.diagram import (
     refine_diagram_ir,
     render_ir,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -151,7 +147,9 @@ class TestLlmLayerFaults:
             _call_llm("prompt", cfg)
 
     def test_extract_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
         with pytest.raises(RuntimeError, match="boom"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
@@ -173,13 +171,17 @@ class TestLlmLayerFaults:
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_critique_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         with pytest.raises(RuntimeError, match="boom"):
             critique_diagram_ir(ir, "# Method\nX", "model_arch", cfg)
 
     def test_refine_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"verdict": "needs_revision", "issues": []}
         with pytest.raises(RuntimeError, match="boom"):
@@ -221,7 +223,7 @@ class TestRendererFaults:
             render_ir(ir, "svg", out_path=out)
 
     def test_drawio_escapes_xml_entities(self, tmp_path, complex_ir):
-        complex_ir["nodes"][0]["label"] = "A & B <C> \"D\""
+        complex_ir["nodes"][0]["label"] = 'A & B <C> "D"'
         out = tmp_path / "x.drawio"
         result = render_ir(complex_ir, "drawio", out_path=out)
         text = result.read_text(encoding="utf-8")
@@ -256,6 +258,35 @@ class TestRendererFaults:
         text = result.read_text(encoding="utf-8")
         assert 'a["Line 1\nLine 2"]' in text
 
+    def test_mermaid_escapes_quotes_in_label(self, tmp_path):
+        ir = {
+            "title": "Quoted",
+            "nodes": [{"id": "a", "label": 'Module "A"'}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
+        out = tmp_path / "quoted.mmd"
+        text = render_ir(ir, "mermaid", out_path=out).read_text(encoding="utf-8")
+        assert 'Module "A"' not in text
+        assert '\\"A\\"' in text
+
+    def test_mermaid_sanitizes_unsafe_node_ids(self, tmp_path):
+        ir = {
+            "title": "Unsafe IDs",
+            "nodes": [
+                {"id": "encoder-1", "label": "Encoder"},
+                {"id": "decoder 2", "label": "Decoder"},
+            ],
+            "edges": [{"from": "encoder-1", "to": "decoder 2", "label": "x", "style": "solid"}],
+            "layout_hint": "horizontal",
+        }
+        out = tmp_path / "unsafe.mmd"
+        text = render_ir(ir, "mermaid", out_path=out).read_text(encoding="utf-8")
+        assert "encoder-1" not in text
+        assert "decoder 2" not in text
+        assert "encoder_1" in text
+        assert "decoder_2" in text
+
     def test_dot_with_quotes_in_title_and_labels(self, tmp_path):
         ir = {
             "title": 'Say "Hello"',
@@ -269,6 +300,22 @@ class TestRendererFaults:
         assert 'label="A \\"quoted\\" node"' in text
         assert 'label="an \\"edge\\""' in text
 
+    def test_dot_quotes_unsafe_node_ids(self, tmp_path):
+        ir = {
+            "title": "Unsafe IDs",
+            "nodes": [
+                {"id": "encoder-1", "label": "Encoder"},
+                {"id": "decoder 2", "label": "Decoder"},
+            ],
+            "edges": [{"from": "encoder-1", "to": "decoder 2", "label": "x", "style": "solid"}],
+            "layout_hint": "horizontal",
+        }
+        out = tmp_path / "unsafe.dot"
+        text = render_ir(ir, "dot", out_path=out).read_text(encoding="utf-8")
+        assert '"encoder-1"' in text
+        assert '"decoder 2"' in text
+        assert '"encoder-1" -> "decoder 2"' in text
+
 
 # ---------------------------------------------------------------------------
 # Critic-loop fault injection
@@ -278,7 +325,12 @@ class TestRendererFaults:
 class TestCriticLoopFaults:
     def test_generate_diagram_with_critic_all_rounds_need_revision(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-        critique = {"round": 1, "verdict": "needs_revision", "issues": [{"aspect": "completeness", "description": "Missing", "severity": "major"}], "suggestions": []}
+        critique = {
+            "round": 1,
+            "verdict": "needs_revision",
+            "issues": [{"aspect": "completeness", "description": "Missing", "severity": "major"}],
+            "suggestions": [],
+        }
 
         def fake_llm(prompt, c, **kw):
             if "提取并结构化" in prompt or "根据审稿反馈，修正" in prompt:
@@ -292,7 +344,9 @@ class TestCriticLoopFaults:
         assert result["critique_log"][1]["verdict"] == "needs_revision"
         assert result["out_path"].exists()
 
-    def test_generate_diagram_with_critic_refine_raises_keeps_last_valid(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
+    def test_generate_diagram_with_critic_refine_raises_keeps_last_valid(
+        self, tmp_paper_dir, cfg, monkeypatch, tmp_path
+    ):
         ir = {"title": "T", "nodes": [{"id": "a", "label": "A"}], "edges": [], "layout_hint": "horizontal"}
         critique = {"verdict": "needs_revision", "issues": [], "suggestions": []}
         calls = []
@@ -314,7 +368,10 @@ class TestCriticLoopFaults:
     def test_critique_defensive_on_completely_malformed_response(self, cfg, monkeypatch):
         # Even though _parse_json would fail on "not json", we monkeypatch _call_llm
         # to return a string that _parse_json can handle but has wrong structure
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: "{\"verdict\": \"weird\", \"issues\": 123, \"suggestions\": null}")
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm",
+            lambda p, c, **kw: '{"verdict": "weird", "issues": 123, "suggestions": null}',
+        )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         result = critique_diagram_ir(ir, "# Method\nX", "model_arch", cfg)
         assert result["verdict"] == "acceptable"
@@ -329,6 +386,34 @@ class TestCriticLoopFaults:
         assert len(result["critique_log"]) == 0
         assert result["out_path"] is not None
         assert result["out_path"].exists()
+
+    def test_generate_diagram_with_critic_svg_keeps_final_dot_and_cleans_round_dots(
+        self, tmp_paper_dir, cfg, monkeypatch, tmp_path
+    ):
+        ir = {
+            "title": "Critic SVG",
+            "nodes": [{"id": "n1", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
+        critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
+
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm",
+            lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
+        )
+        monkeypatch.setattr(
+            "scholaraio.diagram._dot_to_svg",
+            lambda dot_text, svg_path: svg_path.write_text("<svg/>", encoding="utf-8"),
+        )
+
+        result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "svg", cfg, out_dir=tmp_path, max_rounds=1)
+        final_svg = result["out_path"]
+        final_dot = final_svg.with_suffix(".dot")
+
+        assert final_svg.exists()
+        assert final_dot.exists()
+        assert not any("_r" in p.name and p.suffix == ".dot" for p in tmp_path.iterdir())
 
 
 # ---------------------------------------------------------------------------
@@ -346,13 +431,19 @@ class TestIoFaults:
             "scholaraio.papers.md_path",
             lambda papers_dir, dir_name: paper_d / "nonexistent.md",
         )
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm",
+            lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}),
+        )
         with pytest.raises(FileNotFoundError):
             generate_diagram(paper_d, "model_arch", "dot", cfg, out_dir=tmp_path)
 
     def test_generate_diagram_nested_out_dir_created(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         nested = tmp_path / "a" / "b" / "c"
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm",
+            lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}),
+        )
         out = generate_diagram(tmp_paper_dir, "model_arch", "dot", cfg, out_dir=nested)
         assert nested.exists()
         assert out.parent == nested
@@ -426,13 +517,20 @@ class TestCliFaults:
         cli.cmd_diagram(args, cli_cfg)
         assert any("已生成:" in m for m in capture_ui)
         assert any("Critic 闭环完成" in m for m in capture_ui)
-        out_msg = [m for m in capture_ui if "已生成:" in m][0]
+        out_msg = next(m for m in capture_ui if "已生成:" in m)
         assert out_msg.endswith(".ir.json")
 
     def test_from_ir_ignores_critic_flag(self, capture_ui, tmp_path):
         ir_path = tmp_path / "test.ir.json"
         ir_path.write_text(
-            json.dumps({"title": "From IR", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}),
+            json.dumps(
+                {
+                    "title": "From IR",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
+            ),
             encoding="utf-8",
         )
         args = Namespace(
@@ -451,7 +549,12 @@ class TestCliFaults:
         assert not any("Critic 闭环完成" in m for m in capture_ui)
 
     def test_all_format_type_combinations(self, cli_cfg, cli_paper_dir, monkeypatch):
-        ir = {"title": "Combo", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "Combo",
+            "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         for fmt in ["dot", "mermaid", "drawio"]:
             for dtype in ["model_arch", "tech_route", "exp_setup"]:
@@ -490,7 +593,12 @@ class TestCliFaults:
             "scholaraio.diagram.subprocess.run",
             lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("dot not found")),
         )
-        ir = {"title": "T", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "T",
+            "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         monkeypatch.setattr(sys, "exit", MagicMock(side_effect=SystemExit(1)))
         args = Namespace(

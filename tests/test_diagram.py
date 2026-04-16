@@ -28,7 +28,6 @@ from scholaraio.diagram import (
     render_ir,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -84,11 +83,7 @@ def mock_cfg(tmp_path: Path) -> Config:
 
 class TestExtractMethodSection:
     def test_extracts_method_section(self):
-        md = (
-            "# Introduction\nIntro text.\n\n"
-            "# Method\nWe propose X.\nDetails.\n\n"
-            "# Results\nGreat results.\n"
-        )
+        md = "# Introduction\nIntro text.\n\n# Method\nWe propose X.\nDetails.\n\n# Results\nGreat results.\n"
         section = _extract_method_section(md, max_chars=500)
         assert "Method" in section
         assert "We propose X." in section
@@ -380,19 +375,31 @@ class TestCliDiagram:
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
             lambda p, c, **kw: json.dumps(
-                {"title": "CLI Test", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+                {
+                    "title": "CLI Test",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
             ),
         )
-        args = Namespace(paper_id="Test-2024-Paper", type="model_arch", format="dot", output=None, dump_ir=False, from_ir=None, critic=False, critic_rounds=3)
+        args = Namespace(
+            paper_id="Test-2024-Paper",
+            type="model_arch",
+            format="dot",
+            output=None,
+            dump_ir=False,
+            from_ir=None,
+            critic=False,
+            critic_rounds=3,
+        )
         cli.cmd_diagram(args, cfg)
         assert any("已生成:" in m for m in capture_ui)
 
     def test_dump_ir(self, capture_ui, cfg, paper_dir, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
-            lambda p, c, **kw: json.dumps(
-                {"title": "Dump", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-            ),
+            lambda p, c, **kw: json.dumps({"title": "Dump", "nodes": [], "edges": [], "layout_hint": "horizontal"}),
         )
         args = Namespace(
             paper_id="Test-2024-Paper",
@@ -412,7 +419,14 @@ class TestCliDiagram:
     def test_from_ir(self, capture_ui, tmp_path):
         ir_path = tmp_path / "test.ir.json"
         ir_path.write_text(
-            json.dumps({"title": "From IR", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}),
+            json.dumps(
+                {
+                    "title": "From IR",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
+            ),
             encoding="utf-8",
         )
         args = Namespace(
@@ -427,7 +441,7 @@ class TestCliDiagram:
         )
         cli.cmd_diagram(args, None)
         assert any("已生成:" in m for m in capture_ui)
-        out_path = Path([m for m in capture_ui if "已生成:" in m][0].split(": ", 1)[1])
+        out_path = Path(next(m for m in capture_ui if "已生成:" in m).split(": ", 1)[1])
         assert out_path.exists()
         assert "flowchart" in out_path.read_text(encoding="utf-8")
 
@@ -482,10 +496,24 @@ class TestCliDiagram:
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
             lambda p, c, **kw: json.dumps(
-                {"title": "Hint Test", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+                {
+                    "title": "Hint Test",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
             ),
         )
-        args = Namespace(paper_id="Test-2024-Paper", type="model_arch", format="svg", output=None, dump_ir=False, from_ir=None, critic=False, critic_rounds=3)
+        args = Namespace(
+            paper_id="Test-2024-Paper",
+            type="model_arch",
+            format="svg",
+            output=None,
+            dump_ir=False,
+            from_ir=None,
+            critic=False,
+            critic_rounds=3,
+        )
         # Need dot installed for svg rendering
         if shutil.which("dot") is None:
             pytest.skip("graphviz dot not installed")
@@ -497,10 +525,24 @@ class TestCliDiagram:
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
             lambda p, c, **kw: json.dumps(
-                {"title": "Hint Test", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+                {
+                    "title": "Hint Test",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
             ),
         )
-        args = Namespace(paper_id="Test-2024-Paper", type="model_arch", format="drawio", output=None, dump_ir=False, from_ir=None, critic=False, critic_rounds=3)
+        args = Namespace(
+            paper_id="Test-2024-Paper",
+            type="model_arch",
+            format="drawio",
+            output=None,
+            dump_ir=False,
+            from_ir=None,
+            critic=False,
+            critic_rounds=3,
+        )
         cli.cmd_diagram(args, cfg)
         assert any("diagrams.net" in m for m in capture_ui)
 
@@ -510,7 +552,16 @@ class TestCliDiagram:
 
         monkeypatch.setattr("scholaraio.diagram._call_llm", boom)
         monkeypatch.setattr(sys, "exit", MagicMock(side_effect=SystemExit(1)))
-        args = Namespace(paper_id="Test-2024-Paper", type="model_arch", format="dot", output=None, dump_ir=False, from_ir=None, critic=False, critic_rounds=3)
+        args = Namespace(
+            paper_id="Test-2024-Paper",
+            type="model_arch",
+            format="dot",
+            output=None,
+            dump_ir=False,
+            from_ir=None,
+            critic=False,
+            critic_rounds=3,
+        )
         with pytest.raises(SystemExit):
             cli.cmd_diagram(args, cfg)
 
@@ -518,7 +569,12 @@ class TestCliDiagram:
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
             lambda p, c, **kw: json.dumps(
-                {"title": "CLI Text", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+                {
+                    "title": "CLI Text",
+                    "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+                    "edges": [],
+                    "layout_hint": "horizontal",
+                }
             ),
         )
         args = Namespace(
@@ -595,13 +651,18 @@ class TestRefineDiagramIr:
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(refined))
 
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-        critique = {"verdict": "needs_revision", "issues": [{"aspect": "completeness", "description": "Missing node", "severity": "major"}]}
+        critique = {
+            "verdict": "needs_revision",
+            "issues": [{"aspect": "completeness", "description": "Missing node", "severity": "major"}],
+        }
         result = refine_diagram_ir(ir, critique, "# Method\nX", "model_arch", mock_cfg)
         assert result["title"] == "Better"
         assert len(result["nodes"]) == 1
 
     def test_raises_on_invalid_refined_ir(self, mock_cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "Bad", "nodes": "oops"}))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "Bad", "nodes": "oops"})
+        )
 
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"verdict": "needs_revision", "issues": []}
@@ -611,23 +672,51 @@ class TestRefineDiagramIr:
 
 class TestGenerateDiagramWithCritic:
     def test_single_round_acceptable(self, tmp_paper_dir, mock_cfg, monkeypatch, tmp_path):
-        ir = {"title": "EncDec", "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "EncDec",
+            "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
 
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir if "可视化专家" in p else critique))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir if "可视化专家" in p else critique)
+        )
 
-        result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, max_rounds=3)
+        result = generate_diagram_with_critic(
+            tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, max_rounds=3
+        )
         assert result["out_path"].suffix == ".dot"
         assert len(result["critique_log"]) == 1
         assert result["critique_log"][0]["verdict"] == "acceptable"
 
     def test_multi_round_then_acceptable(self, tmp_paper_dir, mock_cfg, monkeypatch, tmp_path):
-        ir_v1 = {"title": "EncDec", "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
-        ir_v2 = {"title": "EncDecV2", "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}, {"id": "n2", "label": "N2", "type": "module", "layer": 2}], "edges": [{"from": "n1", "to": "n2"}], "layout_hint": "horizontal"}
-        critique_revise = {"round": 1, "verdict": "needs_revision", "issues": [{"aspect": "completeness", "description": "Missing n2", "severity": "major"}], "suggestions": ["Add n2"]}
+        ir_v1 = {
+            "title": "EncDec",
+            "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
+        ir_v2 = {
+            "title": "EncDecV2",
+            "nodes": [
+                {"id": "n1", "label": "N1", "type": "module", "layer": 1},
+                {"id": "n2", "label": "N2", "type": "module", "layer": 2},
+            ],
+            "edges": [{"from": "n1", "to": "n2"}],
+            "layout_hint": "horizontal",
+        }
+        critique_revise = {
+            "round": 1,
+            "verdict": "needs_revision",
+            "issues": [{"aspect": "completeness", "description": "Missing n2", "severity": "major"}],
+            "suggestions": ["Add n2"],
+        }
         critique_ok = {"round": 2, "verdict": "acceptable", "issues": [], "suggestions": []}
 
         calls = []
+
         def fake_llm(prompt, cfg, **kw):
             calls.append(prompt)
             if "根据审稿反馈，修正" in prompt:
@@ -640,7 +729,9 @@ class TestGenerateDiagramWithCritic:
 
         monkeypatch.setattr("scholaraio.diagram._call_llm", fake_llm)
 
-        result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, max_rounds=3)
+        result = generate_diagram_with_critic(
+            tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, max_rounds=3
+        )
         assert result["out_path"].exists()
         assert len(result["critique_log"]) == 2
         assert result["critique_log"][0]["verdict"] == "needs_revision"
@@ -650,9 +741,14 @@ class TestGenerateDiagramWithCritic:
     def test_dump_ir_with_critic(self, tmp_paper_dir, mock_cfg, monkeypatch, tmp_path):
         ir = {"title": "DumpCritic", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "根据审稿反馈" in p else critique))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm",
+            lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "根据审稿反馈" in p else critique),
+        )
 
-        result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, dump_ir=True, max_rounds=3)
+        result = generate_diagram_with_critic(
+            tmp_paper_dir, "model_arch", "dot", mock_cfg, out_dir=tmp_path, dump_ir=True, max_rounds=3
+        )
         assert result["out_path"].suffix == ".json"
         data = json.loads(result["out_path"].read_text(encoding="utf-8"))
         assert data["title"] == "DumpCritic"
@@ -660,7 +756,12 @@ class TestGenerateDiagramWithCritic:
 
 class TestCliDiagramCritic:
     def test_cli_with_critic_flag(self, capture_ui, cfg, paper_dir, monkeypatch):
-        ir = {"title": "CLI Critic", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "CLI Critic",
+            "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
@@ -705,7 +806,9 @@ class TestExtractDiagramIrFromText:
             extract_diagram_ir_from_text("X", "unknown_type", mock_cfg)
 
     def test_invalid_llm_response_raises_from_text(self, mock_cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "Bad", "nodes": "oops"}))
+        monkeypatch.setattr(
+            "scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "Bad", "nodes": "oops"})
+        )
         with pytest.raises(ValueError, match="IR 格式不正确"):
             extract_diagram_ir_from_text("X", "model_arch", mock_cfg)
 

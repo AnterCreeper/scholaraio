@@ -1,8 +1,8 @@
 ---
 name: draw
 description: Generate diagrams from structured text via an intermediate representation
-  (IR). Supports multiple rendering backends including Mermaid (flowcharts, sequence
-  diagrams, Gantt), Graphviz DOT/SVG, drawio XML, and custom vector graphics via cli-anything-inkscape.
+  (IR). Supports multiple rendering backends including Mermaid flowcharts, Graphviz
+  DOT/SVG, drawio XML, and custom vector graphics via cli-anything-inkscape.
   Use when the user wants to visualize workflows, architecture, data relationships,
   research timelines, concept maps, or create polished figures for papers.
 version: 1.1.0
@@ -25,7 +25,7 @@ destructive: false
 
 | 需求 | 推荐后端 | 输出格式 | 特点 |
 |------|----------|----------|------|
-| 快速画流程图/架构图，零依赖预览 | **Mermaid** | `.mmd` / 嵌入 Markdown | 文本即代码，GitHub/Obsidian/Claude Code 原生渲染 |
+| 快速画流程图/架构图，零依赖预览 | **Mermaid** | `.mermaid` / 嵌入 Markdown | 文本即代码，GitHub/Obsidian/Claude Code 原生渲染 |
 | 论文插图，LaTeX Beamer 直插 | **Graphviz SVG** | `.svg` + `.dot` 源码 | 矢量图，可版本控制，`<?xml>` 级精确 |
 | 在线协作/精调布局 | **drawio** | `.drawio` XML | 导入 [diagrams.net](https://app.diagrams.net) 后手动拖拽调整 |
 | 自定义实验示意图、信息图 | **cli-anything-inkscape** | `.svg` | Python API 自由绘制形状、文字、渐变 |
@@ -167,7 +167,7 @@ scholaraio diagram <paper-id> --format drawio -o workspace/figures/
 scholaraio diagram <paper-id> --format mermaid -o workspace/figures/
 ```
 
-输出 `.mmd` 文件，可直接嵌入 Markdown 或用 `mmdc` 本地渲染为 PNG/SVG。
+输出 `.mermaid` 文件，可直接嵌入 Markdown 或用 `mmdc` 本地渲染为 PNG/SVG。
 
 ## 执行逻辑
 
@@ -184,7 +184,7 @@ scholaraio diagram <paper-id> --format mermaid -o workspace/figures/
    ├── diagram_xxx.svg
    ├── diagram_xxx.dot
    ├── diagram_xxx.drawio
-   └── diagram_xxx.mmd
+   └── diagram_xxx.mermaid
    ```
 
 4. **提示嵌入方式**：SVG → Beamer `\includesvg`；drawio → diagrams.net 导入；Mermaid → Markdown 嵌入

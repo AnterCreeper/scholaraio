@@ -11,7 +11,6 @@ import shutil
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,10 +19,8 @@ from scholaraio.config import Config
 from scholaraio.diagram import (
     generate_diagram,
     generate_diagram_with_critic,
-    list_renderers,
     render_ir,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -133,20 +130,32 @@ class TestEndToEndPipeline:
             assert out.with_suffix(".dot").exists()
 
     def test_generate_diagram_with_critic_produces_final_only(self, encoder_decoder_paper, cfg, monkeypatch, tmp_path):
-        ir = {"title": "AE", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "AE",
+            "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
             lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
         )
-        result = generate_diagram_with_critic(encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=3)
+        result = generate_diagram_with_critic(
+            encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=3
+        )
         final = result["out_path"]
         assert final.exists()
         # No intermediate _rN files should remain
         assert not any("_r" in f.name for f in tmp_path.iterdir())
 
     def test_dump_ir_then_from_ir_roundtrip(self, encoder_decoder_paper, cfg, monkeypatch, tmp_path):
-        ir = {"title": "RoundTrip", "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "RoundTrip",
+            "nodes": [{"id": "n1", "label": "N1", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         ir_path = generate_diagram(encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, dump_ir=True)
@@ -191,7 +200,11 @@ class TestEndToEndPipeline:
             "round": 1,
             "verdict": "needs_revision",
             "issues": [
-                {"aspect": "completeness", "description": "Missing input, decoder and output nodes", "severity": "major"}
+                {
+                    "aspect": "completeness",
+                    "description": "Missing input, decoder and output nodes",
+                    "severity": "major",
+                }
             ],
             "suggestions": ["Add full pipeline nodes"],
         }
@@ -207,7 +220,9 @@ class TestEndToEndPipeline:
             return json.dumps(ir_v1)
 
         monkeypatch.setattr("scholaraio.diagram._call_llm", fake_llm)
-        result = generate_diagram_with_critic(encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=3)
+        result = generate_diagram_with_critic(
+            encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=3
+        )
 
         assert len(result["critique_log"]) == 2
         assert result["ir"]["nodes"][0]["id"] == "input"
@@ -239,7 +254,11 @@ class TestCrossBackendConsistency:
 
         # Mermaid: count node declarations and arrows
         mmd_text = (tmp_path / "cross.mermaid").read_text(encoding="utf-8")
-        mermaid_nodes = [l for l in mmd_text.splitlines() if not l.startswith("flowchart") and "-->" not in l and "-.>" not in l and "==>" not in l and l.strip()]
+        mermaid_nodes = [
+            l
+            for l in mmd_text.splitlines()
+            if not l.startswith("flowchart") and "-->" not in l and "-.>" not in l and "==>" not in l and l.strip()
+        ]
         mermaid_edges = [l for l in mmd_text.splitlines() if "-->" in l or "-.>" in l or "==>" in l]
         assert len(mermaid_nodes) == len(realistic_ir["nodes"])
         assert len(mermaid_edges) == len(realistic_ir["edges"])
@@ -294,7 +313,12 @@ def cli_paper_dir(cli_cfg):
 
 class TestCliIntegration:
     def test_cli_critic_with_all_formats(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch):
-        ir = {"title": "AE", "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "AE",
+            "nodes": [{"id": "a", "label": "A", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
             "scholaraio.diagram._call_llm",
@@ -317,7 +341,12 @@ class TestCliIntegration:
             assert any("Critic 闭环完成" in m for m in capture_ui)
 
     def test_cli_dump_ir_then_from_ir(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch, tmp_path):
-        ir = {"title": "CLI RoundTrip", "nodes": [{"id": "x", "label": "X", "type": "data", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "CLI RoundTrip",
+            "nodes": [{"id": "x", "label": "X", "type": "data", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         # Step 1: dump IR
@@ -354,7 +383,12 @@ class TestCliIntegration:
         assert "mxGraphModel" in drawio_path.read_text(encoding="utf-8")
 
     def test_cli_with_type_tech_route(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch):
-        ir = {"title": "Flow", "nodes": [{"id": "s1", "label": "Step 1", "type": "module", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "Flow",
+            "nodes": [{"id": "s1", "label": "Step 1", "type": "module", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         args = Namespace(
             paper_id="Test-2024-Paper",
@@ -370,7 +404,12 @@ class TestCliIntegration:
         assert any("已生成:" in m for m in capture_ui)
 
     def test_cli_with_type_exp_setup(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch):
-        ir = {"title": "Setup", "nodes": [{"id": "ds", "label": "Dataset", "type": "data", "layer": 1}], "edges": [], "layout_hint": "horizontal"}
+        ir = {
+            "title": "Setup",
+            "nodes": [{"id": "ds", "label": "Dataset", "type": "data", "layer": 1}],
+            "edges": [],
+            "layout_hint": "horizontal",
+        }
         monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         args = Namespace(
             paper_id="Test-2024-Paper",

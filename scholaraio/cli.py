@@ -3964,7 +3964,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="从文字描述直接生成图表（与 paper_id / --from-ir 三选一）",
     )
     p_diagram.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=str,
         default=None,
         help="输出目录（默认 workspace/figures/）",
