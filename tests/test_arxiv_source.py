@@ -292,6 +292,20 @@ class TestSearchArxivParsing:
 
         assert results == []
 
+    def test_field_scoped_recent_search_does_not_fallback_to_recent_list_page(self):
+        responses = [
+            _mock_response(_ATOM_MULTI),
+            _mock_response(_RECENT_LIST_HTML),
+        ]
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", side_effect=responses) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv(author="Charlie", top_k=5, category="cs.AI", sort="recent")
+
+        assert results == []
+        assert mocked_get.call_count == 1
+
 
 class TestNormalizeArxivRef:
     def test_accepts_bare_id(self):

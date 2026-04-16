@@ -574,6 +574,10 @@ def search_arxiv(
     Returns:
         List of dicts. Returns an empty list on network failure or XML parse error.
     """
+    use_recent_page_fallback = (
+        sort == "recent" and bool(category) and not any([author, title, abstract, arxiv_id, id_list])
+    )
+
     if id_list:
         params: dict[str, str | int] = {
             "id_list": ",".join(id_list),
@@ -602,7 +606,7 @@ def search_arxiv(
     results = _query_arxiv_api(params)
     if results and (author or title or abstract):
         results = _filter_search_results(results, author=author, title=title, abstract=abstract)
-    if results or sort != "recent":
+    if results or not use_recent_page_fallback:
         return results
     return _search_arxiv_recent_page(query, category, top_k)
 
