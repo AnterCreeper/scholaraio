@@ -166,6 +166,56 @@ def _pdf_filename_for_arxiv_id(arxiv_id: str) -> str:
     return arxiv_id.replace("/", "_") + ".pdf"
 
 
+def _quote_field_term(term: str) -> str:
+    """Quote multi-word field searches so arXiv treats them as one phrase."""
+    stripped = term.strip()
+    if not stripped:
+        return ""
+    if stripped.startswith('"') and stripped.endswith('"'):
+        return stripped
+    if any(ch.isspace() for ch in stripped):
+        return f'"{stripped}"'
+    return stripped
+
+
+def _normalize_filter_term(term: str) -> str:
+    """Normalize a field filter term for client-side result filtering."""
+    stripped = term.strip()
+    if stripped.startswith('"') and stripped.endswith('"'):
+        stripped = stripped[1:-1]
+    return " ".join(stripped.lower().split())
+
+
+def _filter_search_results(
+    results: list[dict],
+    *,
+    author: str = "",
+    title: str = "",
+    abstract: str = "",
+) -> list[dict]:
+    """Tighten field-scoped searches when arXiv returns loose matches."""
+    author_filter = _normalize_filter_term(author)
+    title_filter = _normalize_filter_term(title)
+    abstract_filter = _normalize_filter_term(abstract)
+
+    filtered: list[dict] = []
+    for result in results:
+        if author_filter:
+            author_names = [" ".join(str(name).lower().split()) for name in result.get("authors", [])]
+            if not any(author_filter in name for name in author_names):
+                continue
+        if title_filter:
+            title_text = " ".join(str(result.get("title", "")).lower().split())
+            if title_filter not in title_text:
+                continue
+        if abstract_filter:
+            abstract_text = " ".join(str(result.get("abstract", "")).lower().split())
+            if abstract_filter not in abstract_text:
+                continue
+        filtered.append(result)
+    return filtered
+
+
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
@@ -324,11 +374,11 @@ def _build_search_query(
     if query:
         parts.append(f"all:{query}")
     if author:
-        parts.append(f"au:{author}")
+        parts.append(f"au:{_quote_field_term(author)}")
     if title:
-        parts.append(f"ti:{title}")
+        parts.append(f"ti:{_quote_field_term(title)}")
     if abstract:
-        parts.append(f"abs:{abstract}")
+        parts.append(f"abs:{_quote_field_term(abstract)}")
     if category:
         parts.append(f"cat:{category}")
     return " AND ".join(parts) if parts else ""
@@ -550,6 +600,8 @@ def search_arxiv(
             "sortOrder": sort_order,
         }
     results = _query_arxiv_api(params)
+    if results and (author or title or abstract):
+        results = _filter_search_results(results, author=author, title=title, abstract=abstract)
     if results or sort != "recent":
         return results
     return _search_arxiv_recent_page(query, category, top_k)

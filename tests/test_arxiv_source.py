@@ -488,7 +488,7 @@ class TestSearchArxivAdvancedParams:
             search_arxiv(author="Alice Smith", top_k=1)
 
         _, kwargs = mocked_get.call_args
-        assert kwargs["params"]["search_query"] == "au:Alice Smith"
+        assert kwargs["params"]["search_query"] == 'au:"Alice Smith"'
 
     def test_search_by_title(self):
         with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
@@ -534,7 +534,10 @@ class TestSearchArxivAdvancedParams:
             search_arxiv(query="transformer", author="Alice", title="Attention", abstract="need", category="cs.AI")
 
         _, kwargs = mocked_get.call_args
-        assert kwargs["params"]["search_query"] == "all:transformer AND au:Alice AND ti:Attention AND abs:need AND cat:cs.AI"
+        assert (
+            kwargs["params"]["search_query"]
+            == "all:transformer AND au:Alice AND ti:Attention AND abs:need AND cat:cs.AI"
+        )
 
     def test_search_respects_start_and_sort_order(self):
         with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
@@ -546,6 +549,33 @@ class TestSearchArxivAdvancedParams:
         assert kwargs["params"]["start"] == 10
         assert kwargs["params"]["sortBy"] == "relevance"
         assert kwargs["params"]["sortOrder"] == "ascending"
+
+    def test_search_quotes_multiword_author_field(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(author="Yehui Tang", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == 'au:"Yehui Tang"'
+
+    def test_search_quotes_multiword_title_field(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(title="Transformer Compression", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == 'ti:"Transformer Compression"'
+
+    def test_search_filters_results_by_author_name(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_MULTI)):
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv(author="Alice", top_k=5)
+
+        assert len(results) == 1
+        assert results[0]["authors"] == ["Alice"]
 
 
 class TestGetPaperById:
