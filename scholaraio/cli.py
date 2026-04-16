@@ -1219,8 +1219,18 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
         _log.error("请指定 <paper-id> 或 --all")
         sys.exit(1)
 
+    references_only = bool(getattr(args, "references_only", False))
+
     # Filter: only papers missing citations or bibliographic details (unless --force)
-    if args.all and not args.force:
+    if args.all and references_only:
+        filtered = []
+        for jp in targets:
+            data = json.loads(jp.read_text(encoding="utf-8"))
+            if data.get("doi") and not (data.get("references") or []):
+                filtered.append(jp)
+        ui(f"共 {len(targets)} 篇，{len(filtered)} 篇需要补全 references")
+        targets = filtered
+    elif args.all and not args.force:
         filtered = []
         for jp in targets:
             data = json.loads(jp.read_text(encoding="utf-8"))
@@ -1260,6 +1270,8 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
 
     def _do_refetch(jp: Path) -> tuple[Path, bool | None]:
         try:
+            if references_only:
+                return jp, refetch_metadata(jp, references_only=True)
             return jp, refetch_metadata(jp)
         except Exception as e:
             _log.error("refetch 失败 %s: %s", jp.parent.name, e)
@@ -3757,11 +3769,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_pipe.add_argument("--papers", help="papers 目录（默认配置值）")
 
     # --- refetch ---
-    p_refetch = sub.add_parser("refetch", help="重新查询 API 补全引用量等字段")
+    p_refetch = sub.add_parser("refetch", help="重新查询 API 补全引用量、references 等字段")
     p_refetch.set_defaults(func=cmd_refetch)
     p_refetch.add_argument("paper_id", nargs="?", help="论文 ID（目录名 / UUID / DOI；省略则需 --all）")
     p_refetch.add_argument("--all", action="store_true", help="补查所有缺失引用量的论文")
     p_refetch.add_argument("--force", action="store_true", help="强制重新查询（包括已有引用量的论文）")
+    p_refetch.add_argument(
+        "--references-only",
+        "--refs-only",
+        action="store_true",
+        help="仅补 references 为空的 DOI 论文；单篇模式下只更新 references",
+    )
     p_refetch.add_argument("--jobs", "-j", type=int, default=5, help="并发数（默认 5）")
 
     # --- top-cited ---

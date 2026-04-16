@@ -327,6 +327,17 @@ class BackupConfig:
 
 
 @dataclass
+class OpenAlexConfig:
+    """OpenAlex API 配置。
+
+    Attributes:
+        api_key: OpenAlex API key（可选，用于提升 rate limit）。
+    """
+
+    api_key: str = ""
+
+
+@dataclass
 class Config:
     """ScholarAIO 全局配置，由 :func:`load_config` 构建。
 
@@ -343,6 +354,7 @@ class Config:
         websearch: 外部网页搜索服务配置。
         webextract: 外部网页提取服务配置。
         backup: 备份配置。
+        openalex: OpenAlex API 配置。
     """
 
     paths: PathsConfig = field(default_factory=PathsConfig)
@@ -357,6 +369,7 @@ class Config:
     websearch: WebServiceConfig = field(default_factory=WebServiceConfig)
     webextract: WebServiceConfig = field(default_factory=WebServiceConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
+    openalex: OpenAlexConfig = field(default_factory=OpenAlexConfig)
 
     # Root directory of the config file (used to resolve relative paths)
     _root: Path = field(default_factory=Path.cwd, repr=False, compare=False)
@@ -864,6 +877,11 @@ def _build_config(data: dict, root: Path) -> Config:
         targets=targets,
     )
 
+    openalex_data = data.get("openalex", {}) or {}
+    openalex = OpenAlexConfig(
+        api_key=str(openalex_data.get("api_key") or "").strip(),
+    )
+
     return Config(
         paths=paths,
         llm=llm,
@@ -877,6 +895,7 @@ def _build_config(data: dict, root: Path) -> Config:
         websearch=websearch,
         webextract=webextract,
         backup=backup,
+        openalex=openalex,
         _root=root,
     )
 

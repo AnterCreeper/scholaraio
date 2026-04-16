@@ -192,7 +192,7 @@ CLI 命令一览：`scholaraio --help`
 除 skills 之外，当前 CLI 还提供一些值得直接利用的重要能力：
 - 检索相关：`search-author`、`embed`、`vsearch`、`usearch`、`fsearch`、`top-cited`
 - 图谱相关：`refs`、`citing`、`shared-refs`
-- 富化/修复：`enrich-toc`、`enrich-l3`、`backfill-abstract`、`refetch`、`repair`
+- 富化/修复：`enrich-toc`、`enrich-l3`、`backfill-abstract`、`refetch`（引用量 / references）、`repair`
 - 数据维护：`attach-pdf`
 - 工作区：`ws`（init / add / remove / show / search / export 等子命令）
 - 外部发现与科学运行时：`arxiv`、`toolref`、`insights`、`style`、`document`
