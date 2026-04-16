@@ -517,7 +517,7 @@ def _render_mermaid(ir: dict, out_path: Path | None = None) -> Path | str:
         style = e.get("style", "solid")
         arrow = "--"
         if style == "dashed":
-            arrow = "-."
+            arrow = "-.-"
         elif style == "bold":
             arrow = "=="
         if label:

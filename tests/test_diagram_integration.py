@@ -254,12 +254,15 @@ class TestCrossBackendConsistency:
 
         # Mermaid: count node declarations and arrows
         mmd_text = (tmp_path / "cross.mermaid").read_text(encoding="utf-8")
+        mermaid_edge_tokens = ("-->", "-.->", "==>")
         mermaid_nodes = [
             l
             for l in mmd_text.splitlines()
-            if not l.startswith("flowchart") and "-->" not in l and "-.>" not in l and "==>" not in l and l.strip()
+            if not l.startswith("flowchart")
+            and not any(token in l for token in mermaid_edge_tokens)
+            and l.strip()
         ]
-        mermaid_edges = [l for l in mmd_text.splitlines() if "-->" in l or "-.>" in l or "==>" in l]
+        mermaid_edges = [l for l in mmd_text.splitlines() if any(token in l for token in mermaid_edge_tokens)]
         assert len(mermaid_nodes) == len(realistic_ir["nodes"])
         assert len(mermaid_edges) == len(realistic_ir["edges"])
 

@@ -261,7 +261,7 @@ class TestRenderMermaid:
 
     def test_styles_mapped(self, sample_ir):
         text = render_ir(sample_ir, "mermaid")
-        assert "-." in text  # dashed
+        assert "-.->" in text  # dashed
         assert "==" in text  # bold
         assert "-->" in text  # solid
 
@@ -269,6 +269,16 @@ class TestRenderMermaid:
         ir = {"title": "V", "nodes": [{"id": "a", "label": "A"}], "edges": [], "layout_hint": "vertical"}
         text = render_ir(ir, "mermaid")
         assert "flowchart TD" in text
+
+    def test_dashed_edges_with_labels_use_renderable_mermaid_syntax(self):
+        ir = {
+            "title": "Dashed",
+            "nodes": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+            "edges": [{"from": "a", "to": "b", "label": "retry", "style": "dashed"}],
+            "layout_hint": "horizontal",
+        }
+        text = render_ir(ir, "mermaid")
+        assert 'a -.->|"retry"| b' in text
 
 
 # ---------------------------------------------------------------------------
