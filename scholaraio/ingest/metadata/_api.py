@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote, urlencode
 
 import requests
@@ -38,7 +40,7 @@ def _request_with_retry(url: str, max_retries: int = 3) -> requests.Response:
         resp = SESSION.get(url, timeout=TIMEOUT)
         if resp.status_code == 429:
             if attempt < max_retries:
-                wait = int(resp.headers.get("Retry-After", 2 ** attempt))
+                wait = _retry_after_seconds(resp.headers.get("Retry-After"), fallback=2**attempt)
                 _log.warning(
                     "[API] Rate limited on %s, waiting %ds (attempt %d/%d)",
                     url,
@@ -51,7 +53,7 @@ def _request_with_retry(url: str, max_retries: int = 3) -> requests.Response:
             return resp
         if resp.status_code in (502, 503, 504):
             if attempt < max_retries:
-                wait = 2 ** attempt
+                wait = 2**attempt
                 _log.warning(
                     "[API] %d on %s, waiting %ds (attempt %d/%d)",
                     resp.status_code,
@@ -65,6 +67,28 @@ def _request_with_retry(url: str, max_retries: int = 3) -> requests.Response:
             return resp
         return resp
     return resp
+
+
+def _retry_after_seconds(raw_value: str | None, *, fallback: int) -> int:
+    """Parse Retry-After header as delta-seconds or HTTP date."""
+    if not raw_value:
+        return fallback
+
+    value = raw_value.strip()
+    try:
+        return max(int(float(value)), 0)
+    except ValueError:
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return fallback
+
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+    delay = int((retry_at - datetime.now(timezone.utc)).total_seconds())
+    return max(delay, 0)
 
 
 def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -> dict:
@@ -109,6 +133,15 @@ def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -
         return {}
 
 
+def _oa_api_key() -> str:
+    try:
+        from scholaraio.config import load_config
+
+        return load_config().openalex.api_key or ""
+    except Exception:
+        return ""
+
+
 def query_openalex(doi: str = "", title: str = "") -> dict:
     """查询 OpenAlex API。
 
@@ -131,6 +164,10 @@ def query_openalex(doi: str = "", title: str = "") -> dict:
         url = f"{OA_BASE}?{urlencode(params)}"
     else:
         return {}
+
+    api_key = _oa_api_key()
+    if api_key:
+        url = f"{url}&api_key={api_key}" if "?" in url else f"{url}?api_key={api_key}"
 
     try:
         resp = _request_with_retry(url)
@@ -312,7 +349,7 @@ def _query_crossref_relaxed(title: str) -> dict:
     }
     url = f"{CR_BASE}?{urlencode(params)}"
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code != 200:
             return {}
         items = resp.json().get("message", {}).get("items", [])
@@ -335,8 +372,11 @@ def _query_oa_relaxed(title: str) -> dict:
         "select": "id,doi,title,publication_year,cited_by_count,authorships,primary_location,type,abstract_inverted_index",
     }
     url = f"{OA_BASE}?{urlencode(params)}"
+    api_key = _oa_api_key()
+    if api_key:
+        url = f"{url}&api_key={api_key}"
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code != 200:
             return {}
         for item in resp.json().get("results", []):

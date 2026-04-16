@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
-
-import pytest
+from unittest.mock import call, patch
 
 from scholaraio.ingest.metadata._api import (
+    _query_crossref_relaxed,
+    _query_oa_relaxed,
     _request_with_retry,
     query_crossref,
     query_openalex,
@@ -81,6 +81,17 @@ class TestRequestWithRetry:
         assert resp.status_code == 200
         mock_sleep.assert_called_once_with(30)
 
+    @patch("scholaraio.ingest.metadata._api.SESSION")
+    @patch("scholaraio.ingest.metadata._api.time.sleep")
+    def test_invalid_retry_after_falls_back_to_backoff(self, mock_sleep, mock_session):
+        mock_session.get.side_effect = [
+            SimpleNamespace(status_code=429, headers={"Retry-After": "not-a-number"}),
+            SimpleNamespace(status_code=200),
+        ]
+        resp = _request_with_retry("http://example.com/test")
+        assert resp.status_code == 200
+        mock_sleep.assert_called_once_with(1)
+
 
 class TestQuerySemanticScholarRetry:
     @patch("scholaraio.ingest.metadata._api._request_with_retry")
@@ -107,6 +118,21 @@ class TestQueryOpenAlexRetry:
         assert result["title"] == "Test"
         mock_retry.assert_called_once()
 
+    @patch("scholaraio.ingest.metadata._api._request_with_retry")
+    def test_appends_api_key_from_config(self, mock_retry):
+        mock_retry.return_value = SimpleNamespace(
+            status_code=200,
+            raise_for_status=lambda: None,
+            json=lambda: {"results": [{"title": "Test"}]},
+        )
+        with patch(
+            "scholaraio.config.load_config",
+            return_value=SimpleNamespace(openalex=SimpleNamespace(api_key="secret-key")),
+        ):
+            query_openalex(title="Test")
+        called_url = mock_retry.call_args.args[0]
+        assert "api_key=secret-key" in called_url
+
 
 class TestQueryCrossrefRetry:
     @patch("scholaraio.ingest.metadata._api._request_with_retry")
@@ -119,3 +145,34 @@ class TestQueryCrossrefRetry:
         result = query_crossref(doi="10.1234/x")
         assert result["DOI"] == "10.1234/x"
         mock_retry.assert_called_once()
+
+
+class TestRelaxedQueryRetry:
+    @patch("scholaraio.ingest.metadata._api._request_with_retry")
+    @patch("scholaraio.ingest.metadata._api.SESSION")
+    def test_crossref_relaxed_uses_retry_helper(self, mock_session, mock_retry):
+        mock_session.get.side_effect = AssertionError("should use retry helper")
+        mock_retry.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: {"message": {"items": [{"title": ["Test paper"]}]}},
+        )
+        result = _query_crossref_relaxed("Test paper")
+        assert result["title"] == ["Test paper"]
+        mock_retry.assert_called_once()
+
+    @patch("scholaraio.ingest.metadata._api._request_with_retry")
+    @patch("scholaraio.ingest.metadata._api.SESSION")
+    def test_openalex_relaxed_uses_retry_helper_and_api_key(self, mock_session, mock_retry):
+        mock_session.get.side_effect = AssertionError("should use retry helper")
+        mock_retry.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: {"results": [{"title": "Test paper"}]},
+        )
+        with patch(
+            "scholaraio.config.load_config",
+            return_value=SimpleNamespace(openalex=SimpleNamespace(api_key="secret-key")),
+        ):
+            result = _query_oa_relaxed("Test paper")
+        assert result["title"] == "Test paper"
+        called_url = mock_retry.call_args.args[0]
+        assert "api_key=secret-key" in called_url

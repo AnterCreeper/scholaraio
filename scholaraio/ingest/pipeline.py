@@ -595,9 +595,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
             existing_dir = existing_json.parent
             if not existing_dir.exists():
                 # Stale registry entry (dir was deleted or renamed): treat as new paper
-                _log.warning(
-                    "stale registry entry for DOI %s, dir missing: %s", doi_key, existing_dir
-                )
+                _log.warning("stale registry entry for DOI %s, dir missing: %s", doi_key, existing_dir)
                 return StepResult.OK
             # MD missing from existing paper: restore it automatically
             pdf_stem = ctx.pdf_path.stem if ctx.pdf_path else ""
