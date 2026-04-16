@@ -147,7 +147,7 @@ class TestSearchArxivParsing:
         assert r["abstract"] == "We propose a new transformer variant."
         assert r["year"] == "2024"
         assert r["authors"] == ["Alice Smith", "Bob Jones"]
-        assert r["arxiv_id"] == "2401.00001v1"
+        assert r["arxiv_id"] == "2401.00001"
         assert r["doi"] == "10.1234/attn2"
 
     def test_missing_optional_fields(self):
@@ -163,7 +163,7 @@ class TestSearchArxivParsing:
         assert r["year"] == ""
         assert r["authors"] == []
         assert r["doi"] == ""
-        assert r["arxiv_id"] == "2402.99999v1"
+        assert r["arxiv_id"] == "2402.99999"
 
     def test_empty_title_and_abstract(self):
         with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_EMPTY_TEXT)):
@@ -223,7 +223,7 @@ class TestSearchArxivParsing:
 
             results = search_arxiv("attention")
 
-        assert results[0]["arxiv_id"] == "2401.00001v1"
+        assert results[0]["arxiv_id"] == "2401.00001"
 
     def test_multiline_title_normalized(self):
         xml = _ATOM_FULL.replace("Attention Is All You Need Again", "Attention\nIs All\nYou Need")
@@ -291,6 +291,20 @@ class TestSearchArxivParsing:
             results = search_arxiv("direct numerical", top_k=5, category="physics.flu-dyn", sort="recent")
 
         assert results == []
+
+    def test_field_scoped_recent_search_does_not_fallback_to_recent_list_page(self):
+        responses = [
+            _mock_response(_ATOM_MULTI),
+            _mock_response(_RECENT_LIST_HTML),
+        ]
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", side_effect=responses) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv(author="Charlie", top_k=5, category="cs.AI", sort="recent")
+
+        assert results == []
+        assert mocked_get.call_count == 1
 
 
 class TestNormalizeArxivRef:
@@ -403,3 +417,244 @@ class TestDownloadArxivPdf:
 
         assert not (tmp_path / "2603.25200.pdf").exists()
         assert not list(tmp_path.glob("2603.25200.pdf.*"))
+
+
+_ATOM_EXTENDED = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <entry>
+    <id>http://arxiv.org/abs/2401.00001</id>
+    <title>Extended Entry</title>
+    <summary>Abstract.</summary>
+    <published>2024-01-15T00:00:00Z</published>
+    <updated>2024-02-01T00:00:00Z</updated>
+    <author><name>Alice Smith</name></author>
+    <category term="cs.AI"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <arxiv:doi>10.1234/ext</arxiv:doi>
+    <link rel="alternate" href="https://arxiv.org/abs/2401.00001"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00001.pdf"/>
+  </entry>
+</feed>
+"""
+
+
+class TestParseEntryExtendedFields:
+    def test_extracts_published_updated_categories_and_links(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_EXTENDED)):
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv("extended", top_k=1)
+
+        assert len(results) == 1
+        r = results[0]
+        assert r["published"] == "2024-01-15"
+        assert r["updated"] == "2024-02-01"
+        assert r["categories"] == ["cs.AI", "cs.LG"]
+        assert r["primary_category"] == "cs.LG"
+        assert r["entry_url"] == "https://arxiv.org/abs/2401.00001"
+        assert r["pdf_url"] == "https://arxiv.org/pdf/2401.00001.pdf"
+
+
+class TestArxivPaperDataclass:
+    def test_to_dict_includes_all_fields(self):
+        from scholaraio.sources.arxiv import ArxivPaper
+
+        paper = ArxivPaper(
+            arxiv_id="2401.00001",
+            title="Test",
+            authors=["Alice Smith"],
+            abstract="abs",
+            published="2024-01-15",
+            updated="2024-02-01",
+            categories=["cs.AI"],
+            primary_category="cs.AI",
+            pdf_url="https://arxiv.org/pdf/2401.00001.pdf",
+            entry_url="https://arxiv.org/abs/2401.00001",
+            doi="10.1234/test",
+        )
+        d = paper.to_dict()
+        assert d["arxiv_id"] == "2401.00001"
+        assert d["year"] == "2024"
+        assert d["published"] == "2024-01-15"
+        assert d["categories"] == ["cs.AI"]
+        assert d["pdf_url"] == "https://arxiv.org/pdf/2401.00001.pdf"
+
+    def test_citation_key_with_author(self):
+        from scholaraio.sources.arxiv import ArxivPaper
+
+        paper = ArxivPaper(arxiv_id="2401.00001", title="T", authors=["Alice Smith"], published="2024-03-01")
+        assert paper.citation_key() == "Smith2024arxiv"
+
+    def test_citation_key_without_author(self):
+        from scholaraio.sources.arxiv import ArxivPaper
+
+        paper = ArxivPaper(arxiv_id="2401.00001", title="T")
+        assert paper.citation_key() == "arxiv2401.00001"
+
+
+class TestSearchArxivAdvancedParams:
+    def test_search_by_author(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(author="Alice Smith", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == 'au:"Alice Smith"'
+
+    def test_search_by_title(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(title="Attention", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == "ti:Attention"
+
+    def test_search_by_abstract(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(abstract="transformer", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == "abs:transformer"
+
+    def test_search_by_arxiv_id(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(arxiv_id="2401.00001", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == "id:2401.00001"
+
+    def test_search_by_id_list(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_MULTI)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv(id_list=["2401.00001", "2401.00002"], top_k=2)
+
+        assert len(results) == 2
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["id_list"] == "2401.00001,2401.00002"
+
+    def test_search_combines_multiple_fields(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(query="transformer", author="Alice", title="Attention", abstract="need", category="cs.AI")
+
+        _, kwargs = mocked_get.call_args
+        assert (
+            kwargs["params"]["search_query"]
+            == "all:transformer AND au:Alice AND ti:Attention AND abs:need AND cat:cs.AI"
+        )
+
+    def test_search_respects_start_and_sort_order(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv("test", top_k=5, start=10, sort="relevance", sort_order="ascending")
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["start"] == 10
+        assert kwargs["params"]["sortBy"] == "relevance"
+        assert kwargs["params"]["sortOrder"] == "ascending"
+
+    def test_search_quotes_multiword_author_field(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(author="Yehui Tang", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == 'au:"Yehui Tang"'
+
+    def test_search_quotes_multiword_title_field(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)) as mocked_get:
+            from scholaraio.sources.arxiv import search_arxiv
+
+            search_arxiv(title="Transformer Compression", top_k=1)
+
+        _, kwargs = mocked_get.call_args
+        assert kwargs["params"]["search_query"] == 'ti:"Transformer Compression"'
+
+    def test_search_filters_results_by_author_name(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_MULTI)):
+            from scholaraio.sources.arxiv import search_arxiv
+
+            results = search_arxiv(author="Alice", top_k=5)
+
+        assert len(results) == 1
+        assert results[0]["authors"] == ["Alice"]
+
+
+class TestGetPaperById:
+    def test_returns_arxiv_paper_dataclass(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_FULL)):
+            from scholaraio.sources.arxiv import get_paper_by_id
+
+            paper = get_paper_by_id("2401.00001")
+
+        assert paper is not None
+        assert paper.arxiv_id == "2401.00001"
+        assert paper.title == "Attention Is All You Need Again"
+
+    def test_returns_none_when_api_fails(self):
+        with patch("scholaraio.sources.arxiv._SESSION.get", side_effect=ConnectionError("timeout")):
+            from scholaraio.sources.arxiv import get_paper_by_id
+
+            paper = get_paper_by_id("2401.00001")
+
+        assert paper is None
+
+
+class TestBatchDownload:
+    def test_downloads_multiple_pdfs_with_rate_limit(self, tmp_path):
+        pdf_bytes = b"%PDF-1.4 fake"
+        resp = MagicMock()
+        resp.iter_content.return_value = [pdf_bytes]
+        resp.raise_for_status = MagicMock()
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=resp) as mocked_get:
+            from scholaraio.sources.arxiv import batch_download
+
+            paths = batch_download(["2401.00001", "2402.99999"], output_dir=str(tmp_path))
+
+        assert len(paths) == 2
+        assert (tmp_path / "2401.00001.pdf").exists()
+        assert (tmp_path / "2402.99999.pdf").exists()
+        assert mocked_get.call_count == 2
+
+    def test_skips_existing_files(self, tmp_path):
+        (tmp_path / "2401.00001.pdf").write_bytes(b"existing")
+        pdf_bytes = b"%PDF-1.4 fake"
+        resp = MagicMock()
+        resp.iter_content.return_value = [pdf_bytes]
+        resp.raise_for_status = MagicMock()
+
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=resp) as mocked_get:
+            from scholaraio.sources.arxiv import batch_download
+
+            paths = batch_download(["2401.00001", "2402.99999"], output_dir=str(tmp_path))
+
+        assert len(paths) == 1
+        assert paths[0].name == "2402.99999.pdf"
+        assert mocked_get.call_count == 1
+
+
+class TestSearchAndDisplay:
+    def test_prints_results(self, capsys):
+        with patch("scholaraio.sources.arxiv._SESSION.get", return_value=_mock_response(_ATOM_MULTI)):
+            from scholaraio.sources.arxiv import search_and_display
+
+            results = search_and_display("papers", max_results=2)
+
+        assert len(results) == 2
+        captured = capsys.readouterr()
+        assert "Paper One" in captured.out
+        assert "Paper Two" in captured.out
+        assert "arXiv:2401.00001" in captured.out
