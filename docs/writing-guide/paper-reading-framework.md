@@ -114,5 +114,5 @@
 | P1 | `scholaraio show <id> --layer 1` |
 | P2 | `scholaraio show <id> --layer 4` + 读取 `images/` + Python 代码验证 |
 | P3 | `scholaraio show <id> --layer 3` + 读取 `images/` |
-| P4 | `scholaraio graph refs/citing/shared-refs` + `scholaraio ws search` |
-| P5 | 跨论文对比 + `loader.append_notes()` 写入 T2 笔记 |
+| P4 | `scholaraio refs` / `scholaraio citing` / `scholaraio shared-refs` + `scholaraio ws search` |
+| P5 | 跨论文对比 + `scholaraio show "<id>" --append-notes "..."` 写入 T2 笔记 |

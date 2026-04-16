@@ -69,6 +69,7 @@ Knowledge base management:
 Academic writing:
 - `academic-writing` - When the user needs help choosing or organizing the right academic-writing workflow by deliverable or final format (review, paper section, rebuttal, PPT, poster, technical report), use this skill as the router.
 - `literature-review` - When the user wants to write a literature review, organize topics, and build a critical narrative, use this skill.
+- `paper-guided-reading` - When the user wants guided deep reading of a single paper starting from fuzzy keywords or a research question, use this skill.
 - `paper-writing` - When the user wants to draft concrete paper sections rather than a generic summary, use this skill.
 - `citation-check` - When the user is worried about fake citations, wrong author-year pairs, or AI citation hallucinations, use this skill.
 - `writing-polish` - When the user wants academic polishing, de-AI-fication, or style transfer, use this skill.

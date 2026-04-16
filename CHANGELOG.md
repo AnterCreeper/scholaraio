@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Guided single-paper reading workflow**: Added the `paper-guided-reading` skill plus the companion `docs/writing-guide/paper-reading-framework.md` so agents can start from fuzzy intent, confirm one target paper, perform structured deep reading, and persist reusable findings into `notes.md`
 - **Incremental metadata scrub workflow**: Added the `scrub` skill for post-enrich metadata cleanup of low-quality paper records, plus reusable `.scrubbed` marker helpers in `papers.py` and conservative scrub-suspect detection helpers in `audit.py`
 - **Rsync backup workflow** ([#54](https://github.com/ZimoLiao/scholaraio/issues/54)): Added typed `backup` configuration, the `scholaraio.backup` module, `scholaraio backup list/run`, and the `backup` skill so ScholarAIO data can be synced to named remote targets through rsync instead of hand-written shell commands
 - **macOS semantic-search smoke workflow**: Added a dedicated GitHub Actions job on `macos-14` to exercise the `sentence-transformers` -> `faiss-cpu` semantic-search stack and run targeted regression tests for vector-search paths
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Writing-skill discovery alignment**: Synchronized `academic-writing`, `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` so `paper-guided-reading` is discoverable consistently across router, docs, agent instructions, and marketplace metadata
 - **Backup runtime robustness**: `scholaraio backup run` now reports missing `rsync` executables as controlled CLI errors, shell-quotes the displayed rsync command preview, defaults full-data backups to the safer `default` rsync mode instead of append-only behavior, forces SSH batch mode so runs fail fast instead of hanging on interactive authentication or host-key prompts, supports a `config.local.yaml` password fallback for password-only hosts, and prints concrete setup guidance when authentication or host trust is not ready yet
 - **macOS semantic/unified search crash** ([#65](https://github.com/ZimoLiao/scholaraio/issues/65)): main-library and explore semantic search now embed and normalize the query before loading or searching FAISS indexes, avoiding a known `faiss` / `sentence-transformers` import-order segfault pattern on macOS while preserving existing ranking behavior
 - **Academic writing docs alignment** ([#55](https://github.com/ZimoLiao/scholaraio/issues/55)): Synchronized `docs/guide/writing.md`, `README.md`, `README_CN.md`, `docs/index.md`, `AGENTS.md`, `AGENTS_CN.md`, `CLAUDE.md`, and `clawhub.yaml` around a router-first writing model so poster/report workflows and the academic-writing entry point are discoverable consistently across user and agent surfaces

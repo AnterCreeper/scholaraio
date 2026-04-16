@@ -1,7 +1,10 @@
 ---
 name: paper-guided-reading
-description: 引导式论文检索与精读分析。从用户提供的模糊关键词出发，在本地知识库检索、筛选并确认目标论文，随后调取全文依据结构化框架进行深度精读，以对话式分析帮助用户理解论文。若本地结果不匹配用户意图，可经同意后扩展至互联网或
-  arXiv 探索。
+description: Use when the user wants guided deep reading of a single paper. Start
+  from fuzzy keywords or a research question, search the local library, confirm
+  the target paper, then load the paper for structured, conversational analysis.
+  If the local library is not enough, expand to web or arXiv exploration only
+  after user approval.
 version: 1.0.0
 author: ZimoLiao/scholaraio
 license: MIT
@@ -75,8 +78,8 @@ scholaraio show "<paper-id>" --layer 4    # 全文 markdown
 ```
 
 同时检查：
-- `data/papers/<dir>/notes.md`：复用历史分析笔记，避免重复劳动
-- `data/papers/<dir>/images/`：建立图表索引，对关键图片打开确认内容
+- 已有 `notes.md`：复用历史分析笔记，避免重复劳动
+- `images/` 目录：建立图表索引，对关键图片打开确认内容
 
 ### 4. 结构化精读分析
 
@@ -140,9 +143,12 @@ scholaraio shared-refs "<paper-id>" "<相关论文id>"
 
 将跨会话值得保留的发现写入论文目录的 `notes.md`：
 
-```python
-# 通过 scholaraio 的 loader 模块追加
-loader.append_notes(paper_dir, section)
+```bash
+scholaraio show "<paper-id>" --append-notes "## YYYY-MM-DD | paper-guided-reading | <用户关注的主题>
+- 核心发现：...
+- 方法特点：...
+- 关键局限：...
+- 与用户研究的关联：..."
 ```
 
 笔记格式：
