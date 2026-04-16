@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote, urlencode
 
 import requests
@@ -32,6 +34,63 @@ _log = logging.getLogger(__name__)
 # ============================================================================
 
 
+def _request_with_retry(url: str, max_retries: int = 3) -> requests.Response:
+    """GET request with exponential backoff for rate-limit and transient errors."""
+    for attempt in range(max_retries + 1):
+        resp = SESSION.get(url, timeout=TIMEOUT)
+        if resp.status_code == 429:
+            if attempt < max_retries:
+                wait = _retry_after_seconds(resp.headers.get("Retry-After"), fallback=2**attempt)
+                _log.warning(
+                    "[API] Rate limited on %s, waiting %ds (attempt %d/%d)",
+                    url,
+                    wait,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                time.sleep(min(wait, 30))
+                continue
+            return resp
+        if resp.status_code in (502, 503, 504):
+            if attempt < max_retries:
+                wait = 2**attempt
+                _log.warning(
+                    "[API] %d on %s, waiting %ds (attempt %d/%d)",
+                    resp.status_code,
+                    url,
+                    wait,
+                    attempt + 1,
+                    max_retries + 1,
+                )
+                time.sleep(wait)
+                continue
+            return resp
+        return resp
+    return resp
+
+
+def _retry_after_seconds(raw_value: str | None, *, fallback: int) -> int:
+    """Parse Retry-After header as delta-seconds or HTTP date."""
+    if not raw_value:
+        return fallback
+
+    value = raw_value.strip()
+    try:
+        return max(int(float(value)), 0)
+    except ValueError:
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return fallback
+
+    if retry_at.tzinfo is None:
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+    delay = int((retry_at - datetime.now(timezone.utc)).total_seconds())
+    return max(delay, 0)
+
+
 def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -> dict:
     """查询 Semantic Scholar API。
 
@@ -56,12 +115,7 @@ def query_semantic_scholar(doi: str = "", title: str = "", arxiv_id: str = "") -
         return {}
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
-        if resp.status_code == 429:
-            wait = int(resp.headers.get("Retry-After", 5))
-            _log.warning("[S2] Rate limited, waiting %ds", wait)
-            time.sleep(min(wait, 30))
-            resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
@@ -116,7 +170,7 @@ def query_openalex(doi: str = "", title: str = "") -> dict:
         url = f"{url}&api_key={api_key}" if "?" in url else f"{url}?api_key={api_key}"
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
@@ -161,7 +215,7 @@ def query_crossref(doi: str = "", title: str = "") -> dict:
         return {}
 
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code == 404:
             return {}
         resp.raise_for_status()
@@ -338,7 +392,7 @@ def _query_crossref_relaxed(title: str) -> dict:
     }
     url = f"{CR_BASE}?{urlencode(params)}"
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code != 200:
             return {}
         items = resp.json().get("message", {}).get("items", [])
@@ -361,8 +415,11 @@ def _query_oa_relaxed(title: str) -> dict:
         "select": "id,doi,title,publication_year,cited_by_count,authorships,primary_location,type,abstract_inverted_index",
     }
     url = f"{OA_BASE}?{urlencode(params)}"
+    api_key = _oa_api_key()
+    if api_key:
+        url = f"{url}&api_key={api_key}"
     try:
-        resp = SESSION.get(url, timeout=TIMEOUT)
+        resp = _request_with_retry(url)
         if resp.status_code != 200:
             return {}
         for item in resp.json().get("results", []):
