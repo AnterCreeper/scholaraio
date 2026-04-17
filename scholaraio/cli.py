@@ -69,7 +69,8 @@ import time
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
+import urllib.request
 
 from scholaraio.config import load_config
 from scholaraio.log import redirect_console_ui, ui
@@ -2541,6 +2542,133 @@ def _render_ingest_link_markdown(title: str, source_url: str, body: str) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
+def _merge_images_into_content(content: str, html: str, base_url: str) -> str:
+    """从 HTML 中提取图片并插入到 Markdown 内容中."""
+    images = []
+    img_pattern = r'<img[^>]*src=["\']([^"\']+)["\'][^>]*>'
+    for match in re.finditer(img_pattern, html, re.IGNORECASE):
+        img_tag = match.group(0)
+        img_url = match.group(1)
+        alt_match = re.search(r'alt=["\']([^"\']*)["\']', img_tag, re.IGNORECASE)
+        alt_text = alt_match.group(1) if alt_match else "image"
+        images.append((alt_text, img_url))
+
+    if not images:
+        return content
+
+    seen_urls = set()
+    unique_images = []
+    for alt_text, img_url in images:
+        if img_url not in seen_urls:
+            seen_urls.add(img_url)
+            unique_images.append((alt_text, img_url))
+
+    image_markdown = []
+    for alt_text, img_url in unique_images:
+        if img_url.startswith("data:") or "icon" in img_url.lower():
+            continue
+        image_markdown.append(f"![{alt_text}]({img_url})")
+
+    if image_markdown:
+        content = content + "\n\n## 图片引用\n\n" + "\n\n".join(image_markdown)
+
+    return content
+
+
+def _download_image(img_url: str, base_url: str, images_dir: Path) -> tuple[bool, str]:
+    """下载单张图片，返回 (是否成功, 本地文件名或错误信息)."""
+    try:
+        full_url = urljoin(base_url, img_url)
+        parsed = urlparse(full_url)
+        img_path = parsed.path
+        if not img_path:
+            return False, "No path in URL"
+
+        filename = Path(img_path).name
+        if not filename:
+            filename = "image.jpg"
+
+        original_filename = filename
+        counter = 1
+        while (images_dir / filename).exists():
+            name, ext = Path(original_filename).stem, Path(original_filename).suffix
+            filename = f"{name}_{counter}{ext}"
+            counter += 1
+
+        img_path = images_dir / filename
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        req = urllib.request.Request(full_url, headers=headers, method="GET")
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            img_data = response.read()
+            img_path.write_bytes(img_data)
+
+        return True, filename
+
+    except Exception as e:
+        return False, str(e)
+
+
+def _download_all_images(content: str, base_url: str, images_dir: Path) -> tuple[str, list[dict]]:
+    """下载 Markdown 中的所有图片并替换路径为本地相对路径."""
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    images_info = []
+    content_out = content
+
+    md_pattern = r'!\[([^\]]*)\]\(([^)"\s]+)(?:\s+"[^"]*")?\)'
+    html_pattern = r'<img[^>]+src=["\']([^"\']+)["\'][^>]*>'
+
+    images = []
+    for match in re.finditer(md_pattern, content):
+        alt_text = match.group(1)
+        img_url = match.group(2)
+        images.append((match.group(0), alt_text, img_url))
+
+    for match in re.finditer(html_pattern, content, re.IGNORECASE):
+        img_url = match.group(1)
+        alt_match = re.search(r'alt=["\']([^"\']*)["\']', match.group(0), re.IGNORECASE)
+        alt_text = alt_match.group(1) if alt_match else "image"
+        images.append((match.group(0), alt_text, img_url))
+
+    if images:
+        ui(f"  发现 {len(images)} 张图片")
+
+    for original, alt_text, img_url in images:
+        if img_url.startswith("data:"):
+            images_info.append({
+                "original": img_url[:50] + "...",
+                "local": None,
+                "status": "skipped",
+                "reason": "data URI"
+            })
+            continue
+
+        success, result = _download_image(img_url, base_url, images_dir)
+        if success:
+            local_path = f"{images_dir.name}/{result}"
+            content_out = content_out.replace(original, f"![{alt_text}]({local_path})")
+            images_info.append({
+                "original": img_url,
+                "local": local_path,
+                "status": "downloaded"
+            })
+            ui(f"    ✓ {result}")
+        else:
+            images_info.append({
+                "original": img_url,
+                "local": None,
+                "status": "failed",
+                "error": result
+            })
+            ui(f"    ✗ {img_url[:80]}... ({result})")
+
+    return content_out, images_info
+
+
 def _webextract_for_ingest_link(
     url: str,
     *,
@@ -2687,7 +2815,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
     output_mode = redirect_console_ui(sys.stderr) if args.json else nullcontext()
 
     def extract_for_ingest(url: str, *, pdf: bool | None = None) -> dict:
-        return webtools.extract_web(url, pdf=pdf, cfg=cfg)
+        return webtools.extract_web(url, pdf=pdf, cfg=cfg, include_html=True)
 
     try:
         with output_mode, tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
@@ -2717,6 +2845,14 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 sidecar_path = md_path.with_suffix(".json")
 
                 md_text = _render_ingest_link_markdown(title, source_url, text)
+
+                html = result.get("html") or ""
+                if html:
+                    md_text = _merge_images_into_content(md_text, html, source_url)
+
+                images_dir = doc_inbox_dir / f"{md_path.stem}_mineru_images"
+                md_text, _images_info = _download_all_images(md_text, source_url, images_dir)
+
                 md_path.write_text(md_text, encoding="utf-8")
 
                 sidecar = {

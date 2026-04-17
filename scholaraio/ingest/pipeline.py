@@ -2341,6 +2341,10 @@ def _find_assets(inbox_dir: Path, asset_prefix: str, md_stem: str) -> tuple[Path
         if _path_is_dir(candidate):
             images_dir = candidate
             break
+        candidate2 = inbox_dir / f"{candidate_stem}_images"
+        if _path_is_dir(candidate2):
+            images_dir = candidate2
+            break
     if images_dir is None and _path_is_dir(inbox_dir / "images"):
         images_dir = inbox_dir / "images"
 
@@ -2396,6 +2400,16 @@ def _move_assets(inbox_dir: Path, dest_dir: Path, asset_prefix: str, md_stem: st
     candidate_stems = _asset_stem_candidates(asset_prefix, md_stem)
     if images_dir:
         shutil.move(str(images_dir), str(dest_dir / "images"))
+        # Fix image references in paper.md after moving images dir
+        paper_md = dest_dir / "paper.md"
+        if paper_md.exists():
+            md_text = paper_md.read_text(encoding="utf-8")
+            fixed = md_text
+            for candidate_stem in candidate_stems:
+                fixed = fixed.replace(f"{candidate_stem}_mineru_images/", "images/")
+                fixed = fixed.replace(f"{candidate_stem}_images/", "images/")
+            if fixed != md_text:
+                paper_md.write_text(fixed, encoding="utf-8")
     for f in json_files:
         dest_name = _strip_artifact_prefix(f.name, candidate_stems)
         shutil.move(str(f), str(dest_dir / dest_name))

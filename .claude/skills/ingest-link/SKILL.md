@@ -72,6 +72,11 @@ scholaraio ingest-link https://example.com/report.pdf --pdf
 - Final records stay in the current `document` family, not a separate `webdocument` type
 - Provenance fields such as `source_url`, `source_type`, and `extraction_method` are preserved in `meta.json`
 
+### Image handling behavior
+
+- When the extractor returns HTML, `ingest-link` attempts to discover images from the rendered page, download them locally, and rewrite Markdown references to point to the local `images/` directory.
+- If a specific image fails to download (for example due to 403/404/SSL errors), the original external URL is kept intact in the Markdown to avoid breaking the content.
+
 ## Practical Heuristics
 
 - Prefer `--no-index` when ingesting many links and you plan to rebuild once at the end
