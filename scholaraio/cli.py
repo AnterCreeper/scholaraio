@@ -43,6 +43,8 @@ cli.py — scholaraio 命令行入口
     scholaraio websearch <query> [--count N]
     scholaraio webextract <url> [--pdf]
     scholaraio ingest-link <url> [<url> ...] [--dry-run] [--force] [--pdf] [--no-index] [--json]
+    scholaraio patent-fetch <id-or-url>
+    scholaraio patent-search <query> [--count N] [--offset N] [--source ppubs|odp] [--fetch]
     scholaraio citation-check [<file>] [--ws <workspace-name>]
     scholaraio proceedings apply-split <proceeding_dir> <split_plan.json>
     scholaraio proceedings build-clean-candidates <proceeding_dir>
@@ -2900,6 +2902,143 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
         sys.stdout.write(json.dumps(summaries, ensure_ascii=False, indent=2) + "\n")
 
 
+def cmd_patent_fetch(args: argparse.Namespace, cfg) -> None:
+    """下载专利 PDF 到 inbox-patent."""
+    from scholaraio import patent_fetch
+
+    id_or_url = args.id_or_url
+    path = patent_fetch.download_patent_pdf(id_or_url, cfg=cfg)
+    if path is None:
+        sys.exit(1)
+    ui(f"已保存到: {path}")
+
+
+def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
+    """USPTO 专利搜索."""
+    from scholaraio import patent_fetch, uspto_odp, uspto_ppubs
+
+    query = " ".join(args.query) if args.query else None
+    app_number = args.application
+    count = args.count
+    offset = args.offset
+    source = getattr(args, "source", "ppubs")
+    fetch = getattr(args, "fetch", False)
+
+    # Application number lookup mode
+    if app_number:
+        if source == "ppubs":
+            ui("按申请号精确查询请使用 --source odp（需要配置 USPTO ODP API Key）")
+            sys.exit(1)
+        try:
+            result = uspto_odp.get_patent_by_application_number(app_number, cfg=cfg)
+        except uspto_odp.USPTOAPIError as e:
+            ui(f"查询失败: {e}")
+            sys.exit(1)
+
+        if not result:
+            ui(f"未找到申请号: {app_number}")
+            sys.exit(1)
+
+        ui(f"Application: {result.application_number}")
+        ui(f"  Title: {result.title}")
+        if result.inventors:
+            ui(f"  Inventors: {', '.join(result.inventors[:5])}")
+        if result.publication_number:
+            ui(f"  Publication: {result.publication_number}")
+        if result.patent_number:
+            ui(f"  Patent Number: US{result.patent_number}")
+        if result.filing_date:
+            ui(f"  Filing Date: {result.filing_date}")
+        if result.grant_date:
+            ui(f"  Grant Date: {result.grant_date}")
+        if result.application_status:
+            ui(f"  Status: {result.application_status}")
+        if result.application_type:
+            ui(f"  Type: {result.application_type}")
+
+        if fetch and result.publication_number:
+            patent_fetch.download_patent_pdf(result.publication_number, cfg=cfg)
+        return
+
+    # Search mode
+    if not query:
+        ui("请提供搜索词或使用 --application <申请号>")
+        sys.exit(1)
+
+    if source == "odp":
+        try:
+            results = uspto_odp.search_patents(query, limit=count, offset=offset, cfg=cfg)
+        except uspto_odp.USPTOAPIError as e:
+            ui(f"搜索失败: {e}")
+            sys.exit(1)
+
+        if not results:
+            ui(f"未找到与 '{query}' 相关的专利")
+            return
+
+        ui(f"\n找到 {len(results)} 条 USPTO 专利结果")
+        to_fetch: list[str] = []
+        for i, p in enumerate(results, 1):
+            ui(f"\n[{i}] {p.title}")
+            ui(f"    Application: {p.application_number}")
+            if p.publication_number:
+                ui(f"    Publication: {p.publication_number}")
+            if p.inventors:
+                ui(f"    Inventors: {', '.join(p.inventors[:3])}")
+            if p.filing_date:
+                ui(f"    Filing: {p.filing_date}")
+            if p.application_status:
+                ui(f"    Status: {p.application_status}")
+            if p.publication_number:
+                ui(f"    下载: scholaraio patent-fetch {p.publication_number}")
+                if fetch:
+                    to_fetch.append(p.publication_number)
+
+        if fetch and to_fetch:
+            ui(f"\n开始下载 {len(to_fetch)} 条专利 PDF...")
+            for pub_num in to_fetch:
+                patent_fetch.download_patent_pdf(pub_num, cfg=cfg)
+        return
+
+    # Default: PPUBS (no auth)
+    try:
+        client = uspto_ppubs.PpubsClient()
+        total, results = client.search(query, start=offset, limit=count)
+    except uspto_ppubs.PpubsError as e:
+        ui(f"搜索失败: {e}")
+        sys.exit(1)
+
+    if not results:
+        ui(f"未找到与 '{query}' 相关的专利")
+        return
+
+    ui(f"\n找到 {len(results)} / {total} 条 USPTO 专利结果")
+    to_fetch: list[str] = []
+    for i, p in enumerate(results, 1):
+        ui(f"\n[{i}] {p.title}")
+        if p.publication_number:
+            ui(f"    Publication: {p.publication_number}")
+        if p.inventors:
+            ui(f"    Inventors: {', '.join(p.inventors[:3])}")
+        if p.assignees:
+            ui(f"    Assignees: {', '.join(p.assignees[:2])}")
+        if p.filing_date:
+            ui(f"    Filing: {p.filing_date}")
+        if p.publication_date:
+            ui(f"    Published: {p.publication_date}")
+        if p.patent_type:
+            ui(f"    Type: {p.patent_type}")
+        if p.publication_number:
+            ui(f"    下载: scholaraio patent-fetch {p.publication_number}")
+            if fetch:
+                to_fetch.append(p.publication_number)
+
+    if fetch and to_fetch:
+        ui(f"\n开始下载 {len(to_fetch)} 条专利 PDF...")
+        for pub_num in to_fetch:
+            patent_fetch.download_patent_pdf(pub_num, cfg=cfg)
+
+
 # ============================================================================
 #  insights
 # ============================================================================
@@ -4246,6 +4385,34 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ingest_link.add_argument("--pdf", action="store_true", help="仅在自动识别不稳时，提示 webextract 按 PDF 模式抓取")
     p_ingest_link.add_argument("--no-index", action="store_true", help="仅入库，不执行 embed/index")
     p_ingest_link.add_argument("--json", action="store_true", help="输出抓取结果摘要 JSON")
+
+    # --- patent-fetch ---
+    p_patent_fetch = sub.add_parser("patent-fetch", help="下载专利 PDF 到 data/inbox-patent/")
+    p_patent_fetch.set_defaults(func=cmd_patent_fetch)
+    p_patent_fetch.add_argument(
+        "id_or_url",
+        help="专利公开号（如 US20240176406A1）或专利页面 URL",
+    )
+
+    # --- patent-search ---
+    p_patent = sub.add_parser("patent-search", help="USPTO 专利搜索（PPUBS，无需 API Key）")
+    p_patent.set_defaults(func=cmd_patent_search)
+    p_patent.add_argument("query", nargs="*", help='搜索查询词（PPUBS 字段语法如 ("keyword").title.）')
+    p_patent.add_argument(
+        "--application", "-a", type=str, default=None, help="按申请号查询详情（如 17123456），需配合 --source odp 使用"
+    )
+    p_patent.add_argument("--count", "-c", type=int, default=10, help="返回结果数量（默认 10）")
+    p_patent.add_argument("--offset", "-o", type=int, default=0, help="分页偏移（默认 0）")
+    p_patent.add_argument(
+        "--source",
+        type=str,
+        choices=["ppubs", "odp"],
+        default="ppubs",
+        help="搜索源：ppubs（默认，无需 API Key）或 odp（需要 API Key）",
+    )
+    p_patent.add_argument(
+        "--fetch", "-f", action="store_true", help="搜索后自动下载所有结果中的专利 PDF 到 data/inbox-patent/"
+    )
 
     # --- insights ---
     p_insights = sub.add_parser("insights", help="研究行为分析：搜索热词、最常阅读论文等")

@@ -273,6 +273,18 @@ class ZoteroConfig:
 
 
 @dataclass
+class PatentConfig:
+    """专利搜索配置。
+
+    Attributes:
+        uspto_odp_api_key: USPTO Open Data Portal API Key。
+            注册地址: https://data.uspto.gov/apis/getting-started
+    """
+
+    uspto_odp_api_key: str = ""
+
+
+@dataclass
 class WebServiceConfig:
     """HTTP web service endpoint config."""
 
@@ -351,6 +363,7 @@ class Config:
         log: 日志与指标配置。
         translate: 自动翻译配置。
         zotero: Zotero 集成配置。
+        patent: 专利搜索配置。
         websearch: 外部网页搜索服务配置。
         webextract: 外部网页提取服务配置。
         backup: 备份配置。
@@ -366,6 +379,7 @@ class Config:
     log: LogConfig = field(default_factory=LogConfig)
     translate: TranslateConfig = field(default_factory=TranslateConfig)
     zotero: ZoteroConfig = field(default_factory=ZoteroConfig)
+    patent: PatentConfig = field(default_factory=PatentConfig)
     websearch: WebServiceConfig = field(default_factory=WebServiceConfig)
     webextract: WebServiceConfig = field(default_factory=WebServiceConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
@@ -496,6 +510,18 @@ class Config:
         if self.ingest.mineru_api_key:
             return self.ingest.mineru_api_key
         return os.environ.get("MINERU_TOKEN", "") or os.environ.get("MINERU_API_KEY", "")
+
+    def resolved_uspto_odp_api_key(self) -> str:
+        """按优先级查找 USPTO ODP API key。
+
+        查找顺序: config ``patent.uspto_odp_api_key`` → 环境变量 ``USPTO_ODP_API_KEY``。
+
+        Returns:
+            API key 字符串，未找到则返回空字符串。
+        """
+        if self.patent.uspto_odp_api_key:
+            return self.patent.uspto_odp_api_key
+        return os.environ.get("USPTO_ODP_API_KEY", "")
 
     def resolved_s2_api_key(self) -> str:
         """按优先级查找 Semantic Scholar API key。
@@ -687,6 +713,7 @@ def _build_config(data: dict, root: Path) -> Config:
     paths_data = data.get("paths", {}) or {}
     llm_data = data.get("llm", {}) or {}
     ingest_data = data.get("ingest", {}) or {}
+    patent_data = data.get("patent", {}) or {}
 
     paths = PathsConfig(
         papers_dir=paths_data.get("papers_dir", "data/papers"),
@@ -829,6 +856,10 @@ def _build_config(data: dict, root: Path) -> Config:
         library_type=zotero_data.get("library_type", "user"),
     )
 
+    patent = PatentConfig(
+        uspto_odp_api_key=patent_data.get("uspto_odp_api_key") or "",
+    )
+
     websearch_data = data.get("websearch", {}) or {}
     websearch = WebServiceConfig(
         base_url=str(websearch_data.get("base_url") or "").strip(),
@@ -892,6 +923,7 @@ def _build_config(data: dict, root: Path) -> Config:
         log=log,
         translate=translate,
         zotero=zotero,
+        patent=patent,
         websearch=websearch,
         webextract=webextract,
         backup=backup,

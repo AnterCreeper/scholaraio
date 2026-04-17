@@ -73,7 +73,7 @@ class RegexExtractor:
         # Read file once; pass text to both metadata extraction and patent check
         text = filepath.read_text(encoding="utf-8", errors="replace")
         meta = extract_metadata_from_markdown(filepath, text=text)
-        _extract_patent_number(meta, text)
+        _extract_patent_number(meta, text, filepath=filepath)
         return meta
 
 
@@ -172,7 +172,7 @@ class LLMExtractor:
             meta.first_author = fb.first_author
 
         # Patent number extraction from full text
-        _extract_patent_number(meta, text)
+        _extract_patent_number(meta, text, filepath=filepath)
 
         return meta
 
@@ -370,7 +370,7 @@ class RobustExtractor:
             meta.first_author = fb.first_author
 
         # Patent number extraction from full text
-        _extract_patent_number(meta, text)
+        _extract_patent_number(meta, text, filepath=filepath)
 
         return meta
 
@@ -391,11 +391,13 @@ class RobustExtractor:
 # ============================================================================
 
 
-def _extract_patent_number(meta, text: str) -> None:
+def _extract_patent_number(meta, text: str, *, filepath: Path | None = None) -> None:
     """Extract patent publication number from text and set paper_type if patent."""
     from scholaraio.ingest.metadata._models import PATENT_NUMBER_RE
 
     m = PATENT_NUMBER_RE.search(text[:10000])
+    if not m and filepath is not None:
+        m = PATENT_NUMBER_RE.search(filepath.stem)
     if m and not meta.publication_number:
         meta.publication_number = m.group(1).upper()
     # Heuristic: if publication_number found and no DOI, likely a patent
