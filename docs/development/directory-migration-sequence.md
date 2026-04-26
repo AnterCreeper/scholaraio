@@ -4,7 +4,9 @@ Status: Historical compatibility-window record
 
 Last Updated: 2026-04-24
 
-Scope: execution order for directory and path migration, based on audited current code and tests.
+Scope: historical execution order for directory and path migration. This file preserves
+the compatibility-window migration record; it is no longer the source of truth for
+the active breaking-cleanup runtime.
 
 2026-04-24 breaking cleanup note:
 
@@ -37,6 +39,11 @@ That companion document defines the control-plane contract (`instance.json`, `mi
 The sequence below is based on direct inspection of the current codebase and on path-related regression tests revalidated on 2026-04-19 after the earlier 2026-04-16, 2026-04-17, and 2026-04-18 audits.
 
 ### 2.1 Code Areas Audited
+
+The entries in this subsection describe the compatibility-window state that was
+audited before the 2026-04-24 breaking cleanup. Parenthetical legacy import paths
+below are historical targets from that window; they are not active public facades
+in the current release generation.
 
 - `scholaraio/core/config.py` (`scholaraio.config` compatibility alias)
 - `scholaraio/cli.py`
@@ -72,7 +79,12 @@ The sequence below is based on direct inspection of the current codebase and on 
 - `clawhub.yaml`
 - `.cursor/rules/scholaraio.mdc`
 
-Key audited facts:
+Historical audited facts from the compatibility-window generation:
+
+The following bullets intentionally preserve the pre-cleanup compatibility
+language used during migration planning. In the active release generation, legacy
+public import facades have been removed; see `docs/development/breaking-compat-cleanup-plan.md`
+and `docs/guide/agent-reference.md` for the current contract.
 
 - `scholaraio/core/config.py` now exposes a much broader runtime-path accessor surface and routes `ensure_dirs()` through those accessors, which lowers path-migration risk but does not yet remove direct path construction in downstream modules
 - `scholaraio/core/config.py` now resolves `index_db`, `metrics_db_path`, and `topics_model_dir` through logical `state_root` subdirectories for fresh installs, while still auto-detecting existing legacy `data/index.db`, `data/metrics.db`, and `data/topic_model/` stores
@@ -157,7 +169,8 @@ These constraints are already enforced by current code, wrappers, and tests. The
 
 ### 3.1 Config Discovery Invariant
 
-Current behavior in `scholaraio/core/config.py` (available through the legacy `scholaraio.config` import path):
+Compatibility-window behavior in `scholaraio/core/config.py` (before removal of
+the legacy `scholaraio.config` import path):
 
 - `load_config()` resolves paths relative to the directory containing `config.yaml`
 - `_find_config_file()` searches upward for `config.yaml`
@@ -606,7 +619,12 @@ Exit criteria:
 - command gating exists while migration is active
 - no physical move depends on implicit or startup-time relocation
 
-Implementation status (2026-04-23):
+Historical implementation status during the compatibility window (2026-04-23,
+superseded by the 2026-04-24 breaking cleanup):
+
+The bullets below are retained as an execution log. Statements that a legacy
+module path "remains" an alias refer to the compatibility-window implementation,
+not to the active release generation.
 
 - completed in code for the compatibility window: `Config` exposes `.scholaraio-control/`, `instance.json`, `migration.lock`, and journal-root accessors
 - completed in code for the compatibility window: normal CLI startup bootstraps a minimal `instance.json` with `legacy_implicit` state when metadata is absent
@@ -808,9 +826,10 @@ Why not earlier:
 - at the time of the initial plan, imports were still broadly flat
 - moving source files before runtime-path stabilization would have mixed two refactors into one risk envelope
 
-Implementation status (2026-04-23):
+Historical implementation status during the compatibility window (2026-04-23;
+superseded by the 2026-04-24 breaking cleanup):
 
-- completed in code for the compatibility window: the target packages are importable, behavior has moved into canonical `core` / `providers` / `stores` / `projects` / `services` namespaces, and existing public module paths remain compatibility aliases
+- completed for the then-active compatibility window: the target packages were importable, behavior had moved into canonical `core` / `providers` / `stores` / `projects` / `services` namespaces, and legacy public module paths were still compatibility aliases at that time
 - completed in code for canonical implementation roots: internal imports now target canonical namespaces directly instead of depending on legacy facade modules
 
 ### Phase B2. Move Low-Coupling Modules Before Central Orchestrators
@@ -848,7 +867,12 @@ Reason:
 
 - these two remain the largest cross-cutting surfaces in the current architecture
 
-Implementation status (2026-04-23):
+Historical implementation status during the compatibility window (2026-04-23;
+superseded by the 2026-04-24 breaking cleanup):
+
+The bullets below are retained as historical execution notes. Statements that a
+legacy module path "remains" an alias do not describe the active breaking-cleanup
+release generation.
 
 - started with non-disruptive namespace adapters only: `scholaraio.core.config`, `scholaraio.core.log`, `scholaraio.stores.citation_styles`, `scholaraio.stores.toolref`, `scholaraio.stores.explore`, `scholaraio.stores.proceedings`, `scholaraio.providers.arxiv`, `scholaraio.providers.endnote`, `scholaraio.providers.zotero`, `scholaraio.providers.mineru`, `scholaraio.providers.pdf_fallback`, `scholaraio.providers.webtools`, `scholaraio.providers.uspto_odp`, `scholaraio.providers.uspto_ppubs`, `scholaraio.projects.workspace`, `scholaraio.services.audit`, `scholaraio.services.backup`, `scholaraio.services.citation_check`, `scholaraio.services.diagram`, `scholaraio.services.document`, `scholaraio.services.export`, `scholaraio.services.index`, `scholaraio.services.loader`, `scholaraio.services.migration_control`, `scholaraio.services.patent_fetch`, `scholaraio.services.setup`, `scholaraio.services.topics`, `scholaraio.services.translate`, `scholaraio.services.vectors`, `scholaraio.services.insights`, `scholaraio.services.ingest_metadata` (including `extractor`), `scholaraio.services.ingest.parser_matrix_benchmark`, and `scholaraio.services.ingest.proceedings_volume` now re-export the existing implementations
 - `config` implementation has moved to `scholaraio.core.config`; `scholaraio.config` remains a module alias so legacy monkeypatch/import paths still target the real implementation
