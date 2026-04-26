@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import urllib.request
+from types import SimpleNamespace
 
 import pytest
 
-from scholaraio import patent_fetch
-from scholaraio.config import _build_config
-from scholaraio.uspto_ppubs import PpubsClient, PpubsPatent, _extract_patent
+from scholaraio.core.config import _build_config
+from scholaraio.providers import uspto_odp
+from scholaraio.providers.uspto_ppubs import PpubsClient, PpubsPatent, _extract_patent
+from scholaraio.services import patent_fetch
 
 
 class TestPatentConfig:
@@ -119,6 +121,8 @@ class TestPpubsPdfDownload:
 
     def test_download_pdf_runs_ppubs_print_save_flow(self, tmp_path, monkeypatch):
         client = PpubsClient()
+        client._token = "mock-token"
+        client._case_id = 12345
         calls = []
         patent = PpubsPatent(
             guid="US-20260104498-A1",
@@ -180,6 +184,91 @@ class TestPpubsPdfDownload:
         )
 
 
+class TestUSPTOODP:
+    def test_clean_publication_number_removes_spaces_and_hyphens(self):
+        assert uspto_odp._clean_publication_number("US 2021-0123456 A1") == "US20210123456A1"
+
+    def test_extract_patent_result_maps_metadata_to_search_and_meta_fields(self):
+        patent = uspto_odp._extract_patent_result(
+            {
+                "applicationNumberText": "17123456",
+                "applicationMetaData": {
+                    "inventionTitle": "Demo Patent",
+                    "inventorBag": [{"firstName": "Ada", "lastName": "Lovelace"}],
+                    "applicantBag": [{"applicantName": "Example Inc."}],
+                    "filingDate": "2020-01-02",
+                    "grantDate": "2023-04-05",
+                    "publicationDateBag": ["2021-06-07"],
+                    "patentNumber": "12345678",
+                    "earliestPublicationNumber": "US 2021-0123456 A1",
+                    "applicationStatusDescriptionText": "Published",
+                    "applicationTypeLabelName": "Utility",
+                },
+            }
+        )
+
+        assert patent.application_number == "17123456"
+        assert patent.inventors == ["Ada Lovelace"]
+        assert patent.applicants == ["Example Inc."]
+        assert patent.publication_number == "US20210123456A1"
+
+        meta = patent.to_meta_dict()
+        assert meta["paper_type"] == "patent"
+        assert meta["year"] == 2023
+        assert meta["ids"]["patent_publication_number"] == "US20210123456A1"
+        assert meta["ids"]["uspto_application_number"] == "17123456"
+
+    def test_search_patents_uses_configured_api_key_and_caps_page_size(self, monkeypatch):
+        captured = {}
+
+        class FakeConfig:
+            def resolved_uspto_odp_api_key(self):
+                return "cfg-key"
+
+        def fake_request_json(url, *, api_key=None, method="GET", data=None, timeout=30.0):
+            captured.update(
+                {
+                    "url": url,
+                    "api_key": api_key,
+                    "method": method,
+                    "data": data,
+                    "timeout": timeout,
+                }
+            )
+            return {
+                "count": 1,
+                "patentFileWrapperDataBag": [
+                    {
+                        "applicationNumberText": "17123456",
+                        "applicationMetaData": {"inventionTitle": "Demo Patent"},
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(uspto_odp, "_request_json", fake_request_json)
+
+        results = uspto_odp.search_patents(
+            "artificial intelligence",
+            limit=250,
+            offset=4,
+            base_url="https://example.test/",
+            timeout=7.0,
+            cfg=FakeConfig(),
+        )
+
+        assert len(results) == 1
+        assert captured["url"] == "https://example.test/api/v1/patent/applications/search"
+        assert captured["api_key"] == "cfg-key"
+        assert captured["method"] == "POST"
+        assert captured["timeout"] == 7.0
+        assert captured["data"]["q"] == "artificial intelligence"
+        assert captured["data"]["pagination"] == {"offset": 4, "limit": 100}
+
+    def test_search_patents_requires_api_key(self):
+        with pytest.raises(uspto_odp.USPTOAPIError, match="缺少 USPTO ODP API Key"):
+            uspto_odp.search_patents("artificial intelligence")
+
+
 class TestPatentFetch:
     def test_download_patent_pdf_prefers_ppubs_for_us_publication_numbers(self, tmp_path, monkeypatch):
         patent = PpubsPatent(publication_number="US20260104498A1")
@@ -208,3 +297,35 @@ class TestPatentFetch:
 
         assert result == tmp_path / "US20260104498A1.pdf"
         assert result.read_bytes() == b"%PDF-1.7\nppubs\n"
+
+    def test_download_patent_pdf_uses_configured_patent_inbox_dir(self, tmp_path, monkeypatch):
+        patent = PpubsPatent(publication_number="US20260104498A1")
+
+        class FakeClient:
+            def find_by_publication_number(self, publication_number):
+                assert publication_number == "US20260104498A1"
+                return patent
+
+            def download_pdf(self, match, out_file, timeout=120.0):
+                assert match is patent
+                out_file.write_bytes(b"%PDF-1.7\nppubs\n")
+                return out_file
+
+        monkeypatch.setattr(patent_fetch.uspto_ppubs, "PpubsClient", lambda: FakeClient())
+        monkeypatch.setattr(
+            patent_fetch,
+            "extract_pdf_url",
+            lambda *args, **kwargs: pytest.fail("Google fallback should not be used"),
+        )
+
+        custom_inbox = tmp_path / "queues" / "patent-inbox"
+        cfg = SimpleNamespace(_root=tmp_path, patent_inbox_dir=custom_inbox)
+
+        result = patent_fetch.download_patent_pdf(
+            "US20260104498A1",
+            cfg=cfg,
+        )
+
+        assert result == custom_inbox / "US20260104498A1.pdf"
+        assert result.read_bytes() == b"%PDF-1.7\nppubs\n"
+        assert not (tmp_path / "data" / "inbox-patent" / "US20260104498A1.pdf").exists()

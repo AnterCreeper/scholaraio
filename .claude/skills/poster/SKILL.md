@@ -1,10 +1,6 @@
 ---
 name: poster
-description: Use when the user needs an academic poster, conference poster, or poster-style visual summary and wants help structuring sections, balancing text and figures, and packaging the result into a practical deliverable workflow.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "writing", "poster", "presentation", "visual"]
+description: Use when the user needs an academic poster, conference poster, poster-style visual summary, section planning, figure-text balance, or poster packaging workflow.
 ---
 # Academic Poster Workflow
 

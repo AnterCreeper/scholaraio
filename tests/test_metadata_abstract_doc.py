@@ -1,12 +1,12 @@
-"""Tests for scholaraio.ingest.metadata abstract/doc helpers."""
+"""Tests for scholaraio.services.ingest_metadata abstract/doc helpers."""
 
 from __future__ import annotations
 
 import json
 
-from scholaraio.ingest.metadata._abstract import backfill_abstracts, extract_abstract_from_md
-from scholaraio.ingest.metadata._doc_extract import extract_document_metadata
-from scholaraio.ingest.metadata._models import PaperMetadata
+from scholaraio.services.ingest_metadata._abstract import backfill_abstracts, extract_abstract_from_md
+from scholaraio.services.ingest_metadata._doc_extract import extract_document_metadata
+from scholaraio.services.ingest_metadata._models import PaperMetadata
 
 
 class _NoKeyConfig:
@@ -127,7 +127,7 @@ def test_extract_document_metadata_merges_regex_fields_with_sidecar(tmp_path, mo
                 year=2024,
             )
 
-    monkeypatch.setattr("scholaraio.ingest.extractor.RegexExtractor", DummyRegexExtractor)
+    monkeypatch.setattr("scholaraio.services.ingest_metadata.extractor.RegexExtractor", DummyRegexExtractor)
 
     existing = PaperMetadata(
         source_file="report.md",

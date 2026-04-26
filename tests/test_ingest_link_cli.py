@@ -6,8 +6,8 @@ import json
 from argparse import Namespace
 from types import SimpleNamespace
 
-from scholaraio import cli
-from scholaraio import log as scholaraio_log
+from scholaraio.core import log as scholaraio_log
+from scholaraio.interfaces.cli import compat as cli
 
 
 class TestIngestLinkCommand:
@@ -17,11 +17,11 @@ class TestIngestLinkCommand:
 
         called = {"extract": 0, "pipeline": 0}
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda *args, **kwargs: called.__setitem__("extract", called["extract"] + 1),
         )
         monkeypatch.setattr(
-            "scholaraio.ingest.pipeline.run_pipeline",
+            "scholaraio.services.ingest.pipeline.run_pipeline",
             lambda *args, **kwargs: called.__setitem__("pipeline", called["pipeline"] + 1),
         )
 
@@ -66,8 +66,8 @@ class TestIngestLinkCommand:
             seen["md_text"] = md_files[0].read_text(encoding="utf-8")
             seen["sidecar"] = json.loads(json_files[0].read_text(encoding="utf-8"))
 
-        monkeypatch.setattr("scholaraio.sources.webtools.extract_web", fake_extract)
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
         args = Namespace(
@@ -95,7 +95,7 @@ class TestIngestLinkCommand:
 
     def test_ingest_link_no_index_skips_global_steps(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: {
                 "url": url,
                 "title": "Example Page",
@@ -110,7 +110,7 @@ class TestIngestLinkCommand:
         def fake_run_pipeline(step_names, cfg, opts):
             seen["steps"] = step_names
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
         args = Namespace(
@@ -128,7 +128,7 @@ class TestIngestLinkCommand:
 
     def test_ingest_link_json_outputs_extracted_summary(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: {
                 "url": url,
                 "title": "Example Page",
@@ -137,7 +137,7 @@ class TestIngestLinkCommand:
                 "error": "",
             },
         )
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", lambda *args, **kwargs: None)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", lambda *args, **kwargs: None)
 
         cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
         args = Namespace(
@@ -164,13 +164,13 @@ class TestIngestLinkCommand:
         scholaraio_log.reset()
         scholaraio_log.setup(
             SimpleNamespace(
-                log_file=tmp_path / "scholaraio.log",
+                log_file=tmp_path / "scholaraio.core.log",
                 log=SimpleNamespace(max_bytes=100000, backup_count=1, level="INFO"),
             )
         )
 
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: {
                 "url": url,
                 "title": "Example Page",
@@ -181,11 +181,11 @@ class TestIngestLinkCommand:
         )
 
         def fake_run_pipeline(*args, **kwargs):
-            from scholaraio.ingest.pipeline import ui as pipeline_ui
+            from scholaraio.services.ingest.pipeline import ui as pipeline_ui
 
             pipeline_ui("pipeline progress")
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
         args = Namespace(
@@ -226,8 +226,8 @@ class TestIngestLinkCommand:
                 "error": "",
             }
 
-        monkeypatch.setattr("scholaraio.sources.webtools.extract_web", fake_extract)
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", lambda *args, **kwargs: None)
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", lambda *args, **kwargs: None)
 
         cfg = SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers")
 
@@ -277,12 +277,12 @@ class TestIngestLinkCommand:
         def fail_legacy_webextract(*args, **kwargs):
             raise AssertionError("legacy webextract should not be used")
 
-        monkeypatch.setattr("scholaraio.sources.webtools.extract_web", fake_extract_web)
-        monkeypatch.setattr("scholaraio.sources.webtools.webextract", fail_legacy_webextract)
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract_web)
+        monkeypatch.setattr("scholaraio.providers.webtools.webextract", fail_legacy_webextract)
 
         called: dict[str, object] = {}
         monkeypatch.setattr(
-            "scholaraio.ingest.pipeline.run_pipeline",
+            "scholaraio.services.ingest.pipeline.run_pipeline",
             lambda *args, **kwargs: called.__setitem__("pipeline", True),
         )
 
@@ -337,7 +337,7 @@ class TestIngestLinkCommand:
             },
         }
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: responses[url],
         )
 
@@ -347,7 +347,7 @@ class TestIngestLinkCommand:
             seen["steps"] = step_names
             seen["files"] = sorted(path.name for path in opts["doc_inbox_dir"].glob("*.md"))
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cli.cmd_ingest_link(
             Namespace(
@@ -374,7 +374,7 @@ class TestIngestLinkCommand:
         monkeypatch.setattr(cli, "ui", messages.append)
 
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: {
                 "url": url,
                 "title": "Warned Page",
@@ -392,7 +392,7 @@ class TestIngestLinkCommand:
             seen["files"] = [path.name for path in md_files]
             seen["md_text"] = md_files[0].read_text(encoding="utf-8")
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cli.cmd_ingest_link(
             Namespace(
@@ -417,7 +417,7 @@ class TestIngestLinkCommand:
         monkeypatch.setattr(cli, "ui", messages.append)
 
         monkeypatch.setattr(
-            "scholaraio.sources.webtools.extract_web",
+            "scholaraio.providers.webtools.extract_web",
             lambda url, *, pdf=None, cfg=None, include_html=False, timeout=120.0: {
                 "url": url,
                 "title": "",
@@ -434,7 +434,7 @@ class TestIngestLinkCommand:
             seen["steps"] = step_names
             seen["md_name"] = md_files[0].name
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cli.cmd_ingest_link(
             Namespace(
@@ -472,7 +472,7 @@ class TestIngestLinkCommand:
                 "error": "",
             }
 
-        monkeypatch.setattr("scholaraio.sources.webtools.extract_web", fake_extract)
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract)
 
         seen: dict[str, object] = {}
 
@@ -480,7 +480,7 @@ class TestIngestLinkCommand:
             seen["steps"] = step_names
             seen["files"] = sorted(path.name for path in opts["doc_inbox_dir"].glob("*.md"))
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cli.cmd_ingest_link(
             Namespace(
@@ -512,14 +512,14 @@ class TestIngestLinkCommand:
             attempts["count"] += 1
             raise RuntimeError("temporary outage")
 
-        monkeypatch.setattr("scholaraio.sources.webtools.extract_web", fake_extract)
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract)
 
         pipeline_called = {"value": False}
 
         def fake_run_pipeline(*args, **kwargs):
             pipeline_called["value"] = True
 
-        monkeypatch.setattr("scholaraio.ingest.pipeline.run_pipeline", fake_run_pipeline)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
 
         cli.cmd_ingest_link(
             Namespace(

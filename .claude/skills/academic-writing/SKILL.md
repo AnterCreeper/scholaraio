@@ -1,10 +1,6 @@
 ---
 name: academic-writing
-description: Use when the user needs help choosing or organizing the right academic-writing workflow by deliverable, writing stage, or final document type such as review article, guided single-paper reading, paper section, rebuttal, PPT, poster, or technical report.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "writing", "router", "workflow", "report"]
+description: Use when the user needs help choosing or organizing an academic-writing workflow by deliverable, stage, or format, including review articles, guided reading, paper sections, PPT or slides, posters, and technical reports.
 ---
 # Academic Writing Router
 

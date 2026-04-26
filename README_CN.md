@@ -47,6 +47,32 @@ scholaraio setup
 
 这样一来，agent 能得到最完整的使用体验：仓库内置指令、本地 skills、CLI 和完整代码上下文都会直接可用。Claude Code 插件、Codex/OpenClaw skills 注册，以及其他使用路径的详细说明，详见 [`docs/getting-started/agent-setup.md`](docs/getting-started/agent-setup.md)。
 
+## 升级到 1.4
+
+ScholarAIO 1.4 是一次 runtime layout 升级。它不会在 `git pull`、
+`pip install -U` 或普通 CLI 启动时自动迁移用户数据。这是有意设计：
+迁移数据必须是一次显式的离线操作，并且会留下 migration journal 和验证记录。
+
+推荐路径：
+
+```bash
+# 1. 更新代码/包
+git pull
+pip install -e ".[full]"
+
+# 2. 在包含 data/、workspace/、config*.yaml 的 ScholarAIO runtime 根目录显式检查并迁移
+scholaraio migrate status
+scholaraio migrate upgrade --migration-id upgrade-1.4.0 --confirm
+scholaraio migrate verify --migration-id upgrade-1.4.0
+
+# 3. 数据进入 fresh layout 后重建索引
+scholaraio index --rebuild
+```
+
+最低风险的做法是先保留或复制旧 ScholarAIO 文件夹，再在升级后的 checkout
+中迁移那份包含 `data/`、`workspace/` 和 `config*.yaml` 的 runtime。
+详细步骤见 [`docs/getting-started/upgrading-to-1.4.md`](docs/getting-started/upgrading-to-1.4.md)。
+
 ## 核心功能
 
 |                               | 功能                           | 说明                                                                                        |
@@ -127,17 +153,20 @@ scholaraio/             # Python 包——CLI、所有核心模块
   ingest/               #   PDF 解析 + 元数据提取流水线
   sources/              #   外部来源适配（arXiv / Endnote / Zotero）
 
-.claude/skills/         # agent skills（AgentSkills.io 格式）
+.claude/skills/         # agent skills（canonical source）
 .agents/skills/         # ↑ 符号链接，方便跨 agent 发现
 .qwen/QWEN.md           # ↑ Qwen Code 的项目上下文文件
 .qwen/skills/           # ↑ 符号链接，方便 Qwen agent 发现
-data/papers/            # 你的论文库（不进 git）
-data/proceedings/       # 论文集库（不进 git）
-data/inbox/             # 放入 PDF 即可入库
-data/inbox-proceedings/ # 显式放入论文集 PDF/MD，走专用 proceedings 流程
+data/libraries/papers/  # 论文库（fresh default）
+data/libraries/proceedings/ # 论文集库（fresh default）
+data/spool/inbox/       # 常规入库 inbox
+data/spool/inbox-proceedings/ # proceedings 专用 inbox
 ```
 
-完整模块参考 → [`CLAUDE.md`](CLAUDE.md) 或 [`AGENTS.md`](AGENTS.md)
+从旧版 runtime layout 升级时，请看上面的[升级到 1.4](#升级到-14)。
+
+Agent 入口文档 → [`CLAUDE.md`](CLAUDE.md) 或 [`AGENTS.md`](AGENTS.md)
+深入 agent 参考 → [`docs/guide/agent-reference.md`](docs/guide/agent-reference.md)
 
 ## 引用
 

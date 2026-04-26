@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from scholaraio import explore, vectors
-from scholaraio.config import _build_config
+from scholaraio.core.config import _build_config
+from scholaraio.services import vectors
+from scholaraio.stores import explore
 
 
 def test_load_model_sets_hf_endpoint_before_sentence_transformers_import(tmp_path, monkeypatch):
@@ -304,7 +305,7 @@ def test_vsearch_does_not_embed_when_vector_table_is_empty(tmp_db, monkeypatch):
 def test_explore_vsearch_embeds_query_before_loading_faiss_index(tmp_path, monkeypatch):
     order: list[str] = []
     cfg = _build_config({}, tmp_path)
-    db_path = tmp_path / "data" / "explore" / "demo" / "explore.db"
+    db_path = cfg.explore_root / "demo" / "explore.db"
     db_path.parent.mkdir(parents=True)
 
     with sqlite3.connect(db_path) as conn:
@@ -354,7 +355,7 @@ def test_explore_vsearch_embeds_query_before_loading_faiss_index(tmp_path, monke
 
 def test_explore_vsearch_does_not_embed_when_vector_table_is_empty(tmp_path, monkeypatch):
     cfg = _build_config({}, tmp_path)
-    db_path = tmp_path / "data" / "explore" / "demo" / "explore.db"
+    db_path = cfg.explore_root / "demo" / "explore.db"
     db_path.parent.mkdir(parents=True)
 
     with sqlite3.connect(db_path) as conn:

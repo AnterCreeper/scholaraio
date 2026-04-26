@@ -88,6 +88,7 @@ backup:
 
 - `mode` supports `default`, `append`, and `append-verify`.
 - Use `default` for the full ScholarAIO `data/` tree, especially when it includes mutable files such as SQLite databases.
+
 - Reserve `append` / `append-verify` for append-only artifacts where the remote copy is expected to be a prefix of the local file.
 - Keep host-specific secrets such as `identity_file` in `config.local.yaml` when possible.
 - Prepare SSH key-based authentication and the target host's `known_hosts` entry ahead of time; otherwise `backup run` will fail fast instead of waiting for interactive input.
@@ -127,3 +128,36 @@ Recommended first-run checklist:
 3. If the server is password-only, place `password` in `config.local.yaml`; ScholarAIO will switch to internal non-interactive askpass mode automatically.
 4. Dry-run first:
    `scholaraio backup run lab --dry-run`
+
+### Web Search And Extraction
+
+For agent workflows, prefer MCP endpoints for both live search and rendered
+web/PDF extraction:
+
+```yaml
+websearch:
+  transport: mcp
+  mcp_url: http://127.0.0.1:8765/mcp
+  api_key: "optional-token"
+  mcp_tool: search_bing
+
+webextract:
+  transport: mcp
+  mcp_url: http://127.0.0.1:8766/mcp
+  api_key: "optional-token"
+  mcp_tool: fetch_url
+```
+
+The legacy HTTP endpoints are still supported:
+
+```yaml
+websearch:
+  transport: http
+  base_url: http://127.0.0.1:8765
+  api_key: "optional-token"
+
+webextract:
+  transport: http
+  base_url: http://127.0.0.1:8766
+  api_key: "optional-token"
+```

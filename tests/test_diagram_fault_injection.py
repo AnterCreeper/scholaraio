@@ -15,9 +15,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from scholaraio import cli
-from scholaraio.config import Config
-from scholaraio.diagram import (
+from scholaraio.core.config import Config
+from scholaraio.interfaces.cli import compat as cli
+from scholaraio.services.diagram import (
     _call_llm,
     _extract_method_section,
     _parse_json,
@@ -142,37 +142,37 @@ class TestLlmLayerFaults:
         def boom(*a, **k):
             raise RuntimeError("LLM service down")
 
-        monkeypatch.setattr("scholaraio.metrics.call_llm", boom)
+        monkeypatch.setattr("scholaraio.services.metrics.call_llm", boom)
         with pytest.raises(RuntimeError, match="LLM service down"):
             _call_llm("prompt", cfg)
 
     def test_extract_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+            "scholaraio.services.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
         )
         with pytest.raises(RuntimeError, match="boom"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_extract_diagram_ir_raises_on_non_json_llm_output(self, cfg, monkeypatch):
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: "not json")
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: "not json")
         with pytest.raises(json.JSONDecodeError):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_extract_diagram_ir_raises_when_nodes_is_not_list(self, cfg, monkeypatch):
         bad = {"title": "T", "nodes": "oops", "edges": []}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
         with pytest.raises(ValueError, match="IR 格式不正确"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_extract_diagram_ir_raises_when_edges_is_not_list(self, cfg, monkeypatch):
         bad = {"title": "T", "nodes": [], "edges": {"a": "b"}}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
         with pytest.raises(ValueError, match="IR 格式不正确"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_critique_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+            "scholaraio.services.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
         )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         with pytest.raises(RuntimeError, match="boom"):
@@ -180,7 +180,7 @@ class TestLlmLayerFaults:
 
     def test_refine_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+            "scholaraio.services.diagram._call_llm", lambda p, c, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
         )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"verdict": "needs_revision", "issues": []}
@@ -204,7 +204,7 @@ class TestRendererFaults:
 
     def test_svg_without_dot_command(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram.subprocess.run",
+            "scholaraio.services.diagram.subprocess.run",
             lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("dot not found")),
         )
         ir = {"title": "T", "nodes": [{"id": "a", "label": "A"}], "edges": [], "layout_hint": "horizontal"}
@@ -214,7 +214,7 @@ class TestRendererFaults:
 
     def test_svg_with_dot_compile_failure(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram.subprocess.run",
+            "scholaraio.services.diagram.subprocess.run",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("dot compile failed")),
         )
         ir = {"title": "T", "nodes": [{"id": "a", "label": "A"}], "edges": [], "layout_hint": "horizontal"}
@@ -337,7 +337,7 @@ class TestCriticLoopFaults:
                 return json.dumps(ir)
             return json.dumps(critique)
 
-        monkeypatch.setattr("scholaraio.diagram._call_llm", fake_llm)
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", fake_llm)
         result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=2)
         assert len(result["critique_log"]) == 2
         assert result["critique_log"][0]["verdict"] == "needs_revision"
@@ -359,7 +359,7 @@ class TestCriticLoopFaults:
                 return json.dumps(critique)
             return json.dumps(ir)
 
-        monkeypatch.setattr("scholaraio.diagram._call_llm", fake_llm)
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", fake_llm)
         # round 1: extract -> render -> critique(needs_revision) -> refine(fails)
         # This should propagate the RuntimeError because refine_diagram_ir is not caught
         with pytest.raises(RuntimeError, match="refine failed"):
@@ -369,7 +369,7 @@ class TestCriticLoopFaults:
         # Even though _parse_json would fail on "not json", we monkeypatch _call_llm
         # to return a string that _parse_json can handle but has wrong structure
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: '{"verdict": "weird", "issues": 123, "suggestions": null}',
         )
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
@@ -380,7 +380,7 @@ class TestCriticLoopFaults:
 
     def test_generate_diagram_with_critic_zero_rounds(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         # max_rounds=0 falls back to a single render without critique
         result = generate_diagram_with_critic(tmp_paper_dir, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=0)
         assert len(result["critique_log"]) == 0
@@ -399,11 +399,11 @@ class TestCriticLoopFaults:
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
 
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
         )
         monkeypatch.setattr(
-            "scholaraio.diagram._dot_to_svg",
+            "scholaraio.services.diagram._dot_to_svg",
             lambda dot_text, svg_path: svg_path.write_text("<svg/>", encoding="utf-8"),
         )
 
@@ -428,11 +428,11 @@ class TestIoFaults:
         (paper_d / "meta.json").write_text(json.dumps({"id": "x"}), encoding="utf-8")
         # Neither paper.md exists nor fallback
         monkeypatch.setattr(
-            "scholaraio.papers.md_path",
+            "scholaraio.stores.papers.md_path",
             lambda papers_dir, dir_name: paper_d / "nonexistent.md",
         )
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}),
         )
         with pytest.raises(FileNotFoundError):
@@ -441,7 +441,7 @@ class TestIoFaults:
     def test_generate_diagram_nested_out_dir_created(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         nested = tmp_path / "a" / "b" / "c"
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps({"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}),
         )
         out = generate_diagram(tmp_paper_dir, "model_arch", "dot", cfg, out_dir=nested)
@@ -451,7 +451,7 @@ class TestIoFaults:
     def test_generate_diagram_long_title_truncated(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         long_title = "A" * 100
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps({"title": long_title, "nodes": [], "edges": [], "layout_hint": "horizontal"}),
         )
         out = generate_diagram(tmp_paper_dir, "model_arch", "dot", cfg, out_dir=tmp_path)
@@ -460,7 +460,7 @@ class TestIoFaults:
 
     def test_generate_diagram_with_critic_readonly_out_dir(self, tmp_paper_dir, cfg, monkeypatch, tmp_path):
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         def raise_permission(*args, **kwargs):
             raise PermissionError("read-only")
@@ -501,7 +501,7 @@ class TestCliFaults:
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
         )
         args = Namespace(
@@ -555,7 +555,7 @@ class TestCliFaults:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         for fmt in ["dot", "mermaid", "drawio"]:
             for dtype in ["model_arch", "tech_route", "exp_setup"]:
                 args = Namespace(
@@ -572,7 +572,7 @@ class TestCliFaults:
 
     def test_cli_critic_rounds_negative(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch):
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         args = Namespace(
             paper_id="Test-2024-Paper",
             type="model_arch",
@@ -590,7 +590,7 @@ class TestCliFaults:
 
     def test_cli_svg_format_without_graphviz(self, cli_cfg, cli_paper_dir, monkeypatch):
         monkeypatch.setattr(
-            "scholaraio.diagram.subprocess.run",
+            "scholaraio.services.diagram.subprocess.run",
             lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("dot not found")),
         )
         ir = {
@@ -599,7 +599,7 @@ class TestCliFaults:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         monkeypatch.setattr(sys, "exit", MagicMock(side_effect=SystemExit(1)))
         args = Namespace(
             paper_id="Test-2024-Paper",

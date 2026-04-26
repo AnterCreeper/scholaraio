@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from scholaraio.ingest.mineru import (
+from scholaraio.providers.mineru import (
     ConvertOptions,
     ConvertResult,
     PDFValidationResult,
@@ -29,9 +29,23 @@ from scholaraio.ingest.mineru import (
 
 def _allow_pdf_validation(monkeypatch):
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.validate_pdf_for_mineru",
+        "scholaraio.providers.mineru.validate_pdf_for_mineru",
         lambda _path: PDFValidationResult(ok=True, page_count=1, deep_checked=True),
     )
+
+
+def test_mineru_provider_and_legacy_module_commands_expose_help():
+    root = Path(__file__).resolve().parents[1]
+    for module_name in ("scholaraio.providers.mineru", "scholaraio.providers.mineru"):
+        proc = subprocess.run(
+            [sys.executable, "-m", module_name, "--help"],
+            capture_output=True,
+            cwd=root,
+            text=True,
+        )
+
+        assert proc.returncode == 0
+        assert "Convert PDF files to Markdown" in proc.stdout
 
 
 def test_convert_long_pdf_cloud_preserves_cloud_model_version(tmp_path, monkeypatch):
@@ -44,7 +58,7 @@ def test_convert_long_pdf_cloud_preserves_cloud_model_version(tmp_path, monkeypa
 
     _allow_pdf_validation(monkeypatch)
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._split_pdf",
+        "scholaraio.providers.mineru._split_pdf",
         lambda _pdf_path, chunk_size, output_dir: [chunk_pdf],
     )
 
@@ -67,8 +81,8 @@ def test_convert_long_pdf_cloud_preserves_cloud_model_version(tmp_path, monkeypa
         assert original_pdf_path == pdf_path
         return ConvertResult(pdf_path=original_pdf_path, md_path=out_dir / "paper.md", success=True)
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.convert_pdfs_cloud_batch", fake_convert_pdfs_cloud_batch)
-    monkeypatch.setattr("scholaraio.ingest.mineru._merge_chunk_results", fake_merge_chunk_results)
+    monkeypatch.setattr("scholaraio.providers.mineru.convert_pdfs_cloud_batch", fake_convert_pdfs_cloud_batch)
+    monkeypatch.setattr("scholaraio.providers.mineru._merge_chunk_results", fake_merge_chunk_results)
 
     opts = ConvertOptions(
         output_dir=output_dir,
@@ -103,13 +117,13 @@ def test_convert_long_pdf_uses_safe_chunk_workspace_for_long_filename(tmp_path, 
         assert long_stem not in output_dir.name
         return [chunk_pdf]
 
-    monkeypatch.setattr("scholaraio.ingest.mineru._split_pdf", fake_split_pdf)
+    monkeypatch.setattr("scholaraio.providers.mineru._split_pdf", fake_split_pdf)
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.convert_pdf",
+        "scholaraio.providers.mineru.convert_pdf",
         lambda path, opts: ConvertResult(pdf_path=path, md_path=opts.output_dir / "chunk-1.md", success=True),
     )
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._merge_chunk_results",
+        "scholaraio.providers.mineru._merge_chunk_results",
         lambda chunk_results, original_pdf, out_dir: ConvertResult(
             pdf_path=original_pdf,
             md_path=out_dir / f"{original_pdf.stem}.md",
@@ -140,10 +154,10 @@ def test_convert_long_pdf_cloud_uses_safe_chunk_workspace_for_long_filename(tmp_
     def fake_batch(pdf_paths, opts, *, api_key, cloud_url, batch_size=20):
         return [ConvertResult(pdf_path=pdf_paths[0], md_path=opts.output_dir / "chunk-1.md", success=True)]
 
-    monkeypatch.setattr("scholaraio.ingest.mineru._split_pdf", fake_split_pdf)
-    monkeypatch.setattr("scholaraio.ingest.mineru.convert_pdfs_cloud_batch", fake_batch)
+    monkeypatch.setattr("scholaraio.providers.mineru._split_pdf", fake_split_pdf)
+    monkeypatch.setattr("scholaraio.providers.mineru.convert_pdfs_cloud_batch", fake_batch)
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._merge_chunk_results",
+        "scholaraio.providers.mineru._merge_chunk_results",
         lambda chunk_results, original_pdf, out_dir: ConvertResult(
             pdf_path=original_pdf,
             md_path=out_dir / f"{original_pdf.stem}.md",
@@ -190,7 +204,7 @@ def test_split_pdf_uses_safe_chunk_names_for_long_filename(tmp_path, monkeypatch
             return FakeChunkDoc()
         return FakeSourceDoc()
 
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: 2)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_page_count", lambda _path: 2)
     monkeypatch.setitem(sys.modules, "pymupdf", SimpleNamespace(open=fake_open))
 
     chunks = _split_pdf(pdf_path, chunk_size=1, output_dir=tmp_path / "chunks")
@@ -227,7 +241,7 @@ def test_validate_pdf_for_mineru_surfaces_deep_structure_error(tmp_path, monkeyp
     pdf_path.write_bytes(b"%PDF-1.4\nbroken")
 
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._validate_pdf_with_pymupdf",
+        "scholaraio.providers.mineru._validate_pdf_with_pymupdf",
         lambda _path: PDFValidationResult(
             ok=False,
             error="PDF validation failed: cannot open PDF structure: corrupt.pdf: broken xref",
@@ -277,7 +291,7 @@ def test_cloud_safe_input_path_symlink_fallback_keeps_relative_source_readable(t
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.os.link",
+        "scholaraio.providers.mineru.os.link",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("cross-device link")),
     )
 
@@ -297,7 +311,7 @@ def test_convert_pdf_rejects_invalid_pdf_before_local_request(tmp_path, monkeypa
         called["post"] = True
         raise AssertionError("invalid PDFs should not be submitted")
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.requests.post", fake_post)
+    monkeypatch.setattr("scholaraio.providers.mineru.requests.post", fake_post)
 
     result = convert_pdf(pdf_path, ConvertOptions(output_dir=tmp_path / "out"))
 
@@ -329,7 +343,7 @@ def test_convert_pdf_saves_content_list_with_safe_name_for_long_filename(tmp_pat
                 }
             }
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.requests.post", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr("scholaraio.providers.mineru.requests.post", lambda *_args, **_kwargs: FakeResponse())
 
     result = convert_pdf(pdf_path, ConvertOptions(output_dir=tmp_path, save_content_list=True))
 
@@ -511,7 +525,7 @@ def test_convert_pdf_cloud_retries_timeout_with_exponential_backoff(tmp_path, mo
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setattr("scholaraio.ingest.mineru.time.sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr("scholaraio.providers.mineru.time.sleep", lambda seconds: sleeps.append(seconds))
 
     result = convert_pdf_cloud(
         pdf_path,
@@ -545,7 +559,7 @@ def test_convert_pdfs_cloud_batch_splits_into_chunks(tmp_path, monkeypatch):
         calls.append([f"{idx}:{path.name}" for idx, path in chunk])
         return [ConvertResult(pdf_path=path, md_path=tmp_path / f"{path.stem}.md", success=True) for idx, path in chunk]
 
-    monkeypatch.setattr("scholaraio.ingest.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
+    monkeypatch.setattr("scholaraio.providers.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
 
     results = convert_pdfs_cloud_batch(
         pdf_paths,
@@ -584,7 +598,7 @@ def test_convert_pdfs_cloud_batch_preserves_global_unique_indexes_across_chunks(
             results.append(ConvertResult(pdf_path=path, md_path=out_dir / "index.md", success=True))
         return results
 
-    monkeypatch.setattr("scholaraio.ingest.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
+    monkeypatch.setattr("scholaraio.providers.mineru._convert_chunk_cloud", fake_convert_chunk_cloud)
 
     convert_pdfs_cloud_batch(
         pdf_paths,
@@ -604,7 +618,7 @@ def test_convert_pdfs_cloud_batch_preserves_global_unique_indexes_across_chunks(
 
 
 def test_convert_chunk_cloud_uses_bounded_parallel_workers(tmp_path, monkeypatch):
-    import scholaraio.ingest.mineru as mineru
+    import scholaraio.providers.mineru as mineru
 
     pdf_paths = []
     for idx in range(3):
@@ -634,7 +648,7 @@ def test_convert_chunk_cloud_uses_bounded_parallel_workers(tmp_path, monkeypatch
 
     monkeypatch.setattr(mineru.concurrent.futures, "ThreadPoolExecutor", FakeExecutor)
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.convert_pdf_cloud",
+        "scholaraio.providers.mineru.convert_pdf_cloud",
         lambda pdf_path, *_args, **_kwargs: ConvertResult(
             pdf_path=pdf_path,
             md_path=pdf_path.with_suffix(".md"),
@@ -665,7 +679,7 @@ def test_convert_chunk_cloud_isolates_duplicate_stems_into_unique_output_dirs(tm
     seen_output_dirs: list[Path] = []
 
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.convert_pdf_cloud",
+        "scholaraio.providers.mineru.convert_pdf_cloud",
         lambda pdf_path, opts, **_kwargs: (
             seen_output_dirs.append(opts.output_dir),
             ConvertResult(pdf_path=pdf_path, md_path=(opts.output_dir / "index.md"), success=True),
@@ -686,7 +700,7 @@ def test_convert_chunk_cloud_isolates_duplicate_stems_into_unique_output_dirs(tm
 def test_plan_cloud_chunking_uses_200_page_limit_when_only_page_count_exceeds(tmp_path, monkeypatch):
     pdf_path = tmp_path / "long.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: 201)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_page_count", lambda _path: 201)
 
     should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
 
@@ -698,8 +712,8 @@ def test_plan_cloud_chunking_uses_200_page_limit_when_only_page_count_exceeds(tm
 def test_plan_cloud_chunking_uses_size_limit_when_file_is_too_large(tmp_path, monkeypatch):
     pdf_path = tmp_path / "big.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: 400)
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_page_count", lambda _path: 400)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
 
     should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
 
@@ -711,8 +725,8 @@ def test_plan_cloud_chunking_uses_size_limit_when_file_is_too_large(tmp_path, mo
 def test_plan_cloud_chunking_uses_safe_fallback_chunk_size_when_page_count_unknown(tmp_path, monkeypatch):
     pdf_path = tmp_path / "unknown.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: -1)
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_page_count", lambda _path: -1)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
 
     should_chunk, chunk_size, reason = _plan_cloud_chunking(pdf_path)
 
@@ -724,8 +738,8 @@ def test_plan_cloud_chunking_uses_safe_fallback_chunk_size_when_page_count_unkno
 def test_plan_cloud_chunking_clamps_unknown_page_fallback_to_cloud_max(tmp_path, monkeypatch):
     pdf_path = tmp_path / "unknown.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_page_count", lambda _path: -1)
-    monkeypatch.setattr("scholaraio.ingest.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_page_count", lambda _path: -1)
+    monkeypatch.setattr("scholaraio.providers.mineru._get_pdf_size_bytes", lambda _path: 250 * 1024 * 1024)
 
     should_chunk, chunk_size, _reason = _plan_cloud_chunking(pdf_path, default_chunk_size=800)
 
@@ -741,13 +755,13 @@ def test_convert_pdf_cloud_skips_when_markdown_exists_in_nested_layout(tmp_path,
     nested_md.parent.mkdir(parents=True)
     nested_md.write_text("existing\n", encoding="utf-8")
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
+    monkeypatch.setattr("scholaraio.providers.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._locate_cloud_markdown_output",
+        "scholaraio.providers.mineru._locate_cloud_markdown_output",
         lambda _out_dir, _stem: nested_md,
     )
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.subprocess.run",
+        "scholaraio.providers.mineru.subprocess.run",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should skip existing output")),
     )
 
@@ -766,7 +780,7 @@ def test_convert_pdf_cloud_rejects_invalid_pdf_before_cli(tmp_path, monkeypatch)
     pdf_path.write_bytes(b"not a pdf")
     output_dir = tmp_path / "out"
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
+    monkeypatch.setattr("scholaraio.providers.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
 
     called = {"subprocess": False}
 
@@ -774,7 +788,7 @@ def test_convert_pdf_cloud_rejects_invalid_pdf_before_cli(tmp_path, monkeypatch)
         called["subprocess"] = True
         return subprocess.CompletedProcess(["mineru-open-api"], 0, stdout="", stderr="")
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.providers.mineru.subprocess.run", fake_run)
 
     result = convert_pdf_cloud(
         pdf_path,
@@ -793,7 +807,7 @@ def test_convert_long_pdf_cloud_rejects_invalid_pdf_before_split(tmp_path, monke
     pdf_path.write_bytes(b"not a pdf")
 
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru._split_pdf",
+        "scholaraio.providers.mineru._split_pdf",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("invalid PDF should not be split")),
     )
 
@@ -817,9 +831,9 @@ def test_convert_pdf_cloud_uses_safe_upload_alias_for_long_filename(tmp_path, mo
 
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
+    monkeypatch.setattr("scholaraio.providers.mineru.shutil.which", lambda _name: "/usr/bin/mineru-open-api")
     monkeypatch.setattr(
-        "scholaraio.ingest.mineru.validate_pdf_for_mineru",
+        "scholaraio.providers.mineru.validate_pdf_for_mineru",
         lambda _path: type("Validation", (), {"ok": True, "error": None})(),
     )
 
@@ -835,7 +849,7 @@ def test_convert_pdf_cloud_uses_safe_upload_alias_for_long_filename(tmp_path, mo
         nested.write_text("# ok\n", encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.providers.mineru.subprocess.run", fake_run)
 
     result = convert_pdf_cloud(
         pdf_path,
@@ -867,7 +881,7 @@ def test_convert_pdfs_cloud_batch_uses_safe_output_namespace_for_long_filename(t
         captured["output_dir"] = opts.output_dir
         return ConvertResult(pdf_path=path, success=True, md_path=opts.output_dir / "index.md")
 
-    monkeypatch.setattr("scholaraio.ingest.mineru.convert_pdf_cloud", fake_convert_pdf_cloud)
+    monkeypatch.setattr("scholaraio.providers.mineru.convert_pdf_cloud", fake_convert_pdf_cloud)
 
     results = convert_pdfs_cloud_batch(
         [pdf_path],

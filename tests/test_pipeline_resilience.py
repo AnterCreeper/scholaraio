@@ -7,9 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from scholaraio.config import Config
-from scholaraio.ingest.metadata._models import PaperMetadata
-from scholaraio.ingest.pipeline import (
+from scholaraio.core.config import Config
+from scholaraio.services.ingest.pipeline import (
     STEPS,
     InboxCtx,
     StepResult,
@@ -17,11 +16,12 @@ from scholaraio.ingest.pipeline import (
     step_dedup,
     step_extract,
 )
+from scholaraio.services.ingest_metadata._models import PaperMetadata
 
 
 @pytest.fixture(autouse=True)
 def silence_ui(monkeypatch):
-    monkeypatch.setattr("scholaraio.ingest.pipeline.ui", lambda *a, **k: None)
+    monkeypatch.setattr("scholaraio.services.ingest.pipeline.ui", lambda *a, **k: None)
 
 
 def test_step_dedup_treats_stale_registry_as_new(tmp_path: Path):
@@ -80,11 +80,11 @@ def test_process_inbox_isolates_step_exceptions(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(STEPS["extract"], "fn", crashing_step_extract, raising=False)
     monkeypatch.setattr(
-        "scholaraio.ingest.metadata.enrich_metadata",
+        "scholaraio.services.ingest_metadata.enrich_metadata",
         lambda meta: meta,
     )
     monkeypatch.setattr(
-        "scholaraio.ingest.extractor.get_extractor",
+        "scholaraio.services.ingest_metadata.extractor.get_extractor",
         lambda cfg: SimpleNamespace(
             extract=lambda md_path: PaperMetadata(
                 doi=f"10.1234/{Path(md_path).stem}",

@@ -1,4 +1,4 @@
-"""Tests for scholaraio.metrics — MetricsStore, timer, timed."""
+"""Tests for scholaraio.services.metrics — MetricsStore, timer, timed."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from scholaraio.config import LLMConfig
-from scholaraio.metrics import (
+from scholaraio.core.config import LLMConfig
+from scholaraio.services.metrics import (
     LLMResult,
     MetricsStore,
     TimerResult,
@@ -222,7 +222,7 @@ class TestCallLLM:
             called["timeout"] = timeout
             return FakeResponse()
 
-        monkeypatch.setattr("scholaraio.metrics.requests.post", fake_post)
+        monkeypatch.setattr("scholaraio.services.metrics.requests.post", fake_post)
 
         llm_cfg = LLMConfig(
             backend="openai-compat",
@@ -258,7 +258,7 @@ class TestCallLLM:
             called["timeout"] = timeout
             return FakeResponse()
 
-        monkeypatch.setattr("scholaraio.metrics.requests.post", fake_post)
+        monkeypatch.setattr("scholaraio.services.metrics.requests.post", fake_post)
 
         llm_cfg = LLMConfig(
             backend="openai-compat",

@@ -47,6 +47,34 @@ scholaraio setup
 
 Then open the repository in Codex, Claude Code, or another supported agent. In this setup, the agent gets the fullest experience: bundled instructions, local skills, the CLI, and the complete codebase context are all available directly. For Claude Code plugins, Codex/OpenClaw skill registration, and other setup paths, see [`docs/getting-started/agent-setup.md`](docs/getting-started/agent-setup.md).
 
+## Upgrading To 1.4
+
+ScholarAIO 1.4 is a runtime-layout upgrade. It does **not** migrate user data
+automatically during `git pull`, `pip install -U`, or normal CLI startup. That is
+intentional: data movement is an explicit offline operation with a migration
+journal and verification.
+
+Recommended path:
+
+```bash
+# 1. Update the code/package
+git pull
+pip install -e ".[full]"
+
+# 2. From the ScholarAIO runtime root, inspect and migrate explicitly
+scholaraio migrate status
+scholaraio migrate upgrade --migration-id upgrade-1.4.0 --confirm
+scholaraio migrate verify --migration-id upgrade-1.4.0
+
+# 3. Rebuild indexes after migrated data lands in the fresh layout
+scholaraio index --rebuild
+```
+
+For the lowest-risk upgrade, keep or copy your old ScholarAIO folder first, then
+run the migration in the upgraded checkout that contains your `data/`,
+`workspace/`, and `config*.yaml`. See
+[`docs/getting-started/upgrading-to-1.4.md`](docs/getting-started/upgrading-to-1.4.md).
+
 ## What It Does
 
 |  | Feature | Details |
@@ -126,17 +154,20 @@ scholaraio/             # Python package — CLI and all core modules
   ingest/               #   PDF parsing + metadata extraction pipeline
   sources/              #   External source adapters (arXiv / Endnote / Zotero)
 
-.claude/skills/         # Agent skills (AgentSkills.io format)
+.claude/skills/         # Agent skills (canonical source)
 .agents/skills/         # ↑ symlink for cross-agent discovery
 .qwen/QWEN.md           # ↑ project context for Qwen Code
 .qwen/skills/           # ↑ symlink for Qwen agent skill discovery
-data/papers/            # Your paper library (gitignored)
-data/proceedings/       # Proceedings library (gitignored)
-data/inbox/             # Drop PDFs here for ingestion
-data/inbox-proceedings/ # Drop proceedings volumes here for dedicated ingest
+data/libraries/papers/  # Paper library (fresh default)
+data/libraries/proceedings/ # Proceedings library (fresh default)
+data/spool/inbox/       # Drop PDFs here for ingestion
+data/spool/inbox-proceedings/ # Dedicated proceedings ingest inbox
 ```
 
-Full module reference → [`CLAUDE.md`](CLAUDE.md) or [`AGENTS.md`](AGENTS.md)
+Upgrading an older runtime layout? See [Upgrading To 1.4](#upgrading-to-14).
+
+Agent entry docs → [`CLAUDE.md`](CLAUDE.md) or [`AGENTS.md`](AGENTS.md)
+Deep agent reference → [`docs/guide/agent-reference.md`](docs/guide/agent-reference.md)
 
 ## Citation
 

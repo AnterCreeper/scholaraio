@@ -1,10 +1,6 @@
 ---
 name: workspace
-description: Manage workspace paper subsets — create workspaces, add/remove papers, search within a workspace, and export BibTeX. Workspaces are thin layers that reference papers in the main library by UUID. Use when the user wants to organize papers into groups for writing, review, or focused analysis.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "papers", "workspace", "organization"]
+description: Use when the user wants to organize paper subsets, create workspaces, add or remove papers, search within a workspace, manage refs/papers.json, or export workspace BibTeX.
 ---
 # 工作区管理
 
@@ -34,7 +30,7 @@ scholaraio ws add <名称> --topic <主题ID>
 scholaraio ws add <名称> --all
 ```
 
-- `--search`：按融合检索结果批量添加，支持 `--limit`/`--year`/`--journal`/`--type` 过滤；`--top` 仍兼容
+- `--search`：按融合检索结果批量添加，支持 `--limit`/`--year`/`--journal`/`--type` 过滤
 - `--topic`：按 BERTopic 主题 ID 批量添加该主题下的全部论文
 - `--all`：将主库全部论文加入工作区
 

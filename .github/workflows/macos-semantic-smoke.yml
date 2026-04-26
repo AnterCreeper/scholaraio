@@ -55,7 +55,7 @@ jobs:
           TOKENIZERS_PARALLELISM: "false"
         run: |
           export SMOKE_ROOT="$RUNNER_TEMP/issue-65-smoke"
-          mkdir -p "$SMOKE_ROOT/data/explore/issue-65-smoke"
+          mkdir -p "$SMOKE_ROOT/data/libraries/explore/issue-65-smoke"
 
           cat > "$SMOKE_ROOT/config.yaml" <<'YAML'
           embed:
@@ -65,7 +65,7 @@ jobs:
             device: cpu
           YAML
 
-          cat > "$SMOKE_ROOT/data/explore/issue-65-smoke/papers.jsonl" <<'JSONL'
+          cat > "$SMOKE_ROOT/data/libraries/explore/issue-65-smoke/papers.jsonl" <<'JSONL'
           {"openalex_id":"https://openalex.org/W1","doi":"10.1234/issue65.1","title":"Boundary-layer turbulence transfer learning","abstract":"We study semantic retrieval for boundary layer turbulence with transformer embeddings on CPU systems and compare keyword and unified search behavior.","authors":["Alice Example"],"year":2024,"cited_by_count":7,"type":"article"}
           {"openalex_id":"https://openalex.org/W2","doi":"10.1234/issue65.2","title":"Wake mixing in bluff-body flows","abstract":"This paper focuses on wake mixing and provides a distractor document for ranking checks.","authors":["Bob Example"],"year":2023,"cited_by_count":3,"type":"article"}
           JSONL

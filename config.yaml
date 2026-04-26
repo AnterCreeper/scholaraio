@@ -1,8 +1,11 @@
 # ScholarAIO configuration 配置文件
 
 paths:
-  papers_dir: data/papers # Ingested papers directory 已入库论文目录
-  index_db: data/index.db # SQLite index file SQLite 索引文件
+  # papers_dir: data/libraries/papers # Optional override; when omitted/legacy-default, ScholarAIO uses data/libraries/papers and auto-falls back to existing data/papers
+  state_root: data/state # Durable internal state root 持久内部状态根目录
+  cache_root: data/cache # Rebuildable cache root 可重建缓存根目录
+  runtime_root: data/runtime # Ephemeral runtime root 临时运行产物根目录
+  # index_db: data/state/search/index.db # Optional override; when omitted ScholarAIO uses state_root/search/index.db and auto-falls back to existing data/index.db
 
 # LLM backend LLM 后端配置
 # Put api_key in config.local.yaml (gitignored) or use env vars:
@@ -92,13 +95,13 @@ logging:
   file: data/scholaraio.log
   max_bytes: 10000000 # 10 MB, rotate on overflow 超出轮转
   backup_count: 3
-  metrics_db: data/metrics.db
+  # metrics_db: data/state/metrics/metrics.db # Optional override; omitted by default so existing data/metrics.db can still be discovered automatically
 
 # Topic modeling 主题建模
 topics:
   min_topic_size: 5 # HDBSCAN min cluster size 最小聚类大小
   nr_topics: 0 # 0=auto, -1=no merge, N=target count 目标主题数
-  model_dir: data/topic_model # Model save directory 模型保存目录
+  # model_dir: data/state/topics # Optional override; omitted by default so existing data/topic_model/ can still be discovered automatically
 
 # Translation 翻译
 translate:

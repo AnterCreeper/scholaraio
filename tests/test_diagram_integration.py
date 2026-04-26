@@ -14,9 +14,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from scholaraio import cli
-from scholaraio.config import Config
-from scholaraio.diagram import (
+from scholaraio.core.config import Config
+from scholaraio.interfaces.cli import compat as cli
+from scholaraio.services.diagram import (
     generate_diagram,
     generate_diagram_with_critic,
     render_ir,
@@ -112,7 +112,7 @@ class TestEndToEndPipeline:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         for fmt in ["dot", "mermaid", "drawio"]:
             out = generate_diagram(encoder_decoder_paper, "model_arch", fmt, cfg, out_dir=tmp_path / fmt)
@@ -138,7 +138,7 @@ class TestEndToEndPipeline:
         }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
         )
         result = generate_diagram_with_critic(
@@ -156,7 +156,7 @@ class TestEndToEndPipeline:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         ir_path = generate_diagram(encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, dump_ir=True)
         assert ir_path.suffix == ".json"
@@ -219,7 +219,7 @@ class TestEndToEndPipeline:
                 return json.dumps(critique_r2)
             return json.dumps(ir_v1)
 
-        monkeypatch.setattr("scholaraio.diagram._call_llm", fake_llm)
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", fake_llm)
         result = generate_diagram_with_critic(
             encoder_decoder_paper, "model_arch", "dot", cfg, out_dir=tmp_path, max_rounds=3
         )
@@ -322,7 +322,7 @@ class TestCliIntegration:
         }
         critique = {"round": 1, "verdict": "acceptable", "issues": [], "suggestions": []}
         monkeypatch.setattr(
-            "scholaraio.diagram._call_llm",
+            "scholaraio.services.diagram._call_llm",
             lambda p, c, **kw: json.dumps(ir if "可视化专家" in p or "提取并结构化" in p else critique),
         )
         for fmt in ["dot", "mermaid", "drawio"]:
@@ -348,7 +348,7 @@ class TestCliIntegration:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
 
         # Step 1: dump IR
         args = Namespace(
@@ -390,7 +390,7 @@ class TestCliIntegration:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         args = Namespace(
             paper_id="Test-2024-Paper",
             type="tech_route",
@@ -411,7 +411,7 @@ class TestCliIntegration:
             "edges": [],
             "layout_hint": "horizontal",
         }
-        monkeypatch.setattr("scholaraio.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
+        monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(ir))
         args = Namespace(
             paper_id="Test-2024-Paper",
             type="exp_setup",

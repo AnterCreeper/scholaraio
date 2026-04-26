@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scholaraio import cli
+from scholaraio.interfaces.cli import compat as cli
 
 
 class TestResultLimitCli:
@@ -68,7 +68,7 @@ class TestResultLimitCommands:
 
         monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
         monkeypatch.setattr(
-            "scholaraio.toolref.toolref_search",
+            "scholaraio.stores.toolref.toolref_search",
             lambda tool, query, **kwargs: seen.update({"tool": tool, "query": query, **kwargs}) or [],
         )
 

@@ -1,10 +1,6 @@
 ---
 name: setup
-description: Initialize and diagnose the ScholarAIO environment. Run interactive setup wizard (bilingual EN/ZH) to install dependencies, create config files, and configure API keys. Run status check to see what's installed and what's missing. Use when the user wants to set up, install, configure, or troubleshoot ScholarAIO.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["setup", "configuration", "installation"]
+description: Use when the user wants to install, configure, diagnose, or troubleshoot ScholarAIO, including setup check, dependency status, API keys, and bilingual setup flow.
 ---
 # Setup / 环境配置
 

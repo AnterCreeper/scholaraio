@@ -1,10 +1,6 @@
 ---
 name: patent-search
-description: USPTO 专利搜索（默认 PPUBS，无需 API Key；可选 ODP API），支持关键词检索、申请号查详情，并可一键下载 PDF。结果仅用于发现，不入库。
-version: 1.1.0
-author: Claude
-tier: utility
-destructive: false
+description: Use when the user wants USPTO patent discovery, patent metadata lookup, application lookup, or downloadable patent candidates before ingest.
 ---
 
 # patent-search — USPTO 专利搜索
@@ -13,7 +9,7 @@ destructive: false
 
 同时保留 USPTO Open Data Portal (ODP) API 作为可选后端（需要 API Key），用于更结构化的申请号查询。
 
-**注意：本命令仅用于搜索发现，不会直接入库。** 如需将专利纳入知识库，请后续通过 `patent-fetch` 或 `--fetch` 下载 PDF 后放入 `data/inbox-patent/`，再执行 `scholaraio pipeline ingest` 走正常的专利入库流程（含公开号去重）。
+**注意：本命令仅用于搜索发现，不会直接入库。** 如需将专利纳入知识库，请后续通过 `patent-fetch` 或 `--fetch` 下载 PDF 后放入 configured patent inbox（fresh 默认 `data/spool/inbox-patent/`），再执行 `scholaraio pipeline ingest` 走正常的专利入库流程（含公开号去重）。
 
 ## 用法
 
@@ -33,7 +29,7 @@ scholaraio patent-search "semiconductor" --count 10 --offset 10
 ### 搜索并自动下载 PDF
 
 ```bash
-# 搜索并自动下载所有结果中的专利 PDF 到 data/inbox-patent/
+# 搜索并自动下载所有结果中的专利 PDF 到 configured patent inbox
 scholaraio patent-search "quantum computing" --count 5 --fetch
 ```
 
@@ -156,7 +152,7 @@ scholaraio search "quantum computing"
 
 ## 相关功能
 
-- `scholaraio patent-fetch` — 下载指定专利 PDF 到 `data/inbox-patent/`
+- `scholaraio patent-fetch` — 下载指定专利 PDF 到 configured patent inbox（fresh 默认 `data/spool/inbox-patent/`）
 - `scholaraio arxiv` — arXiv 论文搜索与下载
 - `scholaraio websearch` — 实时网页搜索
 - `scholaraio pipeline ingest` — 将 inbox-patent 中的 PDF 入库

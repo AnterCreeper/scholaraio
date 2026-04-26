@@ -1,15 +1,11 @@
 ---
 name: patent-fetch
-description: 优先通过 USPTO PPUBS 官方导出接口下载美国专利 PDF，必要时回退 Google Patents，并保存到 inbox-patent
-version: 1.1.0
-author: Claude
-tier: utility
-destructive: false
+description: Use when the user has a patent publication number, patent URL, or patent-search result and wants the PDF fetched into the configured patent inbox.
 ---
 
 # patent-fetch — 专利 PDF 下载
 
-优先通过 USPTO PPUBS 官方导出接口下载美国专利 PDF，并在必要时回退到 Google Patents 页面抓取，自动保存到 `data/inbox-patent/` 目录，供后续 `pipeline ingest` 入库。
+优先通过 USPTO PPUBS 官方导出接口下载美国专利 PDF，并在必要时回退到 Google Patents 页面抓取，自动保存到 configured patent inbox（fresh 默认 `data/spool/inbox-patent/`），供后续 `pipeline ingest` 入库。旧版 `data/inbox-patent/` 先用 `scholaraio migrate upgrade --migration-id <id> --confirm` 迁移。
 
 常与 `patent-search` 配合使用：先用 `patent-search` 发现专利，再用 `patent-fetch` 或 `--fetch` 参数下载 PDF。
 
@@ -49,15 +45,15 @@ scholaraio patent-search "neural network" --count 5 --fetch
 ## 输出示例
 
 ```
-已下载: /path/to/data/inbox-patent/US20240176406A1.pdf (1679017 bytes)
-已保存到: /path/to/data/inbox-patent/US20240176406A1.pdf
+已下载: /path/to/data/spool/inbox-patent/US20240176406A1.pdf (1679017 bytes)
+已保存到: /path/to/data/spool/inbox-patent/US20240176406A1.pdf
 ```
 
 如果文件已存在：
 
 ```
-文件已存在: /path/to/data/inbox-patent/US20240176406A1.pdf
-已保存到: /path/to/data/inbox-patent/US20240176406A1.pdf
+文件已存在: /path/to/data/spool/inbox-patent/US20240176406A1.pdf
+已保存到: /path/to/data/spool/inbox-patent/US20240176406A1.pdf
 ```
 
 如果页面没有 PDF 链接：
@@ -104,7 +100,7 @@ scholaraio pipeline ingest
 - 部分非美国专利或特殊文档类型可能需要换源（如 EPO）
 
 **下载失败**
-- 检查 `data/inbox-patent/` 目录是否有写入权限
+- 检查 configured patent inbox（fresh 默认 `data/spool/inbox-patent/`）是否有写入权限
 - 确认磁盘空间充足
 
 ## 相关功能

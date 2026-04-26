@@ -1,6 +1,6 @@
 ---
 name: ingest-link
-description: Use when the user wants to ingest one or more web URLs into ScholarAIO, convert rendered web content into Markdown through qt-web-extractor, or turn an online page/PDF into a normal document-ingest workflow.
+description: Use when the user wants to ingest web URLs, online PDFs, rendered web pages, standards, manuals, or articles through qt-web-extractor into the normal document-ingest workflow.
 ---
 
 # Ingest Web Links
@@ -61,9 +61,11 @@ scholaraio ingest-link https://example.com/report.pdf --pdf
 - ScholarAIO does not render webpages itself in this flow
 - It depends on an external `qt-web-extractor` service
 - The value of that service is rendered-content extraction, not just raw HTML download
-- Default endpoint: `http://127.0.0.1:8766`
-- Override with `config.yaml -> webextract.base_url` / `webextract.api_key`
-- Environment variables `WEBEXTRACT_URL` / `WEBEXTRACT_API_KEY` still work as fallback
+- Default HTTP endpoint: `http://127.0.0.1:8766`
+- Preferred MCP endpoint: `http://127.0.0.1:8766/mcp`
+- Prefer `config.yaml -> webextract.transport: mcp` plus `webextract.mcp_url` / `webextract.mcp_tool`
+- HTTP fallback uses `webextract.base_url` / `webextract.api_key`
+- Environment variables `WEBEXTRACT_TRANSPORT`, `WEBEXTRACT_MCP_URL`, `WEBEXTRACT_URL`, and `WEBEXTRACT_API_KEY` still work as overrides
 
 ### 4. Understand what gets stored
 

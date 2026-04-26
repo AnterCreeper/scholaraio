@@ -1,10 +1,6 @@
 ---
 name: explore
-description: Explore literature by fetching papers from OpenAlex with multi-dimensional filters (ISSN, concept, author, institution, keyword, etc.), building local embeddings, running BERTopic clustering, and multi-mode search (semantic/keyword/unified). Data is isolated in data/explore/<name>/. Use when the user wants to survey a journal, explore a research field, analyze an author's output, or do landscape analysis.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "research", "literature", "discovery", "openalex"]
+description: Use when the user wants to survey a journal or field, fetch papers from OpenAlex, cluster topics, build exploration embeddings, or search named explore libraries under data/libraries/explore.
 ---
 # 多维文献探索
 

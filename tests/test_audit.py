@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from scholaraio.audit import Issue, audit_papers, list_scrub_suspects
+from scholaraio.services.audit import Issue, audit_papers, list_scrub_suspects
 
 
 class TestAuditDetection:

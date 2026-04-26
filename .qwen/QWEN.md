@@ -44,7 +44,7 @@ Use these directly when needed:
 - `scholaraio show --help`
 - `scholaraio audit --help`
 - `scholaraio refetch --help`
-- `scholaraio ingest --help`
+- `scholaraio pipeline --help`
 - `scholaraio ws --help`
 - `scholaraio arxiv --help`
 - `scholaraio toolref --help`
@@ -53,7 +53,7 @@ Use these directly when needed:
 
 - Qwen Code should rely on `.qwen/skills/` for project skills in this repository.
 - Do not assume `AGENTS.md` or `CLAUDE.md` is auto-loaded.
-- If more complete project guidance is needed, read `AGENTS.md` manually.
+- If more complete project guidance is needed, read `AGENTS.md` first and then `docs/guide/agent-reference.md`.
 
 ## Research Attitude
 

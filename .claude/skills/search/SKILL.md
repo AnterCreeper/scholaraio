@@ -1,10 +1,6 @@
 ---
 name: search
-description: Search academic papers in the local ScholarAIO knowledge base. Supports unified search (keyword + semantic fusion), keyword-only (FTS5), semantic-only (FAISS), author search, and federated search across main library, explore databases, and arXiv. Use when the user wants to find papers, look up literature, search by author, explore research topics, or search across multiple sources. For citation rankings and citation count updates, see the /citations skill.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "search", "papers", "semantic", "fts5"]
+description: Use when the user wants to find academic papers, search the local library, run keyword or semantic search, search by author, explore topics, or federate across library, explore databases, and arXiv.
 ---
 # 文献搜索
 
@@ -22,7 +18,7 @@ tags: ["academic", "search", "papers", "semantic", "fts5"]
 
 2. 从用户输入中提取：
    - **查询词**：用户想搜索的内容
-   - **返回数量**：优先使用 `--limit N`，`--top N` 仍兼容；未指定则使用默认值
+   - **返回数量**：使用规范参数 `--limit N`；未指定则使用默认值
    - **年份过滤**：`--year 2023`（单年）、`--year 2020-2024`（范围）、`--year 2020-`（起始年至今）
    - **期刊过滤**：`--journal "Fluid Mechanics"`（模糊匹配）
    - **类型过滤**：`--type review`（模糊匹配，常见值：`review`、`journal-article`、`book-chapter`）
@@ -79,7 +75,7 @@ scholaraio fsearch "<查询词>" --scope main,proceedings,explore:*,arxiv
    - `fts`：仅关键词命中
    - `vec`：仅语义命中
 
-5. **复杂查询**：当 CLI 参数组合无法满足需求时（如按一作姓氏首字母筛选、多条件交叉、自定义排序等），直接写 Python 读 `data/papers/*/meta.json` 做查询。JSON 关键字段：
+5. **复杂查询**：当 CLI 参数组合无法满足需求时（如按一作姓氏首字母筛选、多条件交叉、自定义排序等），直接写 Python 读 configured papers library 下的 `*/meta.json` 做查询。JSON 关键字段：
 
 ```
 title, authors, first_author, first_author_lastname, year, doi, journal,

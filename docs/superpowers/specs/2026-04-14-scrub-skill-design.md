@@ -35,7 +35,7 @@ These records may already be ingestable and searchable, but they are not trustwo
 
 ## Goals
 
-- Add a `scrub` skill that orchestrates post-enrich metadata cleanup for papers in `data/papers/`
+- Add a `scrub` skill that orchestrates post-enrich metadata cleanup for papers in the configured papers library
 - Make the workflow incremental by skipping directories that already contain `.scrubbed`
 - Reuse existing CLI and module-level repair/rename/indexing functionality
 - Add a small amount of underlying support code for marker handling and suspect detection
@@ -83,7 +83,7 @@ This is the smallest design that makes the workflow durable. A pure skill-only s
 ### Primary flow
 
 1. User asks to scrub bad records after enrich
-2. Skill scans `data/papers/`
+2. Skill scans the configured papers library
 3. Skill skips papers already marked with `.scrubbed`
 4. Skill identifies likely-bad candidates using shared heuristics and existing audit-style checks
 5. For each candidate, the agent inspects:
@@ -140,7 +140,7 @@ Why `papers.py`:
 
 Marker format:
 
-- path: `data/papers/<Author-Year-Title>/.scrubbed`
+- path: `<configured papers_dir>/<Author-Year-Title>/.scrubbed`
 - contents: empty file is acceptable for v1
 
 We intentionally keep it simple so the marker is stable across tools and easy to inspect from shell or agent workflows.

@@ -42,6 +42,26 @@ Then start your agent in the repository root:
 
 This mode is best when you want the full project context, not just the ScholarAIO skills.
 
+The bundled `.mcp.json` lists the optional webtools MCP servers for hosts that
+can consume project-scoped MCP JSON. Codex currently uses its own MCP registry,
+so register the same servers explicitly when you want Codex to call them:
+
+```bash
+codex mcp add web-search --url http://127.0.0.1:8765/mcp
+codex mcp add web-extractor --url http://127.0.0.1:8766/mcp
+```
+
+See [Webtools Integration](../guide/webtools-integration.md) for auth variants
+and non-Claude agent examples.
+
+The entry docs are intentionally layered:
+
+- `AGENTS.md` / `CLAUDE.md` / `.qwen/QWEN.md`: short entry docs with durable project facts and hard constraints
+- `.claude/skills/`: reusable workflows and procedures
+- `docs/guide/agent-reference.md`: deeper agent, runtime, and architecture reference
+
+If an instruction starts turning into a long checklist, it probably belongs in a skill instead of an entry doc.
+
 ## Claude Code Plugin
 
 Claude Code has the cleanest cross-project install path because ScholarAIO ships as a plugin and marketplace entry.

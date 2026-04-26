@@ -1,11 +1,11 @@
-"""Tests for scholaraio.ingest.metadata._writer — filename generation, sanitization."""
+"""Tests for scholaraio.services.ingest_metadata._writer — filename generation, sanitization."""
 
 from __future__ import annotations
 
 import json
 
-from scholaraio.ingest.metadata._models import PaperMetadata
-from scholaraio.ingest.metadata._writer import (
+from scholaraio.services.ingest_metadata._models import PaperMetadata
+from scholaraio.services.ingest_metadata._writer import (
     _clean_title_for_filename,
     _sanitize_for_filename,
     _strip_diacritics,
@@ -291,7 +291,7 @@ class TestRefetchMetadata:
             meta.year = 2026
             return meta
 
-        monkeypatch.setattr("scholaraio.ingest.metadata._api.enrich_metadata", fake_enrich)
+        monkeypatch.setattr("scholaraio.services.ingest_metadata._api.enrich_metadata", fake_enrich)
 
         changed = refetch_metadata(json_path)
 
@@ -327,7 +327,7 @@ class TestRefetchMetadata:
             meta.extraction_method = "local_only"
             return meta
 
-        monkeypatch.setattr("scholaraio.ingest.metadata._api.enrich_metadata", fake_enrich)
+        monkeypatch.setattr("scholaraio.services.ingest_metadata._api.enrich_metadata", fake_enrich)
 
         changed = refetch_metadata(json_path)
 
@@ -364,7 +364,7 @@ class TestRefetchMetadata:
             meta.extraction_method = "arxiv_lookup"
             return meta
 
-        monkeypatch.setattr("scholaraio.ingest.metadata._api.enrich_metadata", fake_enrich)
+        monkeypatch.setattr("scholaraio.services.ingest_metadata._api.enrich_metadata", fake_enrich)
 
         changed = refetch_metadata(json_path)
 
@@ -396,11 +396,11 @@ class TestRefetchMetadata:
         json_path.write_text(json.dumps(original), encoding="utf-8")
 
         monkeypatch.setattr(
-            "scholaraio.ingest.metadata._api.query_semantic_scholar",
+            "scholaraio.services.ingest_metadata._api.query_semantic_scholar",
             lambda **kwargs: {"references": [{"externalIds": {"DOI": "10.9999/ref-a"}}]},
         )
         monkeypatch.setattr(
-            "scholaraio.ingest.metadata._api.query_crossref",
+            "scholaraio.services.ingest_metadata._api.query_crossref",
             lambda **kwargs: {
                 "reference": [{"DOI": "10.9999/ref-b"}],
             },

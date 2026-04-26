@@ -1,22 +1,6 @@
 ---
 name: paper-guided-reading
-description: Use when the user wants guided deep reading of a single paper. Start
-  from fuzzy keywords or a research question, search the local library, confirm
-  the target paper, then load the paper for structured, conversational analysis.
-  If the local library is not enough, expand to web or arXiv exploration only
-  after user approval.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags:
-- academic
-- reading
-- analysis
-- guided
-- search
-- teaching
-tier: writing
-destructive: false
+description: Use when the user wants guided reading, deep reading, or structured analysis of a single paper, starting from fuzzy keywords or a research question.
 ---
 # 引导式论文检索与精读
 

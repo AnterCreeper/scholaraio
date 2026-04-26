@@ -1,10 +1,6 @@
 ---
 name: scrub
-description: Use when incrementally reviewing and repairing low-quality metadata after enrich, especially for non-standard documents that may need title, author, or year correction while skipping already reviewed records via `.scrubbed`.
-version: 1.0.3
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "metadata", "cleanup", "data-quality", "repair"]
+description: Use when incrementally reviewing and repairing low-quality metadata after enrich, especially non-standard documents that need title, author, or year correction while skipping already reviewed records via .scrubbed.
 ---
 # Scrub Metadata
 
@@ -39,8 +35,8 @@ You can list suspicious, unreviewed papers with a Python helper that resolves `p
 
 ```bash
 python - <<'PY'
-from scholaraio.audit import list_scrub_suspects
-from scholaraio.config import load_config
+from scholaraio.services.audit import list_scrub_suspects
+from scholaraio.core.config import load_config
 
 cfg = load_config()
 
@@ -80,7 +76,7 @@ If the suspect is `invalid_metadata` because the directory only has `paper.md` a
 
 ```bash
 python - <<'PY'
-from scholaraio.config import load_config
+from scholaraio.core.config import load_config
 
 paper_id = "<paper-id>"
 cfg = load_config()
@@ -93,7 +89,7 @@ If the default `show --layer 4` view is too long, resolve the actual `paper.md` 
 ```bash
 python - <<'PY'
 from scholaraio.cli import _resolve_paper
-from scholaraio.config import load_config
+from scholaraio.core.config import load_config
 
 paper_id = "<paper-id>"
 cfg = load_config()
@@ -147,7 +143,7 @@ That means the original directory name may stop existing right after the real re
 ```bash
 python - <<'PY'
 from scholaraio.cli import _resolve_paper
-from scholaraio.config import load_config
+from scholaraio.core.config import load_config
 
 stable_id = "<uuid-from-layer-1>"
 cfg = load_config()
@@ -172,8 +168,8 @@ Once a paper has been reviewed and is acceptable for current library use, create
 ```bash
 python - <<'PY'
 from scholaraio.cli import _resolve_paper
-from scholaraio.config import load_config
-from scholaraio.papers import mark_scrubbed
+from scholaraio.core.config import load_config
+from scholaraio.stores.papers import mark_scrubbed
 
 stable_id = "<uuid-from-layer-1>"
 cfg = load_config()

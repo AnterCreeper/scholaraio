@@ -7,7 +7,8 @@ Does NOT test: UUID generation randomness, internal sorting.
 
 from __future__ import annotations
 
-from scholaraio.papers import (
+from scholaraio.stores.papers import (
+    best_citation,
     is_scrubbed,
     iter_paper_dirs,
     mark_scrubbed,
@@ -55,6 +56,16 @@ class TestIterPaperDirs:
     def test_nonexistent_dir_yields_nothing(self, tmp_path):
         dirs = list(iter_paper_dirs(tmp_path / "nonexistent"))
         assert dirs == []
+
+
+class TestCitationHelpers:
+    """Citation-count compatibility contract."""
+
+    def test_best_citation_accepts_legacy_scalar_count(self):
+        assert best_citation({"citation_count": 7}) == 7
+
+    def test_best_citation_accepts_dict_counts(self):
+        assert best_citation({"citation_count": {"crossref": 3, "semantic_scholar": 11}}) == 11
 
 
 class TestScrubMarkers:

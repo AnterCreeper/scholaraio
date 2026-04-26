@@ -42,6 +42,13 @@ Use this first when the user knows the deliverable they want, but not which writ
 | Verify citations before delivery | `/citation-check` |
 | Turn Markdown/content into DOCX or PPTX | `/document` |
 
+## Detailed Writing Guides
+
+For tactical, format-specific rules and checklists, see the guides in `docs/writing-guide/`:
+
+- [`academic-survey-writing-guide.md`](../writing-guide/academic-survey-writing-guide.md) — LaTeX formal survey writing (20–50 pages), covering literature search strategy, LaTeX template setup, source-paper image insertion, compilation checks, and PDF quality audits.
+- [`academic-beamer-guide.md`](../writing-guide/academic-beamer-guide.md) — Beamer presentation production rules, covering content style, high-density layout, SVG insertion, frame surgery safety, and final checklists.
+
 ## Current Writing Skills
 
 ### Literature Review (`/literature-review`)

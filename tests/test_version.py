@@ -14,3 +14,7 @@ def test_runtime_version_matches_project_version():
     project_version = match.group("version")
 
     assert __version__ == project_version
+
+
+def test_release_version_is_1_4_0():
+    assert __version__ == "1.4.0"

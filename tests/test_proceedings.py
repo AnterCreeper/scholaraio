@@ -3,18 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scholaraio import cli
-from scholaraio.config import _build_config
-from scholaraio.index import build_proceedings_index, search_proceedings
-from scholaraio.ingest import pipeline
-from scholaraio.ingest.pipeline import run_pipeline
-from scholaraio.ingest.proceedings import (
+from scholaraio.core.config import _build_config
+from scholaraio.interfaces.cli import compat as cli
+from scholaraio.services.index import build_proceedings_index, search_proceedings
+from scholaraio.services.ingest import pipeline
+from scholaraio.services.ingest.pipeline import run_pipeline
+from scholaraio.services.ingest.proceedings_volume import (
     apply_proceedings_clean_plan,
     apply_proceedings_split_plan,
     build_proceedings_clean_candidates,
     ingest_proceedings_markdown,
 )
-from scholaraio.proceedings import iter_proceedings_dirs, iter_proceedings_papers
+from scholaraio.stores.proceedings import iter_proceedings_dirs, iter_proceedings_papers, proceedings_db_path
 
 
 def _write_proceedings_fixture(root: Path) -> Path:
@@ -103,6 +103,18 @@ def test_build_and_search_proceedings_index_returns_matching_child_rows(tmp_path
     assert len(results) == 2
     assert {r["proceeding_title"] for r in results} == {"Example Proceedings"}
     assert {r["paper_id"] for r in results} == {"proc-paper-1", "proc-paper-2"}
+
+
+def test_proceedings_db_path_defaults_to_durable_library_only(tmp_path: Path):
+    assert (
+        proceedings_db_path(tmp_path) == (tmp_path / "data" / "libraries" / "proceedings" / "proceedings.db").resolve()
+    )
+
+    target_db = tmp_path / "data" / "libraries" / "proceedings" / "proceedings.db"
+    target_db.parent.mkdir(parents=True)
+    target_db.write_text("", encoding="utf-8")
+
+    assert proceedings_db_path(tmp_path) == target_db.resolve()
 
 
 def test_build_proceedings_index_incremental_mode_replaces_existing_rows(tmp_path: Path):
@@ -475,7 +487,7 @@ def test_split_candidates_extract_titles_from_table_of_contents_heading_variant(
 def test_pipeline_routes_manual_proceedings_inbox_to_proceedings_library(tmp_path: Path):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    md_path = tmp_path / "data" / "inbox-proceedings" / "volume.md"
+    md_path = cfg.proceedings_inbox_dir / "volume.md"
     md_path.write_text(
         "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
         "## Paper: Wave propagation in porous media\nAlice Zheng\n10.1000/example.1\nBody\n",
@@ -484,9 +496,37 @@ def test_pipeline_routes_manual_proceedings_inbox_to_proceedings_library(tmp_pat
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any(iter_proceedings_dirs(tmp_path / "data" / "proceedings"))
-    assert not any((tmp_path / "data" / "papers").iterdir())
-    proceeding_dir = _first_proceeding_dir(tmp_path / "data" / "proceedings")
+    assert any(iter_proceedings_dirs(cfg.proceedings_dir))
+    assert not any(cfg.papers_dir.iterdir())
+    proceeding_dir = _first_proceeding_dir(cfg.proceedings_dir)
+    meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
+    assert meta["split_status"] == "pending_review"
+
+
+def test_pipeline_routes_manual_proceedings_inbox_to_configured_proceedings_library(tmp_path: Path):
+    cfg = _build_config(
+        {
+            "ingest": {"extractor": "regex"},
+            "paths": {
+                "proceedings_inbox_dir": "queues/inbox-proceedings",
+                "proceedings_dir": "libraries/proceedings",
+            },
+        },
+        tmp_path,
+    )
+    cfg.ensure_dirs()
+    md_path = cfg.proceedings_inbox_dir / "volume.md"
+    md_path.write_text(
+        "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
+        "## Paper: Wave propagation in porous media\nAlice Zheng\n10.1000/example.1\nBody\n",
+        encoding="utf-8",
+    )
+
+    run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True})
+
+    assert any(iter_proceedings_dirs(cfg.proceedings_dir))
+    assert not any(cfg.papers_dir.iterdir())
+    proceeding_dir = _first_proceeding_dir(cfg.proceedings_dir)
     meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["split_status"] == "pending_review"
 
@@ -494,7 +534,7 @@ def test_pipeline_routes_manual_proceedings_inbox_to_proceedings_library(tmp_pat
 def test_pipeline_routes_forced_proceedings_pdf_right_after_mineru(tmp_path: Path, monkeypatch):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    pdf_path = tmp_path / "data" / "inbox-proceedings" / "volume.pdf"
+    pdf_path = cfg.proceedings_inbox_dir / "volume.pdf"
     pdf_path.write_bytes(b"%PDF-1.4 fake proceedings")
 
     def fake_mineru(ctx: pipeline.InboxCtx) -> pipeline.StepResult:
@@ -514,7 +554,7 @@ def test_pipeline_routes_forced_proceedings_pdf_right_after_mineru(tmp_path: Pat
     def fail_if_called(_ctx: pipeline.InboxCtx) -> pipeline.StepResult:
         raise AssertionError("regular paper flow should not continue after forced proceedings routing")
 
-    from scholaraio.ingest import mineru as mineru_mod
+    from scholaraio.providers import mineru as mineru_mod
 
     monkeypatch.setattr(mineru_mod, "check_server", lambda _endpoint: True)
     monkeypatch.setattr(pipeline.STEPS["mineru"], "fn", fake_mineru)
@@ -524,9 +564,9 @@ def test_pipeline_routes_forced_proceedings_pdf_right_after_mineru(tmp_path: Pat
 
     run_pipeline(["mineru", "extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any(iter_proceedings_dirs(tmp_path / "data" / "proceedings"))
-    assert not any((tmp_path / "data" / "papers").iterdir())
-    proceeding_dir = _first_proceeding_dir(tmp_path / "data" / "proceedings")
+    assert any(iter_proceedings_dirs(cfg.proceedings_dir))
+    assert not any(cfg.papers_dir.iterdir())
+    proceeding_dir = _first_proceeding_dir(cfg.proceedings_dir)
     meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
     assert meta["split_status"] == "pending_review"
 
@@ -534,7 +574,7 @@ def test_pipeline_routes_forced_proceedings_pdf_right_after_mineru(tmp_path: Pat
 def test_pipeline_regular_inbox_never_auto_routes_to_proceedings(tmp_path: Path):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    md_path = tmp_path / "data" / "inbox" / "volume.md"
+    md_path = cfg.inbox_dir / "volume.md"
     md_path.write_text(
         "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
         "Alice Zheng\n\n"
@@ -546,14 +586,14 @@ def test_pipeline_regular_inbox_never_auto_routes_to_proceedings(tmp_path: Path)
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True, "include_aux_inboxes": False})
 
-    assert any((tmp_path / "data" / "papers").iterdir())
-    assert not any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(cfg.papers_dir.iterdir())
+    assert not any(cfg.proceedings_dir.iterdir())
 
 
 def test_pipeline_does_not_auto_route_thesis_inbox_to_proceedings(tmp_path: Path):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    md_path = tmp_path / "data" / "inbox-thesis" / "volume.md"
+    md_path = cfg.thesis_inbox_dir / "volume.md"
     md_path.write_text(
         "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
         "## Table of Contents\n10.1000/example.1\n10.1000/example.2\n\n"
@@ -564,14 +604,14 @@ def test_pipeline_does_not_auto_route_thesis_inbox_to_proceedings(tmp_path: Path
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any((tmp_path / "data" / "papers").iterdir())
-    assert not any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(cfg.papers_dir.iterdir())
+    assert not any(cfg.proceedings_dir.iterdir())
 
 
 def test_pipeline_does_not_auto_route_patent_inbox_to_proceedings(tmp_path: Path):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    md_path = tmp_path / "data" / "inbox-patent" / "volume.md"
+    md_path = cfg.patent_inbox_dir / "volume.md"
     md_path.write_text(
         "# Proceedings of the IUTAM Symposium on Granular Flow\n\n"
         "Publication Number: CN112345678A\n\n"
@@ -581,14 +621,14 @@ def test_pipeline_does_not_auto_route_patent_inbox_to_proceedings(tmp_path: Path
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True})
 
-    assert any((tmp_path / "data" / "papers").iterdir())
-    assert not any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(cfg.papers_dir.iterdir())
+    assert not any(cfg.proceedings_dir.iterdir())
 
 
 def test_pipeline_keeps_regular_paper_in_main_library(tmp_path: Path):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    md_path = tmp_path / "data" / "inbox" / "paper.md"
+    md_path = cfg.inbox_dir / "paper.md"
     md_path.write_text(
         "# Boundary layer instability in compressible flow\n\n"
         "Alice Smith\n\n"
@@ -599,14 +639,14 @@ def test_pipeline_keeps_regular_paper_in_main_library(tmp_path: Path):
 
     run_pipeline(["extract", "dedup", "ingest"], cfg, {"no_api": True, "include_aux_inboxes": False})
 
-    assert any((tmp_path / "data" / "papers").iterdir())
-    assert not any((tmp_path / "data" / "proceedings").iterdir())
+    assert any(cfg.papers_dir.iterdir())
+    assert not any(cfg.proceedings_dir.iterdir())
 
 
 def test_fsearch_proceedings_scope_returns_proceedings_results(tmp_path: Path, monkeypatch):
     cfg = _build_config({"ingest": {"extractor": "regex"}}, tmp_path)
     cfg.ensure_dirs()
-    proceedings_root = tmp_path / "data" / "proceedings"
+    proceedings_root = cfg.proceedings_dir
     proceedings_root.mkdir(parents=True, exist_ok=True)
     md_path = tmp_path / "volume.md"
     md_path.write_text(

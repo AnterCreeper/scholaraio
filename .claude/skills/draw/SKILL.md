@@ -1,20 +1,6 @@
 ---
 name: draw
-description: Generate diagrams from structured text via an intermediate representation
-  (IR). Supports multiple rendering backends including Mermaid flowcharts, Graphviz
-  DOT/SVG, drawio XML, and custom vector graphics via cli-anything-inkscape.
-  Use when the user wants to visualize workflows, architecture, data relationships,
-  research timelines, concept maps, or create polished figures for papers.
-version: 1.1.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags:
-- academic
-- diagram
-- vector-graphics
-- visualization
-tier: visualization
-destructive: false
+description: Use when the user wants diagrams, flowcharts, architecture visuals, data relationships, timelines, concept maps, Mermaid, Graphviz, drawio, or polished paper figures generated from structured text or IR.
 ---
 
 # 绘图工具（Text → IR → Diagram）
@@ -65,7 +51,7 @@ scholaraio diagram <paper-id> --type model_arch --format svg
 scholaraio diagram <paper-id> --type model_arch --dump-ir
 
 # 从已有 IR 渲染为 drawio
-scholaraio diagram --from-ir workspace/figures/xxx.ir.json --format drawio
+scholaraio diagram --from-ir workspace/_system/figures/xxx.ir.json --format drawio
 
 # 启用 Critic-Agent 闭环迭代自审（自动检查完整性、准确性、一致性并修正）
 scholaraio diagram <paper-id> --type model_arch --format svg --critic
@@ -107,7 +93,7 @@ from cli_anything.inkscape.core import (
     text as text_mod, styles as style_mod, export as export_mod,
 )
 
-SVG = Path("workspace/figures/diagram.svg")
+SVG = Path("workspace/_system/figures/diagram.svg")
 SVG.parent.mkdir(parents=True, exist_ok=True)
 
 proj = doc_mod.create_document(width=800, height=300, units='px', background='#f8f9fa')
@@ -141,7 +127,7 @@ brew install graphviz
 生成 SVG（同时保留 `.dot` 源码）：
 
 ```bash
-scholaraio diagram <paper-id> --format svg -o workspace/figures/
+scholaraio diagram <paper-id> --format svg -o workspace/_system/figures/
 ```
 
 LaTeX Beamer 插入代码（需 `-shell-escape` + Inkscape）：
@@ -149,14 +135,14 @@ LaTeX Beamer 插入代码（需 `-shell-escape` + Inkscape）：
 ```latex
 \begin{frame}
 \centering
-\includesvg[width=0.8\columnwidth]{workspace/figures/diagram_xxx.svg}
+\includesvg[width=0.8\columnwidth]{workspace/_system/figures/diagram_xxx.svg}
 \end{frame}
 ```
 
 ### drawio XML
 
 ```bash
-scholaraio diagram <paper-id> --format drawio -o workspace/figures/
+scholaraio diagram <paper-id> --format drawio -o workspace/_system/figures/
 ```
 
 用浏览器打开 [https://app.diagrams.net](https://app.diagrams.net) 后选择 **File → Open from → Device** 导入编辑。
@@ -164,7 +150,7 @@ scholaraio diagram <paper-id> --format drawio -o workspace/figures/
 ### Mermaid
 
 ```bash
-scholaraio diagram <paper-id> --format mermaid -o workspace/figures/
+scholaraio diagram <paper-id> --format mermaid -o workspace/_system/figures/
 ```
 
 输出 `.mermaid` 文件，可直接嵌入 Markdown 或用 `mmdc` 本地渲染为 PNG/SVG。
@@ -178,9 +164,9 @@ scholaraio diagram <paper-id> --format mermaid -o workspace/figures/
 
 2. **选择后端**：参照上方「后端选择速查表」，根据用户的最终使用场景推荐格式
 
-3. **输出到 `workspace/figures/`**：
+3. **输出到 `workspace/_system/figures/`**：
    ```
-   workspace/figures/
+   workspace/_system/figures/
    ├── diagram_xxx.svg
    ├── diagram_xxx.dot
    ├── diagram_xxx.drawio

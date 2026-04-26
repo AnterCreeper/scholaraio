@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from scholaraio import cli
-from scholaraio.config import _build_config
+from scholaraio.core.config import _build_config
+from scholaraio.interfaces.cli import compat as cli
 
 
 def _build_backup_cfg(tmp_path: Path):
@@ -38,7 +38,7 @@ def _build_backup_cfg(tmp_path: Path):
 
 
 def test_build_rsync_command_uses_configured_target_and_flags(tmp_path: Path):
-    from scholaraio.backup import build_rsync_command
+    from scholaraio.services.backup import build_rsync_command
 
     cfg = _build_backup_cfg(tmp_path)
 
@@ -61,7 +61,7 @@ def test_build_rsync_command_uses_configured_target_and_flags(tmp_path: Path):
 
 
 def test_build_rsync_command_rejects_missing_target(tmp_path: Path):
-    from scholaraio.backup import BackupConfigError, build_rsync_command
+    from scholaraio.services.backup import BackupConfigError, build_rsync_command
 
     cfg = _build_backup_cfg(tmp_path)
 
@@ -70,7 +70,7 @@ def test_build_rsync_command_rejects_missing_target(tmp_path: Path):
 
 
 def test_build_rsync_command_rejects_disabled_target(tmp_path: Path):
-    from scholaraio.backup import BackupConfigError, build_rsync_command
+    from scholaraio.services.backup import BackupConfigError, build_rsync_command
 
     cfg = _build_config(
         {
@@ -92,7 +92,7 @@ def test_build_rsync_command_rejects_disabled_target(tmp_path: Path):
 
 
 def test_build_rsync_command_switches_to_password_auth_when_password_is_configured(tmp_path: Path):
-    from scholaraio.backup import build_rsync_command
+    from scholaraio.services.backup import build_rsync_command
 
     cfg = _build_config(
         {
@@ -120,7 +120,7 @@ def test_build_rsync_command_switches_to_password_auth_when_password_is_configur
 
 
 def test_run_backup_invokes_subprocess_with_planned_command(tmp_path: Path, monkeypatch):
-    from scholaraio.backup import run_backup
+    from scholaraio.services.backup import run_backup
 
     cfg = _build_backup_cfg(tmp_path)
     seen: list[list[str]] = []
@@ -132,7 +132,7 @@ def test_run_backup_invokes_subprocess_with_planned_command(tmp_path: Path, monk
         assert kwargs.get("capture_output") is True
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
-    monkeypatch.setattr("scholaraio.backup.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.services.backup.subprocess.run", fake_run)
 
     result = run_backup(cfg, "lab", dry_run=False)
 
@@ -142,21 +142,21 @@ def test_run_backup_invokes_subprocess_with_planned_command(tmp_path: Path, monk
 
 
 def test_run_backup_reports_missing_rsync_binary_as_config_error(tmp_path: Path, monkeypatch):
-    from scholaraio.backup import BackupConfigError, run_backup
+    from scholaraio.services.backup import BackupConfigError, run_backup
 
     cfg = _build_backup_cfg(tmp_path)
 
     def fake_run(*_args, **_kwargs):
         raise FileNotFoundError("rsync not found")
 
-    monkeypatch.setattr("scholaraio.backup.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.services.backup.subprocess.run", fake_run)
 
     with pytest.raises(BackupConfigError, match="failed to execute rsync"):
         run_backup(cfg, "lab", dry_run=False)
 
 
 def test_run_backup_uses_askpass_env_for_password_targets(tmp_path: Path, monkeypatch):
-    from scholaraio.backup import run_backup
+    from scholaraio.services.backup import run_backup
 
     cfg = _build_config(
         {
@@ -186,7 +186,7 @@ def test_run_backup_uses_askpass_env_for_password_targets(tmp_path: Path, monkey
         assert "SSH_ASKPASS" in env
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
-    monkeypatch.setattr("scholaraio.backup.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.services.backup.subprocess.run", fake_run)
 
     result = run_backup(cfg, "lab", dry_run=False)
 
@@ -210,11 +210,11 @@ def test_cmd_backup_run_reports_dry_run_completion(tmp_path: Path, monkeypatch):
     messages: list[str] = []
     monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
     monkeypatch.setattr(
-        "scholaraio.backup.build_rsync_command",
+        "scholaraio.services.backup.build_rsync_command",
         lambda *_args, **_kwargs: ["rsync", "-a", "/src/", "alice@host:/dst/"],
     )
     monkeypatch.setattr(
-        "scholaraio.backup.run_backup",
+        "scholaraio.services.backup.run_backup",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
     )
 
@@ -228,7 +228,7 @@ def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatc
     messages: list[str] = []
     monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
     monkeypatch.setattr(
-        "scholaraio.backup.build_rsync_command",
+        "scholaraio.services.backup.build_rsync_command",
         lambda *_args, **_kwargs: [
             "rsync",
             "-a",
@@ -239,7 +239,7 @@ def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatc
         ],
     )
     monkeypatch.setattr(
-        "scholaraio.backup.run_backup",
+        "scholaraio.services.backup.run_backup",
         lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
     )
 
@@ -250,18 +250,18 @@ def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatc
 
 
 def test_cmd_backup_run_exits_cleanly_when_backup_runtime_error_occurs(tmp_path: Path, monkeypatch):
-    from scholaraio.backup import BackupConfigError
+    from scholaraio.services.backup import BackupConfigError
 
     messages: list[str] = []
     errors: list[str] = []
     monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
     monkeypatch.setattr(cli._log, "error", lambda msg, *args: errors.append(msg % args if args else msg))
     monkeypatch.setattr(
-        "scholaraio.backup.build_rsync_command",
+        "scholaraio.services.backup.build_rsync_command",
         lambda *_args, **_kwargs: ["missing-rsync", "-a", "/src/", "alice@host:/dst/"],
     )
     monkeypatch.setattr(
-        "scholaraio.backup.run_backup",
+        "scholaraio.services.backup.run_backup",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(BackupConfigError("failed to execute rsync")),
     )
 
@@ -278,11 +278,11 @@ def test_cmd_backup_run_shows_guidance_for_noninteractive_auth_failures(tmp_path
     monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
     monkeypatch.setattr(cli._log, "error", lambda msg, *args: errors.append(msg % args if args else msg))
     monkeypatch.setattr(
-        "scholaraio.backup.build_rsync_command",
+        "scholaraio.services.backup.build_rsync_command",
         lambda *_args, **_kwargs: ["rsync", "-a", "/src/", "alice@host:/dst/"],
     )
     monkeypatch.setattr(
-        "scholaraio.backup.run_backup",
+        "scholaraio.services.backup.run_backup",
         lambda *_args, **_kwargs: SimpleNamespace(
             returncode=255,
             stdout="",
@@ -306,11 +306,11 @@ def test_cmd_backup_run_shows_guidance_for_host_key_failures(tmp_path: Path, mon
     monkeypatch.setattr(cli, "ui", lambda msg="": messages.append(msg))
     monkeypatch.setattr(cli._log, "error", lambda msg, *args: errors.append(msg % args if args else msg))
     monkeypatch.setattr(
-        "scholaraio.backup.build_rsync_command",
+        "scholaraio.services.backup.build_rsync_command",
         lambda *_args, **_kwargs: ["rsync", "-a", "/src/", "alice@host:/dst/"],
     )
     monkeypatch.setattr(
-        "scholaraio.backup.run_backup",
+        "scholaraio.services.backup.run_backup",
         lambda *_args, **_kwargs: SimpleNamespace(
             returncode=255,
             stdout="",

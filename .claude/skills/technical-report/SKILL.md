@@ -1,10 +1,6 @@
 ---
 name: technical-report
-description: Use when the user wants a technical report, topic report, research briefing, or structured investigation document and needs help organizing scope, evidence, recommendations, and final report packaging.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "writing", "report", "survey", "briefing"]
+description: Use when the user wants a technical report, topic report, research briefing, structured investigation, evidence synthesis, recommendations, or final report packaging.
 ---
 # Technical Report Workflow
 

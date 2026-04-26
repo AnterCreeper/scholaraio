@@ -1,10 +1,6 @@
 ---
 name: backup
-description: Sync ScholarAIO data to a configured remote machine via rsync. Use when the user wants to back up the local library, inspect configured backup targets, or run a dry-run before syncing.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["backup", "rsync", "operations"]
+description: Use when the user wants to back up ScholarAIO data through configured rsync targets, inspect backup plans, or run a dry-run backup before syncing.
 ---
 # Backup / 数据备份
 

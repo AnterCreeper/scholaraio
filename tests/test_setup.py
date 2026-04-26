@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import importlib
+import os
 
-from scholaraio.config import Config
-from scholaraio.setup import (
+from scholaraio.core.config import Config
+from scholaraio.services.setup import (
     ParserChoice,
     _check_docling,
     _check_huggingface,
@@ -59,8 +60,29 @@ def test_check_dep_group_suppresses_import_side_effect_output(monkeypatch, capsy
     assert captured.err == ""
 
 
+def test_check_dep_group_sets_numba_cache_before_bertopic_import(monkeypatch):
+    original = importlib.import_module
+    monkeypatch.delenv("NUMBA_CACHE_DIR", raising=False)
+
+    def fake_import(name: str, package=None):
+        if name == "bertopic":
+            assert os.environ.get("NUMBA_CACHE_DIR")
+            return object()
+        if package is None:
+            return original(name)
+        return original(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+
+    status = check_dep_group("topics")
+
+    assert status.installed
+
+
 def test_check_docling_uses_cli_presence(monkeypatch):
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda name: "/usr/bin/docling" if name == "docling" else None)
+    monkeypatch.setattr(
+        "scholaraio.services.setup.shutil.which", lambda name: "/usr/bin/docling" if name == "docling" else None
+    )
 
     ok, detail = _check_docling("zh")
 
@@ -69,7 +91,7 @@ def test_check_docling_uses_cli_presence(monkeypatch):
 
 
 def test_check_docling_reports_actionable_install_guidance(monkeypatch):
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda name: None)
+    monkeypatch.setattr("scholaraio.services.setup.shutil.which", lambda name: None)
 
     ok, detail = _check_docling("zh")
 
@@ -79,7 +101,7 @@ def test_check_docling_reports_actionable_install_guidance(monkeypatch):
 
 
 def test_check_huggingface_uses_reachability_probe(monkeypatch):
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: url == "https://huggingface.co")
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda url, timeout=2: url == "https://huggingface.co")
 
     ok, detail = _check_huggingface("zh")
 
@@ -88,7 +110,7 @@ def test_check_huggingface_uses_reachability_probe(monkeypatch):
 
 
 def test_check_huggingface_reports_actionable_failure(monkeypatch):
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: False)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda url, timeout=2: False)
 
     ok, detail = _check_huggingface("zh")
 
@@ -114,10 +136,10 @@ def test_recommend_pdf_parser_prefers_docling_when_only_huggingface_reachable():
 
 def test_run_check_includes_parser_recommendation(monkeypatch):
     cfg = Config()
-    monkeypatch.setattr("scholaraio.setup._check_mineru", lambda *_: (True, "mineru ok"))
-    monkeypatch.setattr("scholaraio.setup._check_docling", lambda *_: (True, "docling ok"))
-    monkeypatch.setattr("scholaraio.setup._check_huggingface", lambda *_: (True, "hf ok"))
-    monkeypatch.setattr("scholaraio.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
+    monkeypatch.setattr("scholaraio.services.setup._check_mineru", lambda *_: (True, "mineru ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_docling", lambda *_: (True, "docling ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_huggingface", lambda *_: (True, "hf ok"))
+    monkeypatch.setattr("scholaraio.services.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
 
     results = run_check(cfg, "zh")
 
@@ -129,10 +151,10 @@ def test_run_check_includes_parser_recommendation(monkeypatch):
 
 def test_run_check_includes_pdf_office_and_draw_dependency_groups(monkeypatch):
     cfg = Config()
-    monkeypatch.setattr("scholaraio.setup._check_mineru", lambda *_: (True, "mineru ok"))
-    monkeypatch.setattr("scholaraio.setup._check_docling", lambda *_: (True, "docling ok"))
-    monkeypatch.setattr("scholaraio.setup._check_huggingface", lambda *_: (True, "hf ok"))
-    monkeypatch.setattr("scholaraio.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
+    monkeypatch.setattr("scholaraio.services.setup._check_mineru", lambda *_: (True, "mineru ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_docling", lambda *_: (True, "docling ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_huggingface", lambda *_: (True, "hf ok"))
+    monkeypatch.setattr("scholaraio.services.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
 
     results = run_check(cfg, "zh")
 
@@ -144,10 +166,10 @@ def test_run_check_includes_pdf_office_and_draw_dependency_groups(monkeypatch):
 
 def test_run_check_includes_optional_api_configuration_statuses(monkeypatch):
     cfg = Config()
-    monkeypatch.setattr("scholaraio.setup._check_mineru", lambda *_: (True, "mineru ok"))
-    monkeypatch.setattr("scholaraio.setup._check_docling", lambda *_: (True, "docling ok"))
-    monkeypatch.setattr("scholaraio.setup._check_huggingface", lambda *_: (True, "hf ok"))
-    monkeypatch.setattr("scholaraio.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
+    monkeypatch.setattr("scholaraio.services.setup._check_mineru", lambda *_: (True, "mineru ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_docling", lambda *_: (True, "docling ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_huggingface", lambda *_: (True, "hf ok"))
+    monkeypatch.setattr("scholaraio.services.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
     monkeypatch.setattr(cfg, "resolved_s2_api_key", lambda: "")
     monkeypatch.setattr(cfg, "resolved_zotero_api_key", lambda: "")
 
@@ -165,7 +187,7 @@ def test_run_check_includes_optional_api_configuration_statuses(monkeypatch):
 def test_run_check_prefers_mineru_recommendation_when_cli_exists_without_token(monkeypatch):
     cfg = Config()
     monkeypatch.setattr(
-        "scholaraio.setup._detect_mineru",
+        "scholaraio.services.setup._detect_mineru",
         lambda *_args, **_kwargs: type(
             "MinerUStatus",
             (),
@@ -179,13 +201,37 @@ def test_run_check_prefers_mineru_recommendation_when_cli_exists_without_token(m
             },
         )(),
     )
-    monkeypatch.setattr("scholaraio.setup._check_docling", lambda *_: (True, "docling ok"))
-    monkeypatch.setattr("scholaraio.setup._check_huggingface", lambda *_: (False, "hf down"))
+    monkeypatch.setattr("scholaraio.services.setup._check_docling", lambda *_: (True, "docling ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_huggingface", lambda *_: (False, "hf down"))
 
     results = run_check(cfg, "zh")
 
     result_map = {item.label: item for item in results}
     assert result_map["PDF 解析器推荐"].detail.startswith("MinerU:")
+
+
+def test_run_check_uses_accessor_dirs_for_directory_status(tmp_path, monkeypatch):
+    cfg = Config()
+    cfg._root = tmp_path
+    cfg.paths.papers_dir = "library/papers"
+    cfg.paths.workspace_dir = "projects"
+    cfg.paths.inbox_dir = "queues/inbox"
+    cfg.paths.pending_dir = "queues/pending-review"
+
+    cfg.papers_dir.mkdir(parents=True)
+    cfg.workspace_dir.mkdir(parents=True)
+    cfg.inbox_dir.mkdir(parents=True)
+    cfg.pending_dir.mkdir(parents=True)
+
+    monkeypatch.setattr("scholaraio.services.setup._check_mineru", lambda *_: (True, "mineru ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_docling", lambda *_: (True, "docling ok"))
+    monkeypatch.setattr("scholaraio.services.setup._check_huggingface", lambda *_: (True, "hf ok"))
+    monkeypatch.setattr("scholaraio.services.setup.recommend_pdf_parser", lambda *args: ("MinerU", "both reachable"))
+
+    results = run_check(cfg, "zh")
+
+    result_map = {item.label: item for item in results}
+    assert result_map["目录结构"].ok is True
 
 
 def test_check_dep_group_supports_draw_extra(monkeypatch):
@@ -243,7 +289,7 @@ def test_check_dep_group_uses_spec_probe_for_embed_deps(monkeypatch):
 def test_check_mineru_reports_actionable_failure(monkeypatch):
     cfg = Config()
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "")
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda _name: None)
+    monkeypatch.setattr("scholaraio.services.setup.shutil.which", lambda _name: None)
 
     class DummyRequests:
         @staticmethod
@@ -252,7 +298,7 @@ def test_check_mineru_reports_actionable_failure(monkeypatch):
 
     monkeypatch.setitem(__import__("sys").modules, "requests", DummyRequests)
 
-    from scholaraio.setup import _check_mineru
+    from scholaraio.services.setup import _check_mineru
 
     ok, detail = _check_mineru(cfg, "zh")
 
@@ -265,7 +311,7 @@ def test_check_mineru_reports_actionable_failure(monkeypatch):
 def test_check_mineru_prefers_local_server_even_when_token_cli_missing(monkeypatch):
     cfg = Config()
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "token")
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda _name: None)
+    monkeypatch.setattr("scholaraio.services.setup.shutil.which", lambda _name: None)
 
     class DummyRequests:
         @staticmethod
@@ -288,7 +334,7 @@ def test_wizard_parser_mineru_choice_skips_auto_probe(monkeypatch, capsys):
     answers = iter(["1", "y"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
     monkeypatch.setattr(
-        "scholaraio.setup._probe_url", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError())
+        "scholaraio.services.setup._probe_url", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError())
     )
 
     choice = _wizard_parser(cfg, "zh")
@@ -304,10 +350,11 @@ def test_wizard_parser_auto_choice_shows_advisory_not_override(monkeypatch, caps
     answers = iter(["3", "n"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
     monkeypatch.setattr(
-        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+        "scholaraio.services.setup.shutil.which",
+        lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None,
     )
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "")
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
 
     choice = _wizard_parser(cfg, "zh")
 
@@ -328,9 +375,10 @@ def test_wizard_parser_auto_prefers_configured_mineru_before_probe(monkeypatch, 
     answers = iter(["3", "n"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
     monkeypatch.setattr(
-        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+        "scholaraio.services.setup.shutil.which",
+        lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None,
     )
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda *_args, **_kwargs: False)
 
     choice = _wizard_parser(cfg, "zh")
 
@@ -345,9 +393,9 @@ def test_wizard_parser_auto_detects_local_mineru_server(monkeypatch, capsys):
     cfg = Config()
     answers = iter(["3", "y"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
-    monkeypatch.setattr("scholaraio.setup.shutil.which", lambda _name: None)
+    monkeypatch.setattr("scholaraio.services.setup.shutil.which", lambda _name: None)
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "")
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda *_args, **_kwargs: False)
 
     class DummyRequests:
         @staticmethod
@@ -379,7 +427,7 @@ def test_prompt_text_returns_empty_string_on_eof(monkeypatch):
 def test_wizard_deps_does_not_auto_install_when_input_stream_hits_eof(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: (_ for _ in ()).throw(EOFError()))
     monkeypatch.setattr(
-        "scholaraio.setup.check_dep_group",
+        "scholaraio.services.setup.check_dep_group",
         lambda group: type("Status", (), {"installed": group != "topics", "missing": ["bertopic"]})(),
     )
 
@@ -389,7 +437,7 @@ def test_wizard_deps_does_not_auto_install_when_input_stream_hits_eof(monkeypatc
         called.append(True)
         raise AssertionError("pip install should not run on EOF")
 
-    monkeypatch.setattr("scholaraio.setup.subprocess.run", fake_run)
+    monkeypatch.setattr("scholaraio.services.setup.subprocess.run", fake_run)
 
     _wizard_deps("zh")
 
@@ -403,10 +451,11 @@ def test_wizard_parser_auto_prefers_mineru_when_cli_exists_even_without_token_pr
     answers = iter(["3", "n"])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
     monkeypatch.setattr(
-        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+        "scholaraio.services.setup.shutil.which",
+        lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None,
     )
     monkeypatch.setattr(cfg, "resolved_mineru_api_key", lambda: "")
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda *_args, **_kwargs: False)
 
     choice = _wizard_parser(cfg, "zh")
 
@@ -423,9 +472,10 @@ def test_wizard_parser_auto_choice_defaults_to_cloud_key_on_eof(monkeypatch):
     answers = iter(["3", ""])
     monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: next(answers))
     monkeypatch.setattr(
-        "scholaraio.setup.shutil.which", lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None
+        "scholaraio.services.setup.shutil.which",
+        lambda name: "/usr/bin/mineru-open-api" if name == "mineru-open-api" else None,
     )
-    monkeypatch.setattr("scholaraio.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
+    monkeypatch.setattr("scholaraio.services.setup._probe_url", lambda url, timeout=2: "mineru.net" in url)
 
     choice = _wizard_parser(cfg, "zh")
 

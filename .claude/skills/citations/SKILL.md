@@ -1,10 +1,6 @@
 ---
 name: citations
-description: View top-cited papers ranking and refetch citation counts from APIs. Use when the user asks about highly cited papers, citation rankings, or wants to update citation data.
-version: 1.0.0
-author: ZimoLiao/scholaraio
-license: MIT
-tags: ["academic", "citations", "bibliometrics", "impact"]
+description: Use when the user asks about highly cited papers, citation rankings, or updating citation counts from external APIs.
 ---
 # 引用量查询
 
