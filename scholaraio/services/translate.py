@@ -779,16 +779,16 @@ def translate_paper(
     _persist_prefix_output(out_path, translated_chunks)
 
     if start_idx > 0 and start_idx < total_chunks:
-        report(f"继续翻译：已完成 {start_idx}/{total_chunks} 块")
+        report(f"Resuming translation: completed {start_idx}/{total_chunks} chunks")
     elif start_idx == 0:
-        report(f"开始翻译，共 {total_chunks} 块")
+        report(f"Starting translation: {total_chunks} chunks")
 
     all_success = start_idx == total_chunks and total_chunks > 0
     if all_success:
         _record_translation_meta(paper_dir, lang, src_lang, config, partial=False)
         portable_path = _write_portable_translation_bundle(config, paper_dir, out_path) if portable else None
         shutil.rmtree(workdir, ignore_errors=True)
-        report(f"翻译完成: {total_chunks}/{total_chunks} 块")
+        report(f"Translation completed: {total_chunks}/{total_chunks} chunks")
         return TranslateResult(
             path=out_path,
             portable_path=portable_path,
@@ -838,15 +838,17 @@ def translate_paper(
                 completed_count = _count_successful_chunks(state)
                 if prefix_count != prev_prefix:
                     _persist_prefix_output(out_path, translated_chunks)
-                    report(f"翻译进度: {prefix_count}/{total_chunks}")
+                    report(f"Translation progress: {prefix_count}/{total_chunks}")
                     if completed_count > prefix_count:
                         report(
-                            f"翻译进度: 已完成 {completed_count}/{total_chunks} 块（前缀 {prefix_count}/{total_chunks}）"
+                            f"Translation progress: completed {completed_count}/{total_chunks} chunks "
+                            f"(prefix {prefix_count}/{total_chunks})"
                         )
                     prev_prefix = prefix_count
                 elif completed_count != prev_completed:
                     report(
-                        f"翻译进度: 已完成 {completed_count}/{total_chunks} 块（前缀 {prefix_count}/{total_chunks}）"
+                        f"Translation progress: completed {completed_count}/{total_chunks} chunks "
+                        f"(prefix {prefix_count}/{total_chunks})"
                     )
                 prev_completed = completed_count
 
@@ -858,7 +860,7 @@ def translate_paper(
         _record_translation_meta(paper_dir, lang, src_lang, config, partial=False)
         portable_path = _write_portable_translation_bundle(config, paper_dir, out_path) if portable else None
         shutil.rmtree(workdir, ignore_errors=True)
-        report(f"翻译完成: {total_chunks}/{total_chunks} 块")
+        report(f"Translation completed: {total_chunks}/{total_chunks} chunks")
         return TranslateResult(
             path=out_path,
             portable_path=portable_path,
@@ -868,7 +870,7 @@ def translate_paper(
 
     if prefix_count > 0:
         next_failed = prefix_count + 1
-        report(f"翻译在第 {next_failed}/{total_chunks} 块中断，可稍后继续续翻")
+        report(f"Translation interrupted at chunk {next_failed}/{total_chunks}; rerun later to resume")
         return TranslateResult(
             path=out_path,
             partial=True,

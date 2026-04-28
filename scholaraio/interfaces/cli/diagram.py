@@ -49,7 +49,7 @@ def _workspace_figures_dir(cfg) -> Path:
 
 
 def cmd_diagram(args: argparse.Namespace, cfg) -> None:
-    """论文/文字 -> 可编辑科研图表（多后端渲染）。"""
+    """Paper/text -> editable scientific diagrams with multiple renderers."""
     from scholaraio.services.diagram import (
         generate_diagram,
         generate_diagram_from_text,
@@ -63,25 +63,25 @@ def cmd_diagram(args: argparse.Namespace, cfg) -> None:
 
     sources = [bool(args.paper_id), bool(from_text), bool(from_ir)]
     if sum(sources) != 1:
-        _log_error("请提供且仅提供一个输入来源：paper_id、--from-text 或 --from-ir")
+        _log_error("Provide exactly one input source: paper_id, --from-text, or --from-ir")
         sys.exit(1)
 
     if from_ir:
         ir_path = Path(from_ir)
         if not ir_path.exists():
-            _log_error("IR 文件不存在: %s", ir_path)
+            _log_error("IR file does not exist: %s", ir_path)
             sys.exit(1)
         try:
             ir = json.loads(ir_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as e:
-            _log_error("IR 文件解析失败: %s", e)
+            _log_error("Failed to parse IR file: %s", e)
             sys.exit(1)
         try:
             out_path = render_ir(ir, args.format, out_path=_build_diagram_out_path(ir, args.format, out_dir, cfg))
         except (ValueError, RuntimeError) as e:
             _log_error("%s", e)
             sys.exit(1)
-        _ui(f"已生成: {out_path}")
+        _ui(f"Generated: {out_path}")
         _print_diagram_hint(args.format, Path(out_path))
         return
 
@@ -95,7 +95,7 @@ def cmd_diagram(args: argparse.Namespace, cfg) -> None:
                 out_dir=out_dir,
                 dump_ir=args.dump_ir,
             )
-            _ui(f"已生成: {out_path}")
+            _ui(f"Generated: {out_path}")
             if not args.dump_ir:
                 _print_diagram_hint(args.format, Path(out_path))
         except (ValueError, RuntimeError) as e:
@@ -117,15 +117,15 @@ def cmd_diagram(args: argparse.Namespace, cfg) -> None:
             )
             out_path = result["out_path"]
             critique_log = result["critique_log"]
-            _ui(f"已生成: {out_path}")
+            _ui(f"Generated: {out_path}")
             if not args.dump_ir:
                 _print_diagram_hint(args.format, Path(out_path))
             if args.critic_rounds > 0:
-                _ui(f"Critic 闭环完成，共 {len(critique_log)} 轮")
+                _ui(f"Critic loop completed, total {len(critique_log)} rounds")
                 for c in critique_log:
                     verdict = c.get("verdict", "unknown")
                     issue_count = len(c.get("issues", []))
-                    _ui(f"  轮次 {c.get('round', '?')}: verdict={verdict}, issues={issue_count}")
+                    _ui(f"  round {c.get('round', '?')}: verdict={verdict}, issues={issue_count}")
         else:
             out_path = generate_diagram(
                 paper_d=paper_d,
@@ -135,7 +135,7 @@ def cmd_diagram(args: argparse.Namespace, cfg) -> None:
                 out_dir=out_dir,
                 dump_ir=args.dump_ir,
             )
-            _ui(f"已生成: {out_path}")
+            _ui(f"Generated: {out_path}")
             if not args.dump_ir:
                 _print_diagram_hint(args.format, Path(out_path))
     except (ValueError, RuntimeError) as e:
@@ -154,8 +154,8 @@ def _build_diagram_out_path(ir: dict, fmt: str, out_dir: Path | None, cfg=None) 
 def _print_diagram_hint(fmt: str, out_path: Path) -> None:
     if fmt == "svg":
         dot_path = out_path.with_suffix(".dot")
-        _ui(f"DOT 源码: {dot_path}")
-        _ui("Beamer 插入代码:")
+        _ui(f"DOT source: {dot_path}")
+        _ui("Beamer insertion code:")
         _ui(r"  \begin{frame}")
         _ui(r"  \centering")
         try:
@@ -164,6 +164,6 @@ def _print_diagram_hint(fmt: str, out_path: Path) -> None:
             display_path = out_path
         _ui(f"  \\includesvg[width=0.8\\columnwidth]{{{display_path}}}")
         _ui(r"  \end{frame}")
-        _ui("注意: 编译时需带 -shell-escape 参数，且已安装 Inkscape")
+        _ui("Note: compile with -shell-escape and make sure Inkscape is installed")
     elif fmt == "drawio":
-        _ui("可用浏览器打开 https://app.diagrams.net 后导入编辑")
+        _ui("Open https://app.diagrams.net in a browser and import the file to edit it")

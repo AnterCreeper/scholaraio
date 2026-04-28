@@ -84,7 +84,7 @@ def batch_postprocess(
         except (ValueError, FileNotFoundError) as e:
             _log.debug("failed to backfill abstract for %s: %s", pdir.name, e)
     if backfilled:
-        _ui(f"Abstract 已补全: {backfilled} 篇")
+        _ui(f"Abstracts backfilled: {backfilled} papers")
 
     # Enrich: toc + l3
     if enrich:
@@ -104,7 +104,7 @@ def batch_postprocess(
                 failed += 1
             else:
                 enriched += 1
-        _ui(f"Enrich 完成: {enriched} ok | {failed} failed")
+        _ui(f"Enrichment completed: {enriched} ok | {failed} failed")
 
     # Re-embed + re-index once
     step_embed = _pipeline_attr("step_embed", ingest_steps.step_embed)

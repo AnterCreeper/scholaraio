@@ -35,7 +35,7 @@ def cmd_style(args: argparse.Namespace, cfg) -> None:
     elif sub == "show":
         _cmd_style_show(args, cfg)
     else:
-        _log_error("请指定 style 子命令: list / show")
+        _log_error("Specify a style subcommand: list / show")
         sys.exit(1)
 
 
@@ -44,13 +44,13 @@ def _cmd_style_list(args: argparse.Namespace, cfg) -> None:
 
     ui = _ui
     styles = list_styles(cfg)
-    ui(f"可用引用格式（共 {len(styles)} 种）：")
+    ui(f"Available citation styles (total {len(styles)} styles): ")
     for s in styles:
         tag = f"[{s['source']}]"
         desc = f" — {s['description']}" if s.get("description") else ""
         print(f"  {s['name']:<28} {tag:<10}{desc}")
     print()
-    ui("用法：scholaraio export markdown --all --style <name>")
+    ui("Usage: scholaraio export markdown --all --style <name>")
 
 
 def _cmd_style_show(args: argparse.Namespace, cfg) -> None:

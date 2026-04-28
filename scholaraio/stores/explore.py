@@ -318,7 +318,7 @@ def fetch_explore(
         本次新拉取的论文数量。
     """
     if limit is not None and limit <= 0:
-        raise ValueError(f"limit 必须为正整数，当前为: {limit}")
+        raise ValueError(f"limit must be a positive integer, got: {limit}")
 
     out_dir = _explore_dir(name, cfg)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -337,7 +337,7 @@ def fetch_explore(
         oa_type=oa_type,
     )
     if not filt and not keyword:
-        raise ValueError("至少需要一个过滤条件（issn / concept / author / keyword 等）")
+        raise ValueError("At least one filter is required (issn / concept / author / keyword / etc.)")
 
     # Incremental mode: load existing IDs (DOI or openalex_id) to skip duplicates
     existing_pids: set[str] = set()
@@ -521,9 +521,9 @@ def build_explore_vectors(name: str, *, rebuild: bool = False, cfg: Config | Non
             rebuild=rebuild,
         )
         if rebuild_reason == "signature_changed":
-            _log.warning("探索库 embedding 配置已变更，自动执行全量重建: %s", signature)
+            _log.warning("Explore embedding configuration changed; rebuilding all vectors automatically: %s", signature)
         elif rebuild_reason == "legacy_unknown":
-            _log.warning("探索库检测到旧版向量库缺少签名元数据，自动执行一次全量重建")
+            _log.warning("Explore vector store is missing signature metadata; rebuilding all vectors once")
 
         if rebuild:
             conn.execute("DELETE FROM paper_vectors")
@@ -533,7 +533,7 @@ def build_explore_vectors(name: str, *, rebuild: bool = False, cfg: Config | Non
 
         if _embed_provider(cfg) == "none":
             conn.commit()
-            _log.info("embed.provider=none，跳过探索库向量生成")
+            _log.info("embed.provider=none; skipping explore vector generation")
             build_explore_fts(name, cfg=cfg)
             return 0
 
@@ -649,7 +649,9 @@ def build_explore_topics(
     from scholaraio.services.vectors import _embed_provider
 
     if _embed_provider(cfg) == "none":
-        raise FileNotFoundError("当前 embed.provider=none，无法构建主题模型，请先启用向量后端并运行 embed")
+        raise FileNotFoundError(
+            "Current embed.provider=none; cannot build a topic model. Enable a vector backend and run embed first."
+        )
 
     model_dir = _explore_dir(name, cfg) / "topic_model"
     if model_dir.exists() and not rebuild:
@@ -657,7 +659,9 @@ def build_explore_topics(
 
     db = _db_path(name, cfg)
     if not db.exists():
-        raise FileNotFoundError(f"向量库不存在: {db}\n请先运行 explore embed --name {name}")
+        raise FileNotFoundError(
+            f"Vector store does not exist: {db}\nRun `scholaraio explore embed --name {name}` first"
+        )
 
     papers_map = build_papers_map(name, cfg)
 
@@ -704,7 +708,7 @@ def _build_faiss_index(name: str, cfg: Config | None = None):
         _db_path(name, cfg),
         explore_dir / "faiss.index",
         explore_dir / "faiss_ids.json",
-        empty_msg=f"向量库为空: {_db_path(name, cfg)}",
+        empty_msg=f"Vector store is empty: {_db_path(name, cfg)}",
     )
 
 
@@ -725,8 +729,8 @@ def explore_vsearch(name: str, query: str, *, top_k: int = 10, cfg: Config | Non
     db_path = _db_path(name, cfg)
     _ensure_vector_search_ready(
         db_path,
-        missing_table_msg=f"向量库为空: {db_path}",
-        empty_msg=f"向量库为空: {db_path}",
+        missing_table_msg=f"Vector store is empty: {db_path}",
+        empty_msg=f"Vector store is empty: {db_path}",
     )
     # Prepare the query embedding before FAISS import/load to avoid macOS crashes.
     q_vec = _embed_query_vector(query, cfg)

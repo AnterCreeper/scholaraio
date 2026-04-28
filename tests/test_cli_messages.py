@@ -5,6 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import sqlite3
 from argparse import Namespace
 from pathlib import Path
@@ -198,8 +199,8 @@ class TestCliHelpLocalization:
         parser = cli._build_parser()
         root_help = parser.format_help()
 
-        assert "面向 AI coding agent 的研究终端" in root_help
-        assert "本地学术文献检索工具" not in root_help
+        assert "Research terminal for AI coding agents" in root_help
+        assert "local academic literature search tool" not in root_help
 
     def test_setup_help_is_fully_localized(self):
         parser = cli._build_parser()
@@ -207,19 +208,19 @@ class TestCliHelpLocalization:
         setup_help = setup_parser.format_help()
         setup_check = setup_parser._subparsers._group_actions[0].choices["check"].format_help()
 
-        assert "默认进入交互式安装向导" in setup_help
-        assert "检查环境状态" in setup_help
-        assert "输出语言（zh 或 en，默认 zh）" in setup_check
-        assert "Start the interactive setup wizard" not in setup_help
-        assert "Check environment status" not in setup_help
-        assert "Output language" not in setup_check
+        assert "Start the interactive setup wizard by default" in setup_help
+        assert "Check environment status" in setup_help
+        assert "Output language (en or zh; default: en)" in setup_check
+        assert "默认进入交互式安装向导" not in setup_help
+        assert "检查环境状态" not in setup_help
+        assert "输出语言" not in setup_check
 
     def test_toolref_fetch_help_uses_prefix_free_version_example(self):
         parser = cli._build_parser()
         toolref_parser = parser._subparsers._group_actions[0].choices["toolref"]
         toolref_fetch = toolref_parser._subparsers._group_actions[0].choices["fetch"].format_help()
 
-        assert "版本号（如 7.5, 22Jul2025_update3）" in toolref_fetch
+        assert "Version, for example 7.5 or 22Jul2025_update3" in toolref_fetch
         assert "stable_22Jul2025_update3" not in toolref_fetch
 
     def test_fsearch_help_mentions_proceedings_scope(self):
@@ -228,18 +229,25 @@ class TestCliHelpLocalization:
 
         assert "proceedings" in fsearch_help
 
+    def test_style_list_descriptions_are_english(self, capsys):
+        cli.cmd_style(Namespace(style_sub="list"), _build_config({}, Path.cwd()))
+
+        out = capsys.readouterr().out
+        assert "APA 7th edition" in out
+        assert re.search(r"[\u4e00-\u9fff]", out) is None
+
     def test_explore_help_mentions_multidimensional_exploration(self):
         parser = cli._build_parser()
         root_help = parser.format_help()
 
-        assert "多维文献探索" in root_help
-        assert "期刊全量探索" not in root_help
+        assert "Multi-dimensional literature exploration" in root_help
+        assert "full-journal exploration" not in root_help
 
     def test_refetch_help_accepts_uuid_and_doi_identifiers(self):
         parser = cli._build_parser()
         refetch_help = parser._subparsers._group_actions[0].choices["refetch"].format_help()
 
-        assert "目录名 / UUID / DOI" in refetch_help
+        assert "directory name / UUID / DOI" in refetch_help
 
     def test_backup_help_exposes_list_and_run_subcommands(self):
         parser = cli._build_parser()
@@ -247,9 +255,9 @@ class TestCliHelpLocalization:
         backup_help = backup_parser.format_help()
         run_help = backup_parser._subparsers._group_actions[0].choices["run"].format_help()
 
-        assert "rsync 增量备份" in backup_help
-        assert "列出已配置的备份目标" in backup_help
-        assert "预演模式" in run_help
+        assert "Incremental backup with rsync" in backup_help
+        assert "List configured backup targets" in backup_help
+        assert "Preview rsync actions without transferring files" in run_help
 
     def test_patent_fetch_help_uses_configured_inbox_label(self):
         parser = cli._build_parser()
@@ -295,7 +303,7 @@ class TestWebsearchCli:
             cli.cmd_websearch(args, SimpleNamespace())
 
         assert exc.value.code == 1
-        assert any("错误: service down" in message for message in messages)
+        assert any("Error: service down" in message for message in messages)
         assert any("GUILessBingSearch" in message for message in messages)
 
     def test_cmd_websearch_does_not_repeat_success_summary(self, monkeypatch):
@@ -336,8 +344,8 @@ class TestWebextractCli:
             cli.cmd_webextract(args, SimpleNamespace())
 
         assert exc.value.code == 1
-        assert any("提取失败: partial extraction failed" in message for message in messages)
-        assert all("提取成功" not in message for message in messages)
+        assert any("Extraction failed: partial extraction failed" in message for message in messages)
+        assert all("Extraction succeeded" not in message for message in messages)
 
     def test_cmd_webextract_truncates_long_text_by_default(self, monkeypatch, capsys):
         import scholaraio.providers.webtools as webtools
@@ -355,8 +363,8 @@ class TestWebextractCli:
 
         captured = capsys.readouterr()
 
-        assert any("提取成功: Page" in message for message in messages)
-        assert any("已截断" in message for message in messages)
+        assert any("Extraction succeeded: Page" in message for message in messages)
+        assert any("Content is long" in message for message in messages)
         assert "abcdefghij" in captured.out
         assert "klmnopqrstuvwxyz" not in captured.out
 
@@ -376,8 +384,8 @@ class TestWebextractCli:
 
         captured = capsys.readouterr()
 
-        assert any("提取成功: Page" in message for message in messages)
-        assert all("已截断" not in message for message in messages)
+        assert any("Extraction succeeded: Page" in message for message in messages)
+        assert all("Truncated" not in message for message in messages)
         assert "abcdefghijklmnopqrstuvwxyz" in captured.out
 
 
@@ -395,7 +403,7 @@ class TestShowLayer4Headings:
 
         cli.cmd_show(args, cfg)
 
-        assert "\n--- 全文（zh） ---\n" in messages
+        assert "\n--- Full text (zh) ---\n" in messages
 
     def test_missing_translation_heading_uses_consistent_spacing(self, tmp_papers, monkeypatch):
         messages: list[str] = []
@@ -407,7 +415,7 @@ class TestShowLayer4Headings:
 
         cli.cmd_show(args, cfg)
 
-        assert "\n--- 全文（原文，paper_fr.md 不存在） ---\n" in messages
+        assert "\n--- Full text (source, paper_fr.md does not exist) ---\n" in messages
 
 
 class TestRefetchIdentifierResolution:
@@ -425,7 +433,7 @@ class TestRefetchIdentifierResolution:
         cli.cmd_refetch(args, cfg)
 
         assert seen == [tmp_papers / "Smith-2023-Turbulence" / "meta.json"]
-        assert any("并发 refetch（1 workers，共 1 篇）" in m for m in messages)
+        assert any("Concurrent refetch (1 workers, total 1 papers)" in m for m in messages)
         assert any("Smith-2023-Turbulence" in m for m in messages)
 
     def test_refetch_resolves_mixed_case_doi_without_registry(self, tmp_papers, tmp_path, monkeypatch):
@@ -440,7 +448,7 @@ class TestRefetchIdentifierResolution:
         cli.cmd_refetch(args, cfg)
 
         assert seen == [tmp_papers / "Smith-2023-Turbulence" / "meta.json"]
-        assert any("并发 refetch（1 workers，共 1 篇）" in m for m in messages)
+        assert any("Concurrent refetch (1 workers, total 1 papers)" in m for m in messages)
         assert any("Smith-2023-Turbulence" in m for m in messages)
 
     def test_refetch_all_references_only_targets_doi_papers_with_empty_references(
@@ -488,8 +496,8 @@ class TestRefetchIdentifierResolution:
         cli.cmd_refetch(args, cfg)
 
         assert seen == [(tmp_papers / "Smith-2023-Turbulence" / "meta.json", True)]
-        assert any("1 篇需要补全 references" in m for m in messages)
-        assert any("并发 refetch（1 workers，共 1 篇）" in m for m in messages)
+        assert any("1 papers need reference backfill" in m for m in messages)
+        assert any("Concurrent refetch (1 workers, total 1 papers)" in m for m in messages)
 
 
 class TestRepairIdentifierResolution:
@@ -497,7 +505,7 @@ class TestRepairIdentifierResolution:
         parser = cli._build_parser()
         repair_help = parser._subparsers._group_actions[0].choices["repair"].format_help()
 
-        assert "目录名 / UUID / DOI" in repair_help
+        assert "directory name / UUID / DOI" in repair_help
 
     def test_repair_resolves_uuid_via_registry(self, tmp_papers, tmp_db):
         build_index(tmp_papers, tmp_db)
@@ -737,7 +745,7 @@ class TestShowIdentifierDisplay:
 
         cli.cmd_show(args, cfg)
 
-        assert "论文ID   : aaaa-1111" in messages
+        assert "Paper ID   : aaaa-1111" in messages
 
     def test_show_replaces_bogus_meta_uuid_with_registry_uuid(self, tmp_papers, tmp_db, monkeypatch):
         build_index(tmp_papers, tmp_db)
@@ -756,8 +764,8 @@ class TestShowIdentifierDisplay:
 
         cli.cmd_show(args, cfg)
 
-        assert "论文ID   : aaaa-1111" in messages
-        assert "论文ID   : bogus-9999" not in messages
+        assert "Paper ID   : aaaa-1111" in messages
+        assert "Paper ID   : bogus-9999" not in messages
 
 
 class TestShowNotesIntegration:
@@ -774,9 +782,9 @@ class TestShowNotesIntegration:
 
         cli.cmd_show(args, cfg)
 
-        assert "\n--- Agent 笔记 (notes.md) ---\n" in messages
+        assert "\n--- Agent notes (notes.md) ---\n" in messages
         assert any("Key finding" in m for m in messages)
-        assert "\n--- 笔记结束 ---\n" in messages
+        assert "\n--- End notes ---\n" in messages
 
     def test_no_notes_section_when_file_missing(self, tmp_papers, monkeypatch):
         messages: list[str] = []
@@ -788,7 +796,7 @@ class TestShowNotesIntegration:
 
         cli.cmd_show(args, cfg)
 
-        assert "\n--- Agent 笔记 (notes.md) ---\n" not in messages
+        assert "\n--- Agent notes (notes.md) ---\n" not in messages
 
     def test_append_notes_visible_in_same_show(self, tmp_papers, monkeypatch):
         messages: list[str] = []
@@ -804,8 +812,8 @@ class TestShowNotesIntegration:
 
         cli.cmd_show(args, cfg)
 
-        assert any("已追加笔记到" in m for m in messages)
-        assert "\n--- Agent 笔记 (notes.md) ---\n" in messages
+        assert any("Appended notes to" in m for m in messages)
+        assert "\n--- Agent notes (notes.md) ---\n" in messages
         assert any("Important note" in m for m in messages)
 
     def test_append_notes_empty_ignored(self, tmp_papers, monkeypatch):
@@ -818,7 +826,7 @@ class TestShowNotesIntegration:
 
         cli.cmd_show(args, cfg)
 
-        assert any("内容为空" in m for m in messages)
+        assert any("--append-notes is empty" in m for m in messages)
         assert not (tmp_papers / "Smith-2023-Turbulence" / "notes.md").exists()
 
 
@@ -881,7 +889,7 @@ class TestUnifiedSearchDegradeWarnings:
 
         cli.cmd_usearch(args, cfg)
 
-        assert any("向量检索不可用，已降级为关键词检索" in m for m in messages)
+        assert any("Vector search is unavailable; falling back to keyword search" in m for m in messages)
 
     def test_cmd_fsearch_warns_when_main_scope_vector_search_degrades(self, monkeypatch, tmp_path):
         messages: list[str] = []
@@ -911,7 +919,7 @@ class TestUnifiedSearchDegradeWarnings:
 
         cli.cmd_fsearch(args, cfg)
 
-        assert any("向量检索不可用，已降级为关键词检索" in m for m in messages)
+        assert any("Vector search is unavailable; falling back to keyword search" in m for m in messages)
 
 
 class TestToolrefCliMessages:
@@ -936,7 +944,7 @@ class TestToolrefCliMessages:
         cli.cmd_toolref(args, SimpleNamespace())
 
         assert any("pw.x/SYSTEM/ecutwfc" in m for m in messages)
-        assert any("段落：" in m and "程序：" in m for m in messages)
+        assert any("section:" in m and "program:" in m for m in messages)
         assert all("📖" not in m for m in messages)
         assert all("Namelist:" not in m for m in messages)
         assert all("Program:" not in m for m in messages)
@@ -962,7 +970,7 @@ class TestArxivCommands:
         cli.cmd_arxiv_fetch(args, cfg)
 
         assert downloaded.exists()
-        assert any("已下载到 inbox" in m for m in messages)
+        assert any("Downloaded to inbox" in m for m in messages)
 
     def test_arxiv_fetch_ingest_uses_temp_inbox_pipeline(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -992,7 +1000,7 @@ class TestArxivCommands:
         assert seen["steps"] == ["mineru", "extract", "dedup", "ingest", "embed", "index"]
         assert seen["inbox_dir"] != cfg._root / "data" / "inbox"
         assert seen["opts"]["include_aux_inboxes"] is False
-        assert any("开始直接入库" in m for m in messages)
+        assert any("Start ingesting" in m for m in messages)
 
     def test_arxiv_fetch_reports_download_failure(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -1007,7 +1015,7 @@ class TestArxivCommands:
 
         cli.cmd_arxiv_fetch(args, cfg)
 
-        assert any("arXiv 下载失败" in m for m in messages)
+        assert any("arXiv download failed" in m for m in messages)
 
 
 class TestFederatedArxivPresence:
@@ -1048,7 +1056,7 @@ class TestFederatedArxivPresence:
 
         cli.cmd_fsearch(args, cfg)
 
-        assert any("[已入库]" in m for m in messages)
+        assert any("[ingested]" in m for m in messages)
 
 
 class TestTranslateCliProgress:
@@ -1080,8 +1088,8 @@ class TestTranslateCliProgress:
 
         cli.cmd_translate(args, cfg)
 
-        assert any("翻译完成:" in m for m in messages)
-        assert any("可移植导出:" in m and "translation-bundles" in m for m in messages)
+        assert any("Translation completed:" in m for m in messages)
+        assert any("Portable export:" in m and "translation-bundles" in m for m in messages)
 
     def test_cmd_translate_reports_resumable_partial_progress(self, tmp_papers, monkeypatch):
         messages: list[str] = []
@@ -1110,8 +1118,8 @@ class TestTranslateCliProgress:
         else:
             raise AssertionError("expected SystemExit")
 
-        assert any("已完成 2/5 块" in m for m in messages)
-        assert any("可稍后继续续翻" in m for m in messages)
+        assert any("completed 2/5 chunks" in m for m in messages)
+        assert any("you can resume later" in m for m in messages)
 
 
 class TestExploreCliConfiguredRoots:
@@ -1159,7 +1167,7 @@ class TestExploreCliConfiguredRoots:
 
         cli.cmd_explore(args, cfg)
 
-        assert any("Explore 库: jfm" in m for m in messages)
+        assert any("Explore library: jfm" in m for m in messages)
         assert any("count: 42" in m for m in messages)
 
     def test_cmd_explore_info_without_name_uses_configured_explore_root(self, tmp_path, monkeypatch):
@@ -1262,7 +1270,7 @@ class TestWorkspaceCliConfiguredRoots:
         assert not (custom_root / "study" / "papers.json").exists()
         entries = json.loads((custom_root / "study" / "refs" / "papers.json").read_text(encoding="utf-8"))
         assert [entry["id"] for entry in entries] == ["paper-a"]
-        assert any("已添加 1 篇论文到 study" in m for m in messages)
+        assert any("Added 1 papers to study" in m for m in messages)
 
     def test_cmd_ws_list_shows_manifest_summary(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -1289,9 +1297,9 @@ tags:
 
         cli.cmd_ws(args, cfg)
 
-        assert any("study（0 篇论文）" in m for m in messages)
-        assert any("描述: Drafting workspace for review writing" in m for m in messages)
-        assert any("标签: review, turbulence" in m for m in messages)
+        assert any("study (0 papers)" in m for m in messages)
+        assert any("Description: Drafting workspace for review writing" in m for m in messages)
+        assert any("Tags: review, turbulence" in m for m in messages)
 
     def test_cmd_ws_show_shows_manifest_details(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -1334,13 +1342,13 @@ outputs:
 
         cli.cmd_ws(args, cfg)
 
-        assert any("工作区 study: 1 篇论文" in m for m in messages)
-        assert any("名称: Turbulence Review" in m for m in messages)
-        assert any("描述: Workspace for the main review draft" in m for m in messages)
-        assert any("标签: review, turbulence" in m for m in messages)
-        assert any("默认输出目录: outputs/reports" in m for m in messages)
-        assert any("explore 挂载: survey-2026" in m for m in messages)
-        assert any("toolref 挂载: openfoam-2312" in m for m in messages)
+        assert any("workspace study: 1 papers" in m for m in messages)
+        assert any("Name: Turbulence Review" in m for m in messages)
+        assert any("Description: Workspace for the main review draft" in m for m in messages)
+        assert any("Tags: review, turbulence" in m for m in messages)
+        assert any("Default output directory: outputs/reports" in m for m in messages)
+        assert any("explore mounts: survey-2026" in m for m in messages)
+        assert any("toolref mounts: openfoam-2312" in m for m in messages)
         assert any("Paper-A" in m for m in messages)
 
     def test_cmd_ws_show_ignores_unknown_mount_buckets(self, tmp_path, monkeypatch):
@@ -1369,8 +1377,8 @@ mounts:
 
         cli.cmd_ws(args, cfg)
 
-        assert any("explore 挂载: survey-2026" in m for m in messages)
-        assert not any("custom 挂载: future-store" in m for m in messages)
+        assert any("explore mounts: survey-2026" in m for m in messages)
+        assert not any("custom mounts: future-store" in m for m in messages)
 
     def test_cmd_ws_show_keeps_newer_manifest_schema_opaque(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -1402,7 +1410,7 @@ outputs:
 
         cli.cmd_ws(args, cfg)
 
-        assert any("工作区 study: 0 篇论文" in m for m in messages)
+        assert any("workspace study: 0 papers" in m for m in messages)
         assert not any("Future Workspace" in m for m in messages)
         assert not any("This should stay opaque" in m for m in messages)
         assert not any("survey-2026" in m for m in messages)
@@ -1575,8 +1583,8 @@ class TestEnrichTocCliProgress:
 
         cli.cmd_enrich_toc(args, cfg)
 
-        assert any("开始提取 TOC" in m for m in messages)
-        assert any("TOC 提取完成" in m and "1 节" in m for m in messages)
+        assert any("Extracting TOC" in m for m in messages)
+        assert any("TOC extraction completed" in m and "1 sections" in m for m in messages)
 
     def test_cmd_enrich_toc_all_uses_llm_concurrency_budget(self, tmp_papers, monkeypatch):
         messages: list[str] = []
@@ -1622,11 +1630,11 @@ class TestEnrichTocCliProgress:
             "Smith-2023-Turbulence",
             "Wang-2024-DeepLearning",
         ]
-        assert any("Smith-2023-Turbulence" in m and "开始处理" in m for m in messages)
-        assert any("Wang-2024-DeepLearning" in m and "开始处理" in m for m in messages)
-        assert any("Smith-2023-Turbulence" in m and "TOC 提取完成" in m for m in messages)
-        assert any("Wang-2024-DeepLearning" in m and "TOC 提取完成" in m for m in messages)
-        assert any("完成: 2 成功 | 0 失败 | 0 跳过" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "Start processing" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "Start processing" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "TOC extraction completed" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "TOC extraction completed" in m for m in messages)
+        assert any("Done: 2 succeeded | 0 failed | 0 skipped" in m for m in messages)
 
 
 class TestEnrichL3CliBatchRetries:
@@ -1679,12 +1687,12 @@ class TestEnrichL3CliBatchRetries:
             "Wang-2024-DeepLearning": 1,
         }
         assert sleep_delays == [1.0, 2.0]
-        assert any("Smith-2023-Turbulence" in m and "开始处理" in m for m in messages)
-        assert any("Wang-2024-DeepLearning" in m and "开始处理" in m for m in messages)
-        assert any("Smith-2023-Turbulence" in m and "重试后成功" in m for m in messages)
-        assert any("Smith-2023-Turbulence" in m and "结论提取完成" in m for m in messages)
-        assert any("Wang-2024-DeepLearning" in m and "结论提取完成" in m for m in messages)
-        assert any("完成: 2 成功 | 0 失败 | 0 跳过" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "Start processing" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "Start processing" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "Succeeded after retry" in m for m in messages)
+        assert any("Smith-2023-Turbulence" in m and "Conclusion extraction completed" in m for m in messages)
+        assert any("Wang-2024-DeepLearning" in m and "Conclusion extraction completed" in m for m in messages)
+        assert any("Done: 2 succeeded | 0 failed | 0 skipped" in m for m in messages)
 
 
 class TestImportEndnoteOptionalDeps:
@@ -1710,7 +1718,7 @@ class TestImportEndnoteOptionalDeps:
         else:
             raise AssertionError("expected SystemExit")
 
-        assert any("缺少依赖: endnote_utils" in msg for msg in errors)
+        assert any("Missing dependency: endnote_utils" in msg for msg in errors)
         assert any("pip install scholaraio[import]" in msg for msg in errors)
 
 
@@ -1726,7 +1734,7 @@ class TestOptionalDependencyHints:
         else:
             raise AssertionError("expected SystemExit")
 
-        assert any("缺少依赖: docx" in msg for msg in errors)
+        assert any("Missing dependency: docx" in msg for msg in errors)
         assert any("pip install scholaraio[office]" in msg for msg in errors)
 
     def test_pdf_dependency_hint_uses_scholaraio_extra(self, monkeypatch):
@@ -1740,7 +1748,7 @@ class TestOptionalDependencyHints:
         else:
             raise AssertionError("expected SystemExit")
 
-        assert any("缺少依赖: fitz" in msg for msg in errors)
+        assert any("Missing dependency: fitz" in msg for msg in errors)
         assert any("pip install scholaraio[pdf]" in msg for msg in errors)
 
 
@@ -1751,7 +1759,7 @@ class TestTopicCliErrors:
         monkeypatch.setattr(
             "scholaraio.services.topics.build_topics",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                FileNotFoundError("当前 embed.provider=none，无法构建主题模型")
+                FileNotFoundError("Current embed.provider=none; cannot build a topic model")
             ),
         )
 
@@ -1789,7 +1797,7 @@ class TestTopicCliErrors:
         monkeypatch.setattr(
             "scholaraio.stores.explore.build_explore_topics",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                FileNotFoundError("当前 embed.provider=none，无法构建主题模型")
+                FileNotFoundError("Current embed.provider=none; cannot build a topic model")
             ),
         )
 
@@ -1820,7 +1828,7 @@ class TestTopicCliErrors:
         monkeypatch.setattr(
             "scholaraio.stores.explore.explore_vsearch",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                FileNotFoundError("当前 embed.provider=none，已禁用语义向量检索")
+                FileNotFoundError("Current embed.provider=none; semantic vector search is disabled")
             ),
         )
 
@@ -2337,7 +2345,7 @@ class TestSetupMetricsFallback:
 
         cli.main()
 
-        assert any("metrics 初始化失败，已跳过" in msg for msg in messages)
+        assert any("metrics initialization failed and was skipped" in msg for msg in messages)
 
     def test_main_bootstraps_instance_metadata(self, tmp_path, monkeypatch):
         cfg = _build_config({}, tmp_path)
@@ -2391,7 +2399,7 @@ class TestMigrationLockGating:
 
         cli.main()
 
-        assert any("迁移锁状态" in msg for msg in messages)
+        assert any("Migration lock status" in msg for msg in messages)
         assert any("mig-001" in msg for msg in messages)
 
     def test_cmd_migrate_recover_clear_lock_marks_instance_needs_recovery(self, tmp_path, monkeypatch):
@@ -2410,7 +2418,7 @@ class TestMigrationLockGating:
         stored = json.loads(cfg.instance_meta_path.read_text(encoding="utf-8"))
         assert not cfg.migration_lock_path.exists()
         assert stored["layout_state"] == "needs_recovery"
-        assert any("已清除 migration.lock" in msg for msg in messages)
+        assert any("Cleared migration.lock" in msg for msg in messages)
         assert any("needs_recovery" in msg for msg in messages)
 
     def test_migrate_status_reports_latest_journal(self, tmp_path, monkeypatch):
@@ -2476,7 +2484,7 @@ class TestFutureLayoutGating:
 
         assert exc.value.code == 2
         assert any("layout_version=99" in msg for msg in messages)
-        assert any("当前程序最高支持 1" in msg for msg in messages)
+        assert any("This program supports up to layout version 1" in msg for msg in messages)
         assert any("scholaraio migrate status" in msg for msg in messages)
 
     def test_main_allows_migrate_status_for_unsupported_future_layout(self, tmp_path, monkeypatch):
@@ -2512,7 +2520,7 @@ class TestMigrationVerify:
             (cfg.migration_journals_root / "mig-20260418-001" / "verify.json").read_text(encoding="utf-8")
         )
         assert stored["status"] == "passed"
-        assert any("验证完成" in msg for msg in messages)
+        assert any("Verification completed" in msg for msg in messages)
         assert any("mig-20260418-001" in msg for msg in messages)
         assert any("status: passed" in msg for msg in messages)
 
@@ -2528,7 +2536,7 @@ class TestMigrationVerify:
             cli.cmd_migrate(Namespace(migrate_action="verify", migration_id=None), cfg)
 
         assert exc.value.code == 2
-        assert any("未找到任何 migration journal" in msg for msg in messages)
+        assert any("No migration journal found" in msg for msg in messages)
 
 
 class TestMigrationPlan:
@@ -2547,7 +2555,7 @@ class TestMigrationPlan:
         )
         assert stored["migration_id"] == "mig-plan-20260418"
         assert stored["plan_state"] == "planned"
-        assert any("规划完成" in msg for msg in messages)
+        assert any("Plan completed" in msg for msg in messages)
         assert any("mig-plan-20260418" in msg for msg in messages)
 
     def test_cmd_migrate_plan_reports_planned_legacy_moves(self, tmp_path, monkeypatch):
@@ -2593,7 +2601,7 @@ class TestMigrationCleanup:
         run_migration_verification(cfg, migration_id="mig-cleanup-20260419")
 
         cli.cmd_migrate(Namespace(migrate_action="cleanup", migration_id=None, confirm=False), cfg)
-        assert any("cleanup 评估完成" in msg for msg in messages)
+        assert any("Cleanup evaluation completed" in msg for msg in messages)
         assert any("status: preview" in msg for msg in messages)
         assert any("candidate_count: 0" in msg for msg in messages)
 
@@ -2668,7 +2676,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: citation_styles" in msg for msg in messages)
         assert any("copied_count: 1" in msg for msg in messages)
         assert any("cleanup_candidate_count: 1" in msg for msg in messages)
@@ -2688,7 +2696,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: toolref" in msg for msg in messages)
         assert any("cleanup_candidate_count: 1" in msg for msg in messages)
         assert any("verify_status: passed" in msg for msg in messages)
@@ -2707,7 +2715,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: explore" in msg for msg in messages)
         assert any("cleanup_candidate_count: 1" in msg for msg in messages)
         assert any("verify_status: passed" in msg for msg in messages)
@@ -2731,7 +2739,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: proceedings" in msg for msg in messages)
         assert any("cleanup_candidate_count: 1" in msg for msg in messages)
         assert any("verify_status: passed" in msg for msg in messages)
@@ -2755,7 +2763,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: spool" in msg for msg in messages)
         assert any("copied_count: 6" in msg for msg in messages)
         assert any("cleanup_candidate_count: 6" in msg for msg in messages)
@@ -2783,7 +2791,7 @@ class TestMigrationRun:
             cfg,
         )
 
-        assert any("迁移执行完成" in msg for msg in messages)
+        assert any("Migration run completed" in msg for msg in messages)
         assert any("store: papers" in msg for msg in messages)
         assert any("copied_count: 2" in msg for msg in messages)
         assert any("cleanup_candidate_count: 1" in msg for msg in messages)
@@ -2814,7 +2822,7 @@ class TestMigrationUpgrade:
             cfg,
         )
 
-        assert any("upgrade 完成: mig-upgrade-20260425" in msg for msg in messages)
+        assert any("Upgrade completed: mig-upgrade-20260425" in msg for msg in messages)
         assert any("status: completed" in msg for msg in messages)
         assert any("target_layout_version: 1" in msg for msg in messages)
         assert any("store_run_count: 3" in msg for msg in messages)

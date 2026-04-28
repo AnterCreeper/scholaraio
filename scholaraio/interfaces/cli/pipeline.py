@@ -32,10 +32,10 @@ def cmd_pipeline(args: argparse.Namespace, cfg) -> None:
     from scholaraio.services.ingest.pipeline import PRESETS, STEPS, run_pipeline
 
     if args.list_steps:
-        _ui("可用步骤：")
+        _ui("Available steps: ")
         for name, sdef in STEPS.items():
             _ui(f"  {name:<10} [{sdef.scope:<7}]  {sdef.desc}")
-        _ui("\n可用预设：")
+        _ui("\nAvailable presets: ")
         for name, steps in PRESETS.items():
             _ui(f"  {name:<10} = {', '.join(steps)}")
         return
@@ -43,13 +43,13 @@ def cmd_pipeline(args: argparse.Namespace, cfg) -> None:
     # Resolve step list
     if args.preset:
         if args.preset not in PRESETS:
-            _log_error("未知预设 '%s'。可用预设: %s", args.preset, ", ".join(PRESETS))
+            _log_error("Unknown preset '%s'. Available presets: %s", args.preset, ", ".join(PRESETS))
             sys.exit(1)
         step_names = PRESETS[args.preset]
     elif args.steps:
         step_names = [s.strip() for s in args.steps.split(",") if s.strip()]
     else:
-        _log_error("请指定一个预设名称或使用 --steps")
+        _log_error("Specify a preset name or use --steps")
         sys.exit(1)
 
     opts = {

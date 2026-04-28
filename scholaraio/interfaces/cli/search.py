@@ -70,10 +70,10 @@ def cmd_search_author(args: argparse.Namespace, cfg) -> None:
         sys.exit(1)
 
     if not results:
-        _ui(f'未找到作者 "{query}" 的相关论文。')
+        _ui(f'No papers found for author "{query}".')
         return
 
-    _ui(f'按作者检索到 {len(results)} 篇论文（"{query}"）:\n')
+    _ui(f'Author search found {len(results)} papers ("{query}"):\n')
     for i, r in enumerate(results, start=1):
         _print_search_result(i, r)
     _print_search_next_steps()
@@ -103,10 +103,10 @@ def cmd_search(args: argparse.Namespace, cfg) -> None:
     _record_search_metrics(store, "search", query, results, elapsed, args)
 
     if not results:
-        _ui(f'未找到与 "{query}" 相关的结果。')
+        _ui(f'No results found for "{query}".')
         return
 
-    _ui(f'关键词检索到 {len(results)} 篇论文（"{query}"）:\n')
+    _ui(f'Keyword search found {len(results)} papers ("{query}"):\n')
     for i, r in enumerate(results, start=1):
         _print_search_result(i, r)
     _print_search_next_steps()

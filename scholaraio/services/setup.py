@@ -76,8 +76,8 @@ _S: dict[str, dict[Lang, str]] = {
     "all_ok": {"en": "all exist", "zh": "全部存在"},
     # -- wizard --
     "lang_prompt": {
-        "en": "Language / 语言选择:\n  1. English\n  2. 中文",
-        "zh": "Language / 语言选择:\n  1. English\n  2. 中文",
+        "en": "Language:\n  1. English (default)\n  2. Chinese",
+        "zh": "语言：\n  1. English（默认）\n  2. 中文",
     },
     "welcome": {"en": "\n=== ScholarAIO Setup Wizard ===\n", "zh": "\n=== ScholarAIO 安装向导 ===\n"},
     "step_deps": {"en": "Step 1: Checking dependencies...", "zh": "步骤 1: 检查依赖..."},
@@ -754,7 +754,7 @@ def run_wizard(cfg: Config | None = None) -> None:
     # Language selection
     print(_S["lang_prompt"]["en"])
     choice = _prompt_text("> ")
-    lang: Lang = "en" if choice == "1" else "zh"
+    lang: Lang = "zh" if choice == "2" else "en"
 
     if cfg is None:
         cfg = load_config()

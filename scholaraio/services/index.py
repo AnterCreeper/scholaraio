@@ -394,13 +394,13 @@ def _ensure_fts_table(conn: sqlite3.Connection) -> None:
     """Raise FileNotFoundError if the FTS5 papers table does not exist."""
     has_table = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='papers'").fetchone()
     if not has_table:
-        raise FileNotFoundError("FTS5 索引表不存在，请先运行 `scholaraio index`")
+        raise FileNotFoundError("FTS5 index table does not exist; run `scholaraio index` first")
 
 
 def _ensure_proceedings_fts_table(conn: sqlite3.Connection) -> None:
     has_table = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='proceedings_fts'").fetchone()
     if not has_table:
-        raise FileNotFoundError("论文集 FTS5 索引表不存在，请先构建论文集索引")
+        raise FileNotFoundError("Proceedings FTS5 index table does not exist; build the proceedings index first")
 
 
 def build_proceedings_index(proceedings_root: Path, db_path: Path, rebuild: bool = False) -> int:
@@ -487,7 +487,7 @@ def search_proceedings(
 ) -> list[dict]:
     """Keyword search over proceedings child papers."""
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}")
 
     conn = sqlite3.connect(db_path)
     try:
@@ -547,7 +547,7 @@ def search(
         top_k = cfg.search.top_k if cfg is not None else 20
 
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}\n请先运行 `scholaraio index`")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}\nRun `scholaraio index` first")
 
     conn = sqlite3.connect(db_path)
     try:
@@ -608,7 +608,7 @@ def search_author(
         top_k = cfg.search.top_k if cfg is not None else 20
 
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}\n请先运行 `scholaraio index`")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}\nRun `scholaraio index` first")
 
     conn = sqlite3.connect(db_path)
     try:
@@ -665,7 +665,7 @@ def top_cited(
         FileNotFoundError: 索引文件或 FTS5 表不存在。
     """
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}\n请先运行 `scholaraio index`")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}\nRun `scholaraio index` first")
 
     conn = sqlite3.connect(db_path)
     try:

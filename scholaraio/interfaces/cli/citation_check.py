@@ -40,22 +40,22 @@ def cmd_citation_check(args: argparse.Namespace, cfg) -> None:
     if args.file:
         p = Path(args.file)
         if not p.exists():
-            _log_error("文件不存在：%s", p)
+            _log_error("File does not exist: %s", p)
             sys.exit(1)
         text = p.read_text(encoding="utf-8")
     else:
         text = sys.stdin.read()
 
     if not text.strip():
-        _ui("输入文本为空。")
+        _ui("Input text is empty.")
         return
 
     citations = extract_citations(text)
     if not citations:
-        _ui("未在文本中发现引用。")
+        _ui("No citations found in the text.")
         return
 
-    _ui(f"提取到 {len(citations)} 条引用，正在验证…\n")
+    _ui(f"Extracted {len(citations)} citations, verifying...\n")
 
     try:
         paper_ids = _resolve_ws_paper_ids(args, cfg)
@@ -74,9 +74,9 @@ def cmd_citation_check(args: argparse.Namespace, cfg) -> None:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
 
     status_labels = {
-        "VERIFIED": "已验证",
-        "NOT_IN_LIBRARY": "库中未找到",
-        "AMBIGUOUS": "候选不唯一",
+        "VERIFIED": "verified",
+        "NOT_IN_LIBRARY": "not in library",
+        "AMBIGUOUS": "ambiguous",
     }
 
     for r in results:
@@ -86,12 +86,12 @@ def cmd_citation_check(args: argparse.Namespace, cfg) -> None:
         if r["matches"]:
             for m in r["matches"][:3]:
                 display_id = m.get("dir_name") or m.get("paper_id", "?")
-                _ui(f"       → {display_id}")
+                _ui(f"       -> {display_id}")
                 _ui(f"         {m.get('title', '?')}")
 
     _ui()
     _ui(
-        f"验证结果：已验证 {counts['VERIFIED']} / "
-        f"候选不唯一 {counts['AMBIGUOUS']} / "
-        f"库中未找到 {counts['NOT_IN_LIBRARY']}"
+        f"Verification result: verified {counts['VERIFIED']} / "
+        f"ambiguous {counts['AMBIGUOUS']} / "
+        f"not in library {counts['NOT_IN_LIBRARY']}"
     )

@@ -11,6 +11,10 @@ import json
 from scholaraio.services.audit import Issue, audit_papers, list_scrub_suspects
 
 
+def _has_cjk(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
 class TestAuditDetection:
     """Audit contract: reports issues as structured Issue objects."""
 
@@ -367,6 +371,11 @@ class TestAuditDetection:
             assert issue.severity in ("error", "warning", "info")
             assert issue.rule
             assert issue.message
+            assert not _has_cjk(issue.message)
+
+        from scholaraio.services.audit import format_report
+
+        assert not _has_cjk(format_report(issues))
 
 
 class TestScrubSuspects:

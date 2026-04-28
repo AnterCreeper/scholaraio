@@ -108,7 +108,7 @@ def _load_embeddings_and_docs(
     import numpy as np
 
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}\n请先运行 `scholaraio index`")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}\nRun `scholaraio index` first")
 
     conn = sqlite3.connect(db_path)
     try:
@@ -116,7 +116,7 @@ def _load_embeddings_and_docs(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='paper_vectors'"
         ).fetchone()
         if not has_vectors:
-            raise FileNotFoundError("向量索引不存在，请先运行 `scholaraio embed`")
+            raise FileNotFoundError("Vector index does not exist; run `scholaraio embed` first")
 
         rows = conn.execute("SELECT paper_id, embedding FROM paper_vectors").fetchall()
     finally:
@@ -354,7 +354,9 @@ def build_topics(
         训练好的 BERTopic 模型实例。
     """
     if _embed_provider(cfg) == "none":
-        raise FileNotFoundError("当前 embed.provider=none，无法构建主题模型，请先启用向量后端并运行 embed")
+        raise FileNotFoundError(
+            "Current embed.provider=none; cannot build a topic model. Enable a vector backend and run embed first."
+        )
 
     paper_ids, docs, metas, embeddings = _load_embeddings_and_docs(
         db_path,
@@ -702,7 +704,7 @@ def visualize_topics_over_time(model: BERTopic) -> str:
     metas = getattr(model, "_metas", [])
 
     if not docs or not metas:
-        raise ValueError("模型中缺少文档或元数据，无法生成时间趋势")
+        raise ValueError("The model is missing documents or metadata; cannot generate time trends")
 
     timestamps = [f"{m.get('year', 2000)}-01-01" for m in metas]
 
@@ -734,7 +736,7 @@ def reduce_topics_to(
     """
     docs = getattr(model, "_docs", [])
     if not docs:
-        raise ValueError("模型中缺少文档数据，无法合并主题")
+        raise ValueError("The model is missing document data; cannot merge topics")
 
     # Re-attach embedding model if missing (loaded models don't have it)
     if model.embedding_model is None:
@@ -775,7 +777,7 @@ def merge_topics_by_ids(
     """
     docs = getattr(model, "_docs", [])
     if not docs:
-        raise ValueError("模型中缺少文档数据，无法合并主题")
+        raise ValueError("The model is missing document data; cannot merge topics")
 
     # Re-attach embedding model if missing (loaded models don't have it)
     if model.embedding_model is None:
@@ -850,7 +852,7 @@ def load_model(path: Path) -> BERTopic:
         if legacy.exists():
             model_file = legacy
         else:
-            raise FileNotFoundError(f"主题模型不存在：{path}\n请先运行 `scholaraio topics --build`")
+            raise FileNotFoundError(f"Topic model does not exist: {path}\nRun `scholaraio topics --build` first")
 
     model = BERTopic.load(str(model_file))
 

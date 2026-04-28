@@ -110,7 +110,7 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
         min_ts = args.min_topic_size if args.min_topic_size is not None else cfg.topics.min_topic_size
         if args.rebuild and model_dir.exists():
             shutil.rmtree(model_dir, ignore_errors=True)
-        _ui(f"{'重建' if args.rebuild else '构建'}主题模型...")
+        _ui(f"{'Rebuild' if args.rebuild else 'Build'}topic model...")
         try:
             model = build_topics(
                 cfg.index_db,
@@ -132,7 +132,7 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
 
     # Quick reduce (no rebuild)
     if args.reduce is not None:
-        _ui(f"正在压缩到 {args.reduce} 个主题...")
+        _ui(f"Reducing to {args.reduce} topics...")
         model = reduce_topics_to(model, args.reduce, save_path=model_dir, cfg=cfg)
 
     # Manual merge
@@ -146,10 +146,10 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
             if len(ids) >= 2:
                 groups.append(ids)
         if groups:
-            _ui(f"正在合并 {len(groups)} 组主题: {groups}")
+            _ui(f"Merging {len(groups)} topic groups: {groups}")
             model = merge_topics_by_ids(model, groups, save_path=model_dir, cfg=cfg)
         else:
-            _log_error("--merge 格式错误，示例: --merge 1,6,14+3,5")
+            _log_error("Invalid --merge format; example: --merge 1,6,14+3,5")
 
     # Show specific topic
     if args.topic is not None:
@@ -157,23 +157,23 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
         top_n = _resolve_result_limit(args, 0) or 0  # 0 = show all
         if tid == -1:
             papers = get_outliers(model)
-            _ui(f"离群论文: {len(papers)}\n")
+            _ui(f"Outlier papers: {len(papers)}\n")
         else:
             topic_words = model.get_topic(tid)
             if topic_words is False or topic_words is None:
-                _log_error("主题 %d 不存在", tid)
+                _log_error("Topic %d does not exist", tid)
                 sys.exit(1)
             keywords = [w for w, _ in topic_words[:10]]
             papers = get_topic_papers(model, tid)
-            _ui(f"主题 {tid}: {', '.join(keywords)}")
-            _ui(f"{len(papers)} 篇论文\n")
+            _ui(f"Topic {tid}: {', '.join(keywords)}")
+            _ui(f"{len(papers)} papers\n")
 
         if top_n:
             papers = papers[:top_n]
         for i, p in enumerate(papers, 1):
             cc = p.get("citation_count", {})
             best = max((v for v in (cc or {}).values() if isinstance(v, (int, float))), default=0)
-            cite_str = f"  [被引: {best}]" if best else ""
+            cite_str = f"  [cited: {best}]" if best else ""
             authors = p.get("authors", "")
             first_author = authors.split(",")[0].strip() if authors else ""
             _ui(f"  {i:2d}. [{p.get('year', '?')}] {p.get('title', p['paper_id'])}")
@@ -188,16 +188,16 @@ def cmd_topics(args: argparse.Namespace, cfg) -> None:
     # Default: show overview
     overview = get_topic_overview(model)
     if not overview:
-        _ui("没有可用主题。可尝试减小 topics.min_topic_size 或增加论文数量。")
+        _ui("No topics are available. Try reducing topics.min_topic_size or adding more papers.")
         return
 
     outliers = get_outliers(model)
     total = sum(t["count"] for t in overview) + len(outliers)
-    _ui(f"论文库概览：{total} 篇论文，{len(overview)} 个主题，{len(outliers)} 篇离群论文\n")
+    _ui(f"Library overview: {total} papers, {len(overview)} topics, {len(outliers)} outlier papers\n")
 
     for t in overview:
         kw = ", ".join(t["keywords"][:6])
-        _ui(f"主题 {t['topic_id']:2d}（{t['count']:3d} 篇）: {kw}")
+        _ui(f"Topic {t['topic_id']:2d} ({t['count']:3d} papers): {kw}")
         for p in t["representative_papers"][:3]:
             year = p.get("year", "?")
             title = p.get("title", "")

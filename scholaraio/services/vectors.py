@@ -624,7 +624,7 @@ def _embed_batch_openai_compat(texts: list[str], cfg: Config | None = None) -> l
 
     api_key = _resolve_embed_api_key(cfg)
     if not api_key:
-        raise RuntimeError("未配置 embedding API key，请设置 embed.api_key 或 SCHOLARAIO_EMBED_API_KEY")
+        raise RuntimeError("No embedding API key is configured; set embed.api_key or SCHOLARAIO_EMBED_API_KEY")
 
     model_name = "text-embedding-3-small"
     batch_size = 64
@@ -681,15 +681,17 @@ def _embed_batch_openai_compat(texts: list[str], cfg: Config | None = None) -> l
                 break
 
         if data_items is None:
-            raise RuntimeError(f"调用 embedding API 失败: {last_err}")
+            raise RuntimeError(f"Embedding API call failed: {last_err}")
 
         if len(data_items) != len(batch):
-            raise RuntimeError(f"embedding API 返回数量与请求不一致: request={len(batch)} response={len(data_items)}")
+            raise RuntimeError(
+                f"Embedding API returned a mismatched item count: request={len(batch)} response={len(data_items)}"
+            )
 
         for item in sorted(data_items, key=lambda x: x.get("index", 0)):
             vec = item.get("embedding")
             if not isinstance(vec, list):
-                raise RuntimeError("embedding API 返回了非法向量格式")
+                raise RuntimeError("Embedding API returned an invalid vector format")
             all_vecs.append(vec)
 
     return all_vecs
@@ -698,23 +700,23 @@ def _embed_batch_openai_compat(texts: list[str], cfg: Config | None = None) -> l
 def _embed_text(text: str, cfg: Config | None = None) -> list[float]:
     provider = _embed_provider(cfg)
     if provider == "none":
-        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量功能")
+        raise FileNotFoundError("Current embed.provider=none; semantic vector features are disabled")
     if provider == "openai-compat":
         return _embed_batch_openai_compat([text], cfg)[0]
     if provider == "local":
         return _embed_text_local(text, cfg)
-    raise ValueError(f"未知 embedding provider: {provider}")
+    raise ValueError(f"Unknown embedding provider: {provider}")
 
 
 def _embed_batch(texts: list[str], cfg: Config | None = None) -> list[list[float]]:
     provider = _embed_provider(cfg)
     if provider == "none":
-        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量功能")
+        raise FileNotFoundError("Current embed.provider=none; semantic vector features are disabled")
     if provider == "openai-compat":
         return _embed_batch_openai_compat(texts, cfg)
     if provider == "local":
         return _embed_batch_local(texts, cfg)
-    raise ValueError(f"未知 embedding provider: {provider}")
+    raise ValueError(f"Unknown embedding provider: {provider}")
 
 
 def _embed_query_vector(query: str, cfg: Config | None = None):
@@ -820,7 +822,7 @@ def _append_faiss_files(
         import faiss
         import numpy as np
     except ModuleNotFoundError:
-        _log.warning("FAISS 不可用，跳过增量更新并清理旧缓存")
+        _log.warning("FAISS is unavailable; skipping incremental update and clearing the old cache")
         index_path.unlink(missing_ok=True)
         ids_path.unlink(missing_ok=True)
         return
@@ -894,9 +896,9 @@ def build_vectors(papers_dir: Path, db_path: Path, rebuild: bool = False, cfg: C
             rebuild=rebuild,
         )
         if rebuild_reason == "signature_changed":
-            _log.warning("embedding 配置已变更，自动执行全量重建: %s", signature)
+            _log.warning("Embedding configuration changed; rebuilding all vectors automatically: %s", signature)
         elif rebuild_reason == "legacy_unknown":
-            _log.warning("检测到旧版向量库缺少签名元数据，自动执行一次全量重建")
+            _log.warning("Legacy vector store is missing signature metadata; rebuilding all vectors once")
 
         if rebuild:
             _invalidate_faiss(db_path)
@@ -904,7 +906,7 @@ def build_vectors(papers_dir: Path, db_path: Path, rebuild: bool = False, cfg: C
         provider = _embed_provider(cfg)
         if provider == "none":
             conn.commit()
-            _log.info("embed.provider=none，已禁用向量生成")
+            _log.info("embed.provider=none; vector generation is disabled")
             return 0
 
         # Build lookup of existing hashes for incremental check
@@ -988,7 +990,7 @@ def _build_faiss_from_db(
     index_path: Path,
     ids_path: Path,
     *,
-    empty_msg: str = "向量索引为空，请先运行 `scholaraio embed`",
+    empty_msg: str = "Vector index is empty; run `scholaraio embed` first",
 ) -> tuple[faiss.Index, list[str]]:
     """Build or load a FAISS IndexFlatIP from a paper_vectors table.
 
@@ -1081,7 +1083,7 @@ def _vsearch_faiss(
         List of ``(paper_id, score)`` sorted by descending similarity.
     """
     if _embed_provider(cfg) == "none":
-        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量检索")
+        raise FileNotFoundError("Current embed.provider=none; semantic vector search is disabled")
 
     q_vec = _embed_query_vector(query, cfg) if isinstance(query, str) else query
 
@@ -1130,18 +1132,18 @@ def vsearch(
         FileNotFoundError: 索引文件或 ``paper_vectors`` 表不存在。
     """
     if _embed_provider(cfg) == "none":
-        raise FileNotFoundError("当前 embed.provider=none，已禁用语义向量检索")
+        raise FileNotFoundError("Current embed.provider=none; semantic vector search is disabled")
 
     if top_k is None:
         top_k = cfg.embed.top_k if cfg is not None else 10
 
     if not db_path.exists():
-        raise FileNotFoundError(f"索引文件不存在：{db_path}\n请先运行 `scholaraio index`")
+        raise FileNotFoundError(f"Index file does not exist: {db_path}\nRun `scholaraio index` first")
 
     _ensure_vector_search_ready(
         db_path,
-        missing_table_msg="向量索引不存在，请先运行 `scholaraio embed`",
-        empty_msg="向量索引为空，请先运行 `scholaraio embed`",
+        missing_table_msg="Vector index does not exist; run `scholaraio embed` first",
+        empty_msg="Vector index is empty; run `scholaraio embed` first",
     )
 
     # Load the embedding model before FAISS to avoid known faiss/torch crashes on macOS.

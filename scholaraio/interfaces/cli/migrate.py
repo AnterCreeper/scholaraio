@@ -50,7 +50,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
     if action == "plan":
         result = run_migration_plan(cfg, getattr(args, "migration_id", None))
         journal_dir = cfg.migration_journals_root / result["migration_id"]
-        _ui(f"规划完成: {result['migration_id']}")
+        _ui(f"Plan completed: {result['migration_id']}")
         _ui(f"  plan_json: {journal_dir / 'plan.json'}")
         _ui(f"  blockers: {len(result['blockers'])}")
         _ui(f"  papers: {result['stores']['papers']['item_count']}")
@@ -64,7 +64,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
         meta = ensure_instance_metadata(cfg)
         lock_status = describe_migration_lock(cfg)
         journal_dirs = list_migration_journals(cfg)
-        _ui("迁移控制状态")
+        _ui("Migration control status")
         _ui(f"  instance.json: {cfg.instance_meta_path}")
         _ui(f"  layout_state: {meta.get('layout_state')}")
         _ui(f"  layout_version: {meta.get('layout_version')}")
@@ -81,7 +81,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
                 details = latest_cleanup.get("details") or {}
                 cleanup_status = details.get("cleanup_status") or latest_cleanup.get("status")
                 _ui(f"  latest_cleanup_status: {cleanup_status}")
-        _ui(f"迁移锁状态: {lock_status['status']}")
+        _ui(f"Migration lock status: {lock_status['status']}")
         if lock_status["lock"]:
             lock = lock_status["lock"]
             _ui(f"  migration_id: {lock.get('migration_id')}")
@@ -94,19 +94,19 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
 
     if action == "recover":
         if not getattr(args, "clear_lock", False):
-            _ui("请显式指定 --clear-lock，确认后再清除 migration.lock。")
+            _ui("Pass --clear-lock explicitly before clearing migration.lock.")
             raise SystemExit(2)
 
         cleared = clear_migration_lock(cfg)
         if not cleared:
-            _ui(f"未发现 migration.lock：{cfg.migration_lock_path}")
+            _ui(f"No migration.lock found: {cfg.migration_lock_path}")
             return
 
-        _ui(f"已清除 migration.lock：{cfg.migration_lock_path}")
+        _ui(f"Cleared migration.lock: {cfg.migration_lock_path}")
         meta = read_instance_metadata(cfg) or ensure_instance_metadata(cfg)
         if meta.get("layout_state") == "migrating":
             updated = mark_instance_layout_state(cfg, "needs_recovery")
-            _ui(f"已将 instance layout_state 标记为 {updated['layout_state']}")
+            _ui(f"Marked instance layout_state as {updated['layout_state']}")
         return
 
     if action == "verify":
@@ -114,13 +114,13 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
         journal_dir = resolve_migration_journal(cfg, requested_id)
         if journal_dir is None:
             if requested_id:
-                _ui(f"未找到 migration journal：{requested_id}")
+                _ui(f"Migration journal not found: {requested_id}")
             else:
-                _ui("未找到任何 migration journal，请先创建 journal scaffold。")
+                _ui("No migration journal found; create a journal scaffold first.")
             raise SystemExit(2)
 
         result = run_migration_verification(cfg, journal_dir.name)
-        _ui(f"验证完成: {journal_dir.name}")
+        _ui(f"Verification completed: {journal_dir.name}")
         _ui(f"  verify_json: {journal_dir / 'verify.json'}")
         _ui(f"  status: {result['status']}")
         _ui(f"  checks: {result['summary']['passed']}/{result['summary']['total']} passed")
@@ -134,9 +134,9 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
         journal_dir = resolve_migration_journal(cfg, requested_id)
         if journal_dir is None:
             if requested_id:
-                _ui(f"未找到 migration journal：{requested_id}")
+                _ui(f"Migration journal not found: {requested_id}")
             else:
-                _ui("未找到任何 migration journal，请先创建 journal scaffold。")
+                _ui("No migration journal found; create a journal scaffold first.")
             raise SystemExit(2)
 
         try:
@@ -145,7 +145,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
             _ui(str(exc))
             raise SystemExit(2) from exc
 
-        _ui(f"cleanup 评估完成: {journal_dir.name}")
+        _ui(f"Cleanup evaluation completed: {journal_dir.name}")
         _ui(f"  status: {result['status']}")
         _ui(f"  candidate_count: {result['candidate_count']}")
         if "archived_count" in result:
@@ -168,7 +168,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
             _ui(str(exc))
             raise SystemExit(2) from exc
 
-        _ui(f"finalize 完成: {result['migration_id']}")
+        _ui(f"Finalize completed: {result['migration_id']}")
         _ui(f"  status: {result['status']}")
         _ui(f"  workspace_status: {result['workspace_migration']['status']}")
         _ui(f"  workspace_output_status: {result['workspace_output_migration']['status']}")
@@ -190,7 +190,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
             _ui(str(exc))
             raise SystemExit(2) from exc
 
-        _ui(f"upgrade 完成: {result['migration_id']}")
+        _ui(f"Upgrade completed: {result['migration_id']}")
         _ui(f"  status: {result['status']}")
         _ui(f"  source_layout_version: {result.get('source_layout_version')}")
         _ui(f"  target_layout_version: {result.get('target_layout_version')}")
@@ -214,7 +214,7 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
             _ui(str(exc))
             raise SystemExit(2) from exc
 
-        _ui(f"迁移执行完成: {result['migration_id']}")
+        _ui(f"Migration run completed: {result['migration_id']}")
         _ui(f"  store: {result['store']}")
         _ui(f"  status: {result['status']}")
         _ui(f"  copied_count: {result['copied_count']}")
@@ -223,5 +223,5 @@ def cmd_migrate(args: argparse.Namespace, cfg) -> None:
         _ui(f"  verify_status: {result['verify_status']}")
         return
 
-    _log_error("未知 migrate 子命令: %s", action)
+    _log_error("Unknown migrate subcommand: %s", action)
     sys.exit(1)

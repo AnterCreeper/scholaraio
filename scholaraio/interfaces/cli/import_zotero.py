@@ -45,7 +45,7 @@ def cmd_import_zotero(args: argparse.Namespace, cfg) -> None:
     if args.local:
         db_path = Path(args.local)
         if not db_path.exists():
-            _ui(f"错误：Zotero 数据库不存在: {db_path}")
+            _ui(f"Error: Zotero database does not exist: {db_path}")
             sys.exit(1)
 
         from scholaraio.providers.zotero import list_collections_local, parse_zotero_local
@@ -53,7 +53,7 @@ def cmd_import_zotero(args: argparse.Namespace, cfg) -> None:
         if args.list_collections:
             collections = list_collections_local(db_path)
             if not collections:
-                _ui("没有找到 collections")
+                _ui("No collections found")
                 return
             _ui(f"{'Key':<12} {'Items':>5}  Name")
             _ui("-" * 50)
@@ -68,11 +68,11 @@ def cmd_import_zotero(args: argparse.Namespace, cfg) -> None:
         )
     else:
         if not api_key:
-            _ui("错误：需要 Zotero API key（--api-key 或 config.local.yaml zotero.api_key 或 ZOTERO_API_KEY 环境变量）")
+            _ui("Error: Zotero API key is required (--api-key, config.local.yaml zotero.api_key, or ZOTERO_API_KEY)")
             sys.exit(1)
         if not library_id:
             _ui(
-                "错误：需要 Zotero library ID（--library-id 或 config.local.yaml zotero.library_id 或 ZOTERO_LIBRARY_ID 环境变量）"
+                "Error: Zotero library ID is required (--library-id, config.local.yaml zotero.library_id, or ZOTERO_LIBRARY_ID)"
             )
             sys.exit(1)
 
@@ -84,7 +84,7 @@ def cmd_import_zotero(args: argparse.Namespace, cfg) -> None:
         if args.list_collections:
             collections = list_collections_api(library_id, api_key, library_type=library_type)
             if not collections:
-                _ui("没有找到 collections")
+                _ui("No collections found")
                 return
             _ui(f"{'Key':<12} {'Items':>5}  Name")
             _ui("-" * 50)
@@ -106,14 +106,14 @@ def cmd_import_zotero(args: argparse.Namespace, cfg) -> None:
         )
 
     if not records:
-        _ui("未获取到任何记录")
+        _ui("No records fetched")
         return
 
     n_pdfs = sum(1 for p in pdf_paths if p is not None)
     if n_pdfs:
-        _ui(f"获取到 {len(records)} 条记录，{n_pdfs} 个 PDF")
+        _ui(f"Fetched {len(records)} records, {n_pdfs} PDFs")
     else:
-        _ui(f"获取到 {len(records)} 条记录")
+        _ui(f"Fetched {len(records)} records")
 
     from scholaraio.services.ingest.pipeline import import_external
 
@@ -189,4 +189,4 @@ def _import_zotero_collections_as_workspaces(args, cfg, api_key, library_id, lib
 
         workspace.create(ws_dir)
         workspace.add(ws_dir, uuids, cfg.index_db)
-        _ui(f"工作区 {name}: {len(uuids)} 篇论文")
+        _ui(f"workspace {name}: {len(uuids)} papers")

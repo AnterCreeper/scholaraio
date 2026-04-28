@@ -152,7 +152,7 @@ class TestExtractDiagramIr:
         assert ir["nodes"][0]["id"] == "a"
 
     def test_unsupported_diagram_type(self, mock_cfg):
-        with pytest.raises(ValueError, match="不支持的 diagram 类型"):
+        with pytest.raises(ValueError, match="Unsupported diagram type"):
             extract_diagram_ir("# Method\nX", "unknown_type", mock_cfg)
 
     def test_invalid_llm_response_raises(self, mock_cfg, monkeypatch):
@@ -160,7 +160,7 @@ class TestExtractDiagramIr:
             return json.dumps({"title": "Bad", "nodes": "not-a-list"}, ensure_ascii=False)
 
         monkeypatch.setattr("scholaraio.services.diagram._call_llm", fake_llm)
-        with pytest.raises(ValueError, match="IR 格式不正确"):
+        with pytest.raises(ValueError, match="invalid IR"):
             extract_diagram_ir("# Method\nX", "model_arch", mock_cfg)
 
 
@@ -206,7 +206,7 @@ class TestRenderSvg:
         assert out.with_suffix(".dot").exists()
 
     def test_raises_without_out_path(self, sample_ir):
-        with pytest.raises(ValueError, match="svg 渲染需要提供 out_path"):
+        with pytest.raises(ValueError, match="svg rendering requires out_path"):
             render_ir(sample_ir, "svg")
 
 
@@ -292,7 +292,7 @@ class TestRenderIrDispatcher:
         assert set(fmts) >= {"dot", "svg", "drawio", "mermaid"}
 
     def test_unsupported_format(self, sample_ir):
-        with pytest.raises(ValueError, match="不支持的渲染格式"):
+        with pytest.raises(ValueError, match="Unsupported render format"):
             render_ir(sample_ir, "png")
 
 
@@ -404,7 +404,7 @@ class TestCliDiagram:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, cfg)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
 
     def test_dump_ir(self, capture_ui, cfg, paper_dir, monkeypatch, tmp_path):
         monkeypatch.setattr(
@@ -422,9 +422,9 @@ class TestCliDiagram:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, cfg)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
         # Hint should NOT be printed for dump_ir
-        assert not any("Beamer" in m or "DOT 源码" in m for m in capture_ui)
+        assert not any("Beamer" in m or "DOT source" in m for m in capture_ui)
 
     def test_from_ir(self, capture_ui, tmp_path):
         ir_path = tmp_path / "test.ir.json"
@@ -450,8 +450,8 @@ class TestCliDiagram:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, None)
-        assert any("已生成:" in m for m in capture_ui)
-        out_path = Path(next(m for m in capture_ui if "已生成:" in m).split(": ", 1)[1])
+        assert any("Generated:" in m for m in capture_ui)
+        out_path = Path(next(m for m in capture_ui if "Generated:" in m).split(": ", 1)[1])
         assert out_path.exists()
         assert "flowchart" in out_path.read_text(encoding="utf-8")
 
@@ -482,7 +482,7 @@ class TestCliDiagram:
 
         cli.cmd_diagram(args, cfg)
 
-        out_path = Path(next(m for m in capture_ui if "已生成:" in m).split(": ", 1)[1])
+        out_path = Path(next(m for m in capture_ui if "Generated:" in m).split(": ", 1)[1])
         assert out_path == tmp_path / "projects" / "figures" / "diagram_Configured_Root.mermaid"
         assert out_path.exists()
 
@@ -520,7 +520,7 @@ class TestCliDiagram:
 
         cli.cmd_diagram(args, cfg)
 
-        out_path = Path(next(m for m in capture_ui if "已生成:" in m).split(": ", 1)[1])
+        out_path = Path(next(m for m in capture_ui if "Generated:" in m).split(": ", 1)[1])
         assert out_path == tmp_path / "projects" / "_system" / "figures" / "diagram_Configured_Helper.mermaid"
         assert out_path.exists()
 
@@ -554,7 +554,7 @@ class TestCliDiagram:
 
         cli.cmd_diagram(args, cfg)
 
-        out_path = Path(next(m for m in capture_ui if "已生成:" in m).split(": ", 1)[1])
+        out_path = Path(next(m for m in capture_ui if "Generated:" in m).split(": ", 1)[1])
         assert out_path == tmp_path / "projects" / "_system" / "figures" / "diagram_Configured_Accessor.mermaid"
         assert out_path.exists()
 
@@ -702,7 +702,7 @@ class TestCliDiagram:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, cfg)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
 
     def test_cli_mutually_exclusive_sources_exits(self, monkeypatch):
         monkeypatch.setattr(sys, "exit", MagicMock(side_effect=SystemExit(1)))
@@ -779,7 +779,7 @@ class TestRefineDiagramIr:
 
         ir = {"title": "T", "nodes": [], "edges": [], "layout_hint": "horizontal"}
         critique = {"verdict": "needs_revision", "issues": []}
-        with pytest.raises(ValueError, match="IR 格式不正确"):
+        with pytest.raises(ValueError, match="invalid revised IR"):
             refine_diagram_ir(ir, critique, "# Method\nX", "model_arch", mock_cfg)
 
 
@@ -892,8 +892,8 @@ class TestCliDiagramCritic:
             critic_rounds=2,
         )
         cli.cmd_diagram(args, cfg)
-        assert any("已生成:" in m for m in capture_ui)
-        assert any("Critic 闭环完成" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
+        assert any("Critic loop completed" in m for m in capture_ui)
 
 
 # ---------------------------------------------------------------------------
@@ -916,14 +916,14 @@ class TestExtractDiagramIrFromText:
         assert ir["nodes"][0]["id"] == "a"
 
     def test_unsupported_diagram_type_from_text(self, mock_cfg):
-        with pytest.raises(ValueError, match="不支持的 diagram 类型"):
+        with pytest.raises(ValueError, match="Unsupported diagram type"):
             extract_diagram_ir_from_text("X", "unknown_type", mock_cfg)
 
     def test_invalid_llm_response_raises_from_text(self, mock_cfg, monkeypatch):
         monkeypatch.setattr(
             "scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps({"title": "Bad", "nodes": "oops"})
         )
-        with pytest.raises(ValueError, match="IR 格式不正确"):
+        with pytest.raises(ValueError, match="invalid IR"):
             extract_diagram_ir_from_text("X", "model_arch", mock_cfg)
 
 

@@ -105,7 +105,7 @@ def audit_papers(papers_dir: Path) -> list[Issue]:
 
             data = read_meta(pdir)
         except Exception as e:
-            issues.append(Issue(pid, "error", "invalid_json", f"JSON 解析失败: {e}"))
+            issues.append(Issue(pid, "error", "invalid_json", f"Failed to parse JSON: {e}"))
             continue
 
         # -- Missing fields --
@@ -113,7 +113,7 @@ def audit_papers(papers_dir: Path) -> list[Issue]:
 
         # -- File pairing --
         if not has_md:
-            issues.append(Issue(pid, "error", "missing_md", "缺少 paper.md 文件"))
+            issues.append(Issue(pid, "error", "missing_md", "Missing paper.md file"))
         else:
             _check_content_consistency(issues, pid, data, md_file)
 
@@ -130,7 +130,9 @@ def audit_papers(papers_dir: Path) -> list[Issue]:
         if len(pids) > 1:
             for pid in pids:
                 others = [p for p in pids if p != pid]
-                issues.append(Issue(pid, "error", "duplicate_doi", f"DOI 重复: {doi} (同: {', '.join(others)})"))
+                issues.append(
+                    Issue(pid, "error", "duplicate_doi", f"Duplicate DOI: {doi} (also in: {', '.join(others)})")
+                )
 
     # Sort: error > warning > info
     severity_order = {"error": 0, "warning": 1, "info": 2}
@@ -152,7 +154,7 @@ def list_scrub_suspects(papers_dir: Path, *, include_scrubbed: bool = False) -> 
 
             data = read_meta(pdir)
         except Exception as e:
-            issues.append(Issue(pid, "warning", "invalid_metadata", f"无法读取元数据: {e}"))
+            issues.append(Issue(pid, "warning", "invalid_metadata", f"Cannot read metadata: {e}"))
             continue
 
         title = str(data.get("title") or "").strip()
@@ -161,15 +163,38 @@ def list_scrub_suspects(papers_dir: Path, *, include_scrubbed: bool = False) -> 
         year = data.get("year")
 
         if _is_garbled_title(title):
-            issues.append(Issue(pid, "warning", "garbled_title", "标题包含乱码或替换字符"))
+            issues.append(Issue(pid, "warning", "garbled_title", "Title contains garbled or replacement characters"))
         if _is_placeholder_title(title):
-            issues.append(Issue(pid, "warning", "placeholder_title", "标题是占位词，需人工确认真实主题"))
+            issues.append(
+                Issue(pid, "warning", "placeholder_title", "Title is a placeholder; confirm the real subject manually")
+            )
         if _has_suspicious_author(authors, first_author_lastname):
-            issues.append(Issue(pid, "warning", "suspicious_author", "作者信息缺失、占位或明显异常"))
+            issues.append(
+                Issue(
+                    pid,
+                    "warning",
+                    "suspicious_author",
+                    "Author metadata is missing, placeholder-like, or clearly abnormal",
+                )
+            )
         if _has_suspicious_year(year, pid):
-            issues.append(Issue(pid, "warning", "suspicious_year", "年份缺失或目录名仍含占位年份"))
+            issues.append(
+                Issue(
+                    pid,
+                    "warning",
+                    "suspicious_year",
+                    "Year is missing or the directory name still contains a placeholder year",
+                )
+            )
         if _has_suspicious_dirname(pid):
-            issues.append(Issue(pid, "warning", "suspicious_dirname", "目录名格式异常，可能由坏元数据生成"))
+            issues.append(
+                Issue(
+                    pid,
+                    "warning",
+                    "suspicious_dirname",
+                    "Directory name format is abnormal and may come from bad metadata",
+                )
+            )
 
     return issues
 
@@ -191,7 +216,7 @@ def _check_missing(issues: list[Issue], pid: str, data: dict, *, has_md: bool) -
 
     paper_type = _normalized_paper_type(data.get("paper_type"))
     if not data.get("doi") and (not paper_type or paper_type in _DOI_EXPECTED_TYPES):
-        issues.append(Issue(pid, "warning", "missing_doi", "缺少 DOI"))
+        issues.append(Issue(pid, "warning", "missing_doi", "Missing DOI"))
     if (
         has_md
         and not _has_available_abstract(data)
@@ -199,15 +224,15 @@ def _check_missing(issues: list[Issue], pid: str, data: dict, *, has_md: bool) -
         and paper_type not in _ABSTRACT_OPTIONAL_TYPES
         and not _has_optional_abstract_title(data)
     ):
-        issues.append(Issue(pid, "warning", "missing_abstract", "缺少摘要"))
+        issues.append(Issue(pid, "warning", "missing_abstract", "Missing abstract"))
     if not data.get("year"):
-        issues.append(Issue(pid, "warning", "missing_year", "缺少年份"))
+        issues.append(Issue(pid, "warning", "missing_year", "Missing year"))
     if not data.get("authors"):
-        issues.append(Issue(pid, "warning", "missing_authors", "缺少作者"))
+        issues.append(Issue(pid, "warning", "missing_authors", "Missing authors"))
     if not data.get("journal") and (not paper_type or paper_type in _JOURNAL_EXPECTED_TYPES):
-        issues.append(Issue(pid, "warning", "missing_journal", "缺少期刊名"))
+        issues.append(Issue(pid, "warning", "missing_journal", "Missing journal name"))
     if not data.get("title"):
-        issues.append(Issue(pid, "error", "missing_title", "缺少标题"))
+        issues.append(Issue(pid, "error", "missing_title", "Missing title"))
 
 
 def _is_garbled_title(title: str) -> bool:
@@ -277,13 +302,18 @@ def _check_content_consistency(
         md_text = md_path.read_text(encoding="utf-8", errors="replace")
     except Exception as e:
         _log.debug("failed to read paper.md for %s: %s", pid, e)
-        issues.append(Issue(pid, "error", "unreadable_md", "无法读取 paper.md 文件"))
+        issues.append(Issue(pid, "error", "unreadable_md", "Cannot read paper.md file"))
         return
 
     # MD too short (likely conversion failure)
     if len(md_text.strip()) < 200:
         issues.append(
-            Issue(pid, "warning", "short_md", f"paper.md 文件过短 ({len(md_text.strip())} 字符)，可能转换失败")
+            Issue(
+                pid,
+                "warning",
+                "short_md",
+                f"paper.md is too short ({len(md_text.strip())} characters); conversion may have failed",
+            )
         )
 
     # Title vs first H1 mismatch
@@ -297,7 +327,7 @@ def _check_content_consistency(
                     pid,
                     "warning",
                     "title_mismatch",
-                    f"JSON 标题与 MD 标题候选不一致\n  JSON: {matched_title[:80]}\n  MD: {md_title[:80]}",
+                    f"JSON title does not match the MD title candidate\n  JSON: {matched_title[:80]}\n  MD: {md_title[:80]}",
                 )
             )
 
@@ -307,7 +337,9 @@ def _check_filename(issues: list[Issue], pid: str, data: dict) -> None:
     # Expected: Author-Year-Title
     m = re.match(r"^(.+?)-(\d{4})-(.+)$", pid)
     if not m:
-        issues.append(Issue(pid, "info", "nonstandard_filename", "目录名不符合 Author-Year-Title 格式"))
+        issues.append(
+            Issue(pid, "info", "nonstandard_filename", "Directory name does not match Author-Year-Title format")
+        )
         return
 
     file_year = int(m.group(2))
@@ -315,7 +347,10 @@ def _check_filename(issues: list[Issue], pid: str, data: dict) -> None:
     if json_year and file_year != json_year:
         issues.append(
             Issue(
-                pid, "warning", "filename_year_mismatch", f"目录名年份 ({file_year}) 与 JSON 年份 ({json_year}) 不一致"
+                pid,
+                "warning",
+                "filename_year_mismatch",
+                f"Directory year ({file_year}) does not match JSON year ({json_year})",
             )
         )
 
@@ -416,17 +451,17 @@ def format_report(issues: list[Issue]) -> str:
         格式化的文本报告。
     """
     if not issues:
-        return "审计通过，未发现问题。"
+        return "Audit passed; no issues found."
 
     errors = [i for i in issues if i.severity == "error"]
     warnings = [i for i in issues if i.severity == "warning"]
     infos = [i for i in issues if i.severity == "info"]
 
-    lines = [f"审计完成: {len(errors)} 个错误, {len(warnings)} 个警告, {len(infos)} 个提示\n"]
+    lines = [f"Audit complete: {len(errors)} errors, {len(warnings)} warnings, {len(infos)} notes\n"]
 
     if errors:
         lines.append("=" * 60)
-        lines.append("错误 (需要修复)")
+        lines.append("Errors (fix required)")
         lines.append("=" * 60)
         for i in errors:
             lines.append(f"  [{i.rule}] {i.paper_id}")
@@ -435,7 +470,7 @@ def format_report(issues: list[Issue]) -> str:
     if warnings:
         lines.append("")
         lines.append("-" * 60)
-        lines.append("警告 (建议关注)")
+        lines.append("Warnings (review recommended)")
         lines.append("-" * 60)
         for i in warnings:
             lines.append(f"  [{i.rule}] {i.paper_id}")
@@ -443,9 +478,9 @@ def format_report(issues: list[Issue]) -> str:
 
     if infos:
         lines.append("")
-        lines.append("· " * 30)
-        lines.append("提示 (参考信息)")
-        lines.append("· " * 30)
+        lines.append("- " * 30)
+        lines.append("Notes (reference)")
+        lines.append("- " * 30)
         for i in infos:
             lines.append(f"  [{i.rule}] {i.paper_id}")
             lines.append(f"    {i.message}")

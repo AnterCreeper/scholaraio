@@ -61,10 +61,10 @@ def cmd_top_cited(args: argparse.Namespace, cfg) -> None:
         sys.exit(1)
 
     if not results:
-        _ui("索引中没有引用数据。请先运行 scholaraio refetch --all。")
+        _ui("No citation data found in the index. Run `scholaraio refetch --all` first.")
         return
 
-    _ui(f"按引用量排序的前 {len(results)} 篇论文：\n")
+    _ui(f"Top {len(results)} papers: \n")
     for i, r in enumerate(results, start=1):
         _print_search_result(i, r)
     _print_search_next_steps()

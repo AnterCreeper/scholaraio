@@ -77,7 +77,7 @@ def import_external(
         # Fast DOI dedup check before expensive API calls
         doi = meta.doi.lower().strip() if meta.doi else ""
         if doi and doi in existing_dois:
-            _ui(f"DOI 重复，跳过: {meta.doi}")
+            _ui(f"Duplicate DOI, skipped: {meta.doi}")
             stats["duplicate"] += 1
             continue
 
@@ -122,7 +122,8 @@ def import_external(
             time.sleep(1.0)
 
     _ui(
-        f"\n导入完成: {stats['ingested']} 入库 | {stats['duplicate']} 重复 | {stats['needs_review']} 待审 | {stats['failed']} 失败"
+        f"\nImport completed: {stats['ingested']} ingested | {stats['duplicate']} duplicates | "
+        f"{stats['needs_review']} need review | {stats['failed']} failed"
     )
 
     # Batch embed + index

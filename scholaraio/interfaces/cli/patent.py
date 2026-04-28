@@ -18,18 +18,18 @@ def _ui(msg: str = "") -> None:
 
 
 def cmd_patent_fetch(args: argparse.Namespace, cfg) -> None:
-    """下载专利 PDF 到 inbox-patent."""
+    """Download patent PDFs to inbox-patent."""
     from scholaraio.services import patent_fetch
 
     id_or_url = args.id_or_url
     path = patent_fetch.download_patent_pdf(id_or_url, cfg=cfg)
     if path is None:
         sys.exit(1)
-    _ui(f"已保存到: {path}")
+    _ui(f"Saved to: {path}")
 
 
 def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
-    """USPTO 专利搜索."""
+    """USPTO patent search."""
     from scholaraio.providers import uspto_odp, uspto_ppubs
     from scholaraio.services import patent_fetch
 
@@ -43,16 +43,16 @@ def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
     # Application number lookup mode
     if app_number:
         if source == "ppubs":
-            _ui("按申请号精确查询请使用 --source odp（需要配置 USPTO ODP API Key）")
+            _ui("Use --source odp for exact application-number lookup; USPTO ODP API key is required.")
             sys.exit(1)
         try:
             result = uspto_odp.get_patent_by_application_number(app_number, cfg=cfg)
         except uspto_odp.USPTOAPIError as e:
-            _ui(f"查询失败: {e}")
+            _ui(f"Query failed: {e}")
             sys.exit(1)
 
         if not result:
-            _ui(f"未找到申请号: {app_number}")
+            _ui(f"No patent found for application number: {app_number}")
             sys.exit(1)
 
         _ui(f"Application: {result.application_number}")
@@ -78,21 +78,21 @@ def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
 
     # Search mode
     if not query:
-        _ui("请提供搜索词或使用 --application <申请号>")
+        _ui("Provide search terms or use --application <application number>")
         sys.exit(1)
 
     if source == "odp":
         try:
             results = uspto_odp.search_patents(query, limit=count, offset=offset, cfg=cfg)
         except uspto_odp.USPTOAPIError as e:
-            _ui(f"搜索失败: {e}")
+            _ui(f"Search failed: {e}")
             sys.exit(1)
 
         if not results:
-            _ui(f"未找到与 '{query}' 相关的专利")
+            _ui(f"No patent results found for '{query}'.")
             return
 
-        _ui(f"\n找到 {len(results)} 条 USPTO 专利结果")
+        _ui(f"\nFound {len(results)} USPTO patent records")
         odp_to_fetch: list[str] = []
         for i, p in enumerate(results, 1):
             _ui(f"\n[{i}] {p.title}")
@@ -106,12 +106,12 @@ def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
             if p.application_status:
                 _ui(f"    Status: {p.application_status}")
             if p.publication_number:
-                _ui(f"    下载: scholaraio patent-fetch {p.publication_number}")
+                _ui(f"    download: scholaraio patent-fetch {p.publication_number}")
                 if fetch:
                     odp_to_fetch.append(p.publication_number)
 
         if fetch and odp_to_fetch:
-            _ui(f"\n开始下载 {len(odp_to_fetch)} 条专利 PDF...")
+            _ui(f"\nStart downloading {len(odp_to_fetch)} patent PDFs...")
             for pub_num in odp_to_fetch:
                 patent_fetch.download_patent_pdf(pub_num, cfg=cfg)
         return
@@ -121,14 +121,14 @@ def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
         client = uspto_ppubs.PpubsClient()
         total, ppubs_results = client.search(query, start=offset, limit=count)
     except uspto_ppubs.PpubsError as e:
-        _ui(f"搜索失败: {e}")
+        _ui(f"Search failed: {e}")
         sys.exit(1)
 
     if not ppubs_results:
-        _ui(f"未找到与 '{query}' 相关的专利")
+        _ui(f"No patent results found for '{query}'.")
         return
 
-    _ui(f"\n找到 {len(ppubs_results)} / {total} 条 USPTO 专利结果")
+    _ui(f"\nFound {len(ppubs_results)} of {total} USPTO patent records")
     to_fetch: list[str] = []
     for i, ppub in enumerate(ppubs_results, 1):
         _ui(f"\n[{i}] {ppub.title}")
@@ -145,11 +145,11 @@ def cmd_patent_search(args: argparse.Namespace, cfg) -> None:
         if ppub.patent_type:
             _ui(f"    Type: {ppub.patent_type}")
         if ppub.publication_number:
-            _ui(f"    下载: scholaraio patent-fetch {ppub.publication_number}")
+            _ui(f"    download: scholaraio patent-fetch {ppub.publication_number}")
             if fetch:
                 to_fetch.append(ppub.publication_number)
 
     if fetch and to_fetch:
-        _ui(f"\n开始下载 {len(to_fetch)} 条专利 PDF...")
+        _ui(f"\nStart downloading {len(to_fetch)} patent PDFs...")
         for pub_num in to_fetch:
             patent_fetch.download_patent_pdf(pub_num, cfg=cfg)

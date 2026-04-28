@@ -20,7 +20,7 @@ def _print_search_result(idx: int, r: dict[str, Any], extra: str = "") -> None:
     authors = r.get("authors") or ""
     author_display = authors.split(",")[0].strip() + (" et al." if "," in authors else "")
     cite = r.get("citation_count") or ""
-    cite_suffix = f"  [被引: {cite}]" if cite else ""
+    cite_suffix = f"  [cited: {cite}]" if cite else ""
     extra_suffix = f"  ({extra})" if extra else ""
     # Prefer dir_name for display, fall back to paper_id (UUID)
     display_id = r.get("dir_name") or r["paper_id"]
@@ -31,16 +31,18 @@ def _print_search_result(idx: int, r: dict[str, Any], extra: str = "") -> None:
 
 
 def _print_search_next_steps(include_ws_add: bool = True) -> None:
-    _ui("下一步：可以运行 `scholaraio show <paper-id> --layer 2/3/4` 查看摘要、结论或全文。")
+    _ui("Next: run `scholaraio show <paper-id> --layer 2/3/4` to view the abstract, conclusion, or full text.")
     if include_ws_add:
-        _ui("也可以运行 `scholaraio ws add <工作区名> <paper-id>` 把感兴趣的论文加入工作区。")
+        _ui(
+            "You can also run `scholaraio ws add <workspace-name> <paper-id>` to add interesting papers to a workspace."
+        )
 
 
 def _format_match_tag(match: str) -> str:
     mapping = {
-        "both": "关键词+语义",
-        "fts": "关键词",
-        "vec": "语义",
+        "both": "keyword+semantic",
+        "fts": "keyword",
+        "vec": "semantic",
     }
     return mapping.get(match, match)
 

@@ -18,7 +18,7 @@ def _ui(msg: str = "") -> None:
 
 
 def cmd_websearch(args: argparse.Namespace, cfg) -> None:
-    """实时网页搜索 (Bing via GUILessBingSearch)."""
+    """Real-time web search (Bing via GUILessBingSearch)."""
     from scholaraio.providers import webtools
 
     query = " ".join(args.query)
@@ -27,13 +27,13 @@ def cmd_websearch(args: argparse.Namespace, cfg) -> None:
     try:
         results = webtools.search_and_display(query, count=count, cfg=cfg)
     except webtools.ServiceUnavailableError as e:
-        _ui(f"错误: {e}")
-        _ui("提示: 请确保 GUILessBingSearch 服务已启动")
-        _ui("  安装: https://github.com/wszqkzqk/GUILessBingSearch")
-        _ui("  启动: python guiless_bing_search.py")
+        _ui(f"Error: {e}")
+        _ui("Hint: Make sure the GUILessBingSearch service is running")
+        _ui("  Install: https://github.com/wszqkzqk/GUILessBingSearch")
+        _ui("  Start: python guiless_bing_search.py")
         sys.exit(1)
     except webtools.WebSearchError as e:
-        _ui(f"搜索失败: {e}")
+        _ui(f"Search failed: {e}")
         sys.exit(1)
 
     if not results:
@@ -50,7 +50,7 @@ def _terminal_preview(text: str, *, max_chars: int) -> tuple[str, bool]:
 
 
 def cmd_webextract(args: argparse.Namespace, cfg) -> None:
-    """网页内容提取 (qt-web-extractor)."""
+    """Web content extraction (qt-web-extractor)."""
     from scholaraio.providers import webtools
 
     url = args.url
@@ -61,11 +61,11 @@ def cmd_webextract(args: argparse.Namespace, cfg) -> None:
     try:
         result = webtools.extract_web(url, pdf=pdf, cfg=cfg)
     except webtools.WebExtractServiceUnavailableError as e:
-        _ui(f"错误: {e}")
-        _ui("提示: 请确保 qt-web-extractor 服务已启动")
+        _ui(f"Error: {e}")
+        _ui("Hint: make sure the qt-web-extractor service is running")
         sys.exit(1)
     except webtools.WebExtractError as e:
-        _ui(f"提取失败: {e}")
+        _ui(f"Extraction failed: {e}")
         sys.exit(1)
 
     title = result.get("title", "")
@@ -74,13 +74,13 @@ def cmd_webextract(args: argparse.Namespace, cfg) -> None:
     error = str(result.get("error") or "").strip()
 
     if error and not text_body:
-        _ui(f"提取失败: {error}")
+        _ui(f"Extraction failed: {error}")
         sys.exit(1)
 
     if error:
-        _ui(f"提取有警告: {error}")
+        _ui(f"Extraction warning: {error}")
 
-    _ui(f"提取成功: {title or url}")
+    _ui(f"Extraction succeeded: {title or url}")
     if not text_body:
         return
 
@@ -88,4 +88,6 @@ def cmd_webextract(args: argparse.Namespace, cfg) -> None:
     if output_text:
         print(output_text)
     if truncated:
-        _ui(f"内容较长，已截断显示前 {len(output_text)} / {len(text_body)} 个字符；使用 --full 查看全文")
+        _ui(
+            f"Content is long; showing the first {len(output_text)} / {len(text_body)} characters; use --full to show the full text"
+        )

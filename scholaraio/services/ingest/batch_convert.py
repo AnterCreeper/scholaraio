@@ -65,7 +65,7 @@ def batch_convert_pdfs(
 
     stats: dict[str, int] = {"converted": 0, "failed": 0, "skipped": 0}
     if not to_convert:
-        _ui("没有需要转换的 PDF")
+        _ui("No PDFs need conversion")
         return stats
 
     from scholaraio.providers.mineru import ConvertOptions, check_server, is_pdf_validation_error
@@ -87,9 +87,11 @@ def batch_convert_pdfs(
     if not use_local:
         api_key = cfg.resolved_mineru_api_key()
         if not api_key:
-            _ui("MinerU 不可达且无 MinerU token，改用 fallback 解析器继续批量转换")
+            _ui(
+                "MinerU is unreachable and no MinerU token is configured; continuing batch conversion with fallback parser"
+            )
 
-    _ui(f"\n开始批量转换 {len(to_convert)} 个 PDF...")
+    _ui(f"\nStarting batch conversion for {len(to_convert)} PDFs...")
 
     converted_dirs: list[Path] = []
 
@@ -101,12 +103,12 @@ def batch_convert_pdfs(
             auto_detect=fallback_auto_detect,
         )
         if not ok:
-            _ui(f"  {pdir.name}: fallback 失败: {err}")
+            _ui(f"  {pdir.name}: fallback failed: {err}")
             stats["failed"] += 1
             return False
         if pdf_path.exists() and pdf_path.name != "paper.pdf":
             pdf_path.unlink()
-        _ui(f"  {pdir.name}: 已降级使用 {parser_name}")
+        _ui(f"  {pdir.name}: fell back to {parser_name}")
         converted_dirs.append(pdir)
         stats["converted"] += 1
         return True
@@ -133,7 +135,7 @@ def batch_convert_pdfs(
             )
             result = convert_pdf(pdf_path, mineru_opts)
             if not result.success:
-                _ui(f"  MinerU 失败: {result.error}")
+                _ui(f"  MinerU failed: {result.error}")
                 if is_pdf_validation_error(result):
                     stats["failed"] += 1
                     continue
@@ -208,7 +210,7 @@ def batch_convert_pdfs(
                         continue
 
                     if not br.success:
-                        _ui(f"  {pdir.name}: MinerU 失败: {br.error}")
+                        _ui(f"  {pdir.name}: MinerU failed: {br.error}")
                         if is_pdf_validation_error(br):
                             stats["failed"] += 1
                             continue
@@ -217,7 +219,7 @@ def batch_convert_pdfs(
 
                     md_src = br.md_path if br.md_path and br.md_path.exists() else None
                     if md_src is None:
-                        _ui(f"  {pdir.name}: MinerU 未生成有效的 markdown，转为本地回退")
+                        _ui(f"  {pdir.name}: MinerU did not produce valid markdown; falling back locally")
                         _run_fallback(pdir, br.pdf_path)
                         continue
 
@@ -238,7 +240,7 @@ def batch_convert_pdfs(
 
         for idx, (pdir, pdf_path, chunk_size, reason) in enumerate(chunked_items, start=len(pdf_paths) + 1):
             _ui(f"[{idx}/{len(pdf_paths) + len(chunked_items)}] {pdir.name}")
-            _ui(f"  {pdir.name}: 云端分片处理（{reason}，chunk_size={chunk_size}）")
+            _ui(f"  {pdir.name}: cloud chunking ({reason}, chunk_size={chunk_size})")
             mineru_opts = ConvertOptions(
                 output_dir=pdir,
                 backend=cfg.ingest.mineru_backend_local,
@@ -261,15 +263,15 @@ def batch_convert_pdfs(
                     chunk_size=chunk_size,
                 )
             except ImportError as exc:
-                _ui(f"  {pdir.name}: 云端分片依赖缺失，转为本地回退: {exc}")
+                _ui(f"  {pdir.name}: cloud chunking dependency missing; falling back locally: {exc}")
                 _run_fallback(pdir, pdf_path)
                 continue
             except Exception as exc:
-                _ui(f"  {pdir.name}: 云端分片失败，转为本地回退: {exc}")
+                _ui(f"  {pdir.name}: cloud chunking failed; falling back locally: {exc}")
                 _run_fallback(pdir, pdf_path)
                 continue
             if not result.success:
-                _ui(f"  {pdir.name}: MinerU 失败: {result.error}")
+                _ui(f"  {pdir.name}: MinerU failed: {result.error}")
                 if is_pdf_validation_error(result):
                     stats["failed"] += 1
                     continue
@@ -280,7 +282,9 @@ def batch_convert_pdfs(
             converted_dirs.append(pdir)
             stats["converted"] += 1
 
-    _ui(f"批量转换完成: {stats['converted']} 成功 / {stats['failed']} 失败 / {stats['skipped']} 跳过")
+    _ui(
+        f"Batch conversion completed: {stats['converted']} succeeded / {stats['failed']} failed / {stats['skipped']} skipped"
+    )
 
     # Post-processing: abstract backfill + optional enrich (toc + l3)
     if converted_dirs:

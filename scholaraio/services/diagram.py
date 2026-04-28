@@ -137,7 +137,7 @@ def _extract_method_section(md_text: str, max_chars: int = 12000) -> str:
             break
 
     if not target:
-        _log.warning("未定位到 Method/Architecture 章节，使用全文前 %d 字符", max_chars)
+        _log.warning("Method/Architecture section not found; using the first %d characters", max_chars)
         return "\n".join(lines)[:max_chars]
 
     start_line = target["line"]
@@ -214,7 +214,7 @@ def extract_diagram_ir(md_text: str, diagram_type: str, cfg: Config) -> dict:
         ValueError: 当 ``diagram_type`` 不支持或 LLM 返回格式错误时抛出。
     """
     if diagram_type not in _DIAGRAM_TYPES:
-        raise ValueError(f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）")
+        raise ValueError(f"Unsupported diagram type: {diagram_type} (supported: {', '.join(_DIAGRAM_TYPES)})")
 
     section_text = _extract_method_section(md_text)
 
@@ -247,7 +247,7 @@ def extract_diagram_ir(md_text: str, diagram_type: str, cfg: Config) -> dict:
     ir = _parse_json(raw)
 
     if not isinstance(ir.get("nodes"), list) or not isinstance(ir.get("edges"), list):
-        raise ValueError("LLM 返回的 IR 格式不正确，缺少 nodes 或 edges 列表")
+        raise ValueError("LLM returned invalid IR: missing nodes or edges lists")
 
     return ir
 
@@ -361,9 +361,9 @@ def _dot_to_svg(dot_text: str, svg_path: Path) -> None:
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"dot 编译失败: {e.stderr}") from e
+        raise RuntimeError(f"dot compilation failed: {e.stderr}") from e
     except FileNotFoundError as e:
-        raise RuntimeError("未找到 graphviz 的 dot 命令，请安装 graphviz") from e
+        raise RuntimeError("Graphviz dot command was not found; please install graphviz") from e
     finally:
         dot_path.unlink(missing_ok=True)
 
@@ -372,7 +372,7 @@ def _dot_to_svg(dot_text: str, svg_path: Path) -> None:
 def _render_svg(ir: dict, out_path: Path | None = None) -> Path | str:
     """IR → Graphviz DOT → SVG。"""
     if out_path is None:
-        raise ValueError("svg 渲染需要提供 out_path")
+        raise ValueError("svg rendering requires out_path")
     dot_path = out_path.with_suffix(".dot")
     dot_text = _render_dot(ir, dot_path)
     if isinstance(dot_text, Path):
@@ -569,7 +569,7 @@ def render_ir(ir: dict, fmt: str, out_path: Path | None = None) -> Path | str:
         ValueError: 当 ``fmt`` 不支持时抛出。
     """
     if fmt not in _RENDERERS:
-        raise ValueError(f"不支持的渲染格式: {fmt}（支持: {', '.join(_RENDERERS.keys())}）")
+        raise ValueError(f"Unsupported render format: {fmt} (supported: {', '.join(_RENDERERS.keys())})")
     return _RENDERERS[fmt](ir, out_path)
 
 
@@ -680,7 +680,7 @@ def refine_diagram_ir(
     refined = _parse_json(raw)
 
     if not isinstance(refined.get("nodes"), list) or not isinstance(refined.get("edges"), list):
-        raise ValueError("LLM 返回的修正 IR 格式不正确，缺少 nodes 或 edges 列表")
+        raise ValueError("LLM returned invalid revised IR: missing nodes or edges lists")
 
     return refined
 
@@ -739,11 +739,11 @@ def generate_diagram_with_critic(
         if not dump_ir:
             out_path = out_dir / f"{base_name}.{fmt}"
             render_ir(ir, fmt, out_path=out_path)
-            _log.info("Critic 被禁用 (max_rounds=%d)，直接生成: %s", max_rounds, out_path)
+            _log.info("Critic disabled (max_rounds=%d); generated directly: %s", max_rounds, out_path)
         if dump_ir:
             ir_path = out_dir / f"{base_name}.ir.json"
             ir_path.write_text(json.dumps(ir, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            _log.info("已导出 IR: %s", ir_path)
+            _log.info("Exported IR: %s", ir_path)
             out_path = ir_path
         return {
             "out_path": out_path,
@@ -756,7 +756,7 @@ def generate_diagram_with_critic(
         if not dump_ir:
             out_path = out_dir / f"{base_name}_r{round_idx}.{fmt}"
             render_ir(ir, fmt, out_path=out_path)
-            _log.info("Critic round %d: 已生成 %s", round_idx, out_path)
+            _log.info("Critic round %d: generated %s", round_idx, out_path)
 
         critique = critique_diagram_ir(ir, md_text, diagram_type, cfg, round_idx=round_idx)
         critique_log.append(critique)
@@ -794,12 +794,12 @@ def generate_diagram_with_critic(
                 if sidecar.exists():
                     sidecar.unlink()
         out_path = final_path
-        _log.info("Critic 闭环完成，最终输出: %s", out_path)
+        _log.info("Critic loop completed, final output: %s", out_path)
 
     if dump_ir:
         ir_path = out_dir / f"{base_name}.ir.json"
         ir_path.write_text(json.dumps(ir, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        _log.info("已导出 IR: %s", ir_path)
+        _log.info("Exported IR: %s", ir_path)
         out_path = ir_path
 
     return {
@@ -857,12 +857,12 @@ def generate_diagram(
     if dump_ir:
         ir_path = out_dir / f"{base_name}.ir.json"
         ir_path.write_text(json.dumps(ir, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        _log.info("已导出 IR: %s", ir_path)
+        _log.info("Exported IR: %s", ir_path)
         return ir_path
 
     out_path = out_dir / f"{base_name}.{fmt}"
     result = render_ir(ir, fmt, out_path=out_path)
-    _log.info("已生成: %s", result)
+    _log.info("Generated: %s", result)
     return result
 
 
@@ -878,7 +878,7 @@ def extract_diagram_ir_from_text(description: str, diagram_type: str, cfg: Confi
         解析后的 IR 字典。
     """
     if diagram_type not in _DIAGRAM_TYPES:
-        raise ValueError(f"不支持的 diagram 类型: {diagram_type}（支持: {', '.join(_DIAGRAM_TYPES)}）")
+        raise ValueError(f"Unsupported diagram type: {diagram_type} (supported: {', '.join(_DIAGRAM_TYPES)})")
 
     prompt = (
         f"你是一位专业的科研可视化专家。请根据以下文字描述，"
@@ -909,7 +909,7 @@ def extract_diagram_ir_from_text(description: str, diagram_type: str, cfg: Confi
     ir = _parse_json(raw)
 
     if not isinstance(ir.get("nodes"), list) or not isinstance(ir.get("edges"), list):
-        raise ValueError("LLM 返回的 IR 格式不正确，缺少 nodes 或 edges 列表")
+        raise ValueError("LLM returned invalid IR: missing nodes or edges lists")
 
     return ir
 
@@ -947,10 +947,10 @@ def generate_diagram_from_text(
     if dump_ir:
         ir_path = out_dir / f"{base_name}.ir.json"
         ir_path.write_text(json.dumps(ir, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        _log.info("已导出 IR: %s", ir_path)
+        _log.info("Exported IR: %s", ir_path)
         return ir_path
 
     out_path = out_dir / f"{base_name}.{fmt}"
     result = render_ir(ir, fmt, out_path=out_path)
-    _log.info("已生成: %s", result)
+    _log.info("Generated: %s", result)
     return result

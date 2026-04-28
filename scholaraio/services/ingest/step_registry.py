@@ -9,19 +9,23 @@ STEPS: dict[str, StepDef] = {
     "office_convert": StepDef(
         fn=inbox_steps.step_office_convert,
         scope="inbox",
-        desc="Office 文档（DOCX/XLSX/PPTX）→ Markdown（MarkItDown）",
+        desc="Office documents (DOCX/XLSX/PPTX) -> Markdown (MarkItDown)",
     ),
-    "mineru": StepDef(fn=inbox_steps.step_mineru, scope="inbox", desc="PDF → Markdown（MinerU）"),
-    "extract": StepDef(fn=inbox_steps.step_extract, scope="inbox", desc="Markdown → 元数据提取"),
-    "extract_doc": StepDef(fn=inbox_steps.step_extract_doc, scope="inbox", desc="文档 → LLM 元数据提取"),
-    "dedup": StepDef(fn=inbox_steps.step_dedup, scope="inbox", desc="API 查询 + DOI 去重"),
-    "ingest": StepDef(fn=inbox_steps.step_ingest, scope="inbox", desc="写入 configured papers library"),
-    "toc": StepDef(fn=steps.step_toc, scope="papers", desc="LLM 提取 TOC 写入 JSON"),
-    "l3": StepDef(fn=steps.step_l3, scope="papers", desc="LLM 提取结论写入 JSON"),
-    "translate": StepDef(fn=steps.step_translate, scope="papers", desc="翻译论文 Markdown 到目标语言"),
-    "refetch": StepDef(fn=steps.step_refetch, scope="papers", desc="重新查询 API 补全引用量等字段"),
-    "embed": StepDef(fn=steps.step_embed, scope="global", desc="生成语义向量写入 index.db"),
-    "index": StepDef(fn=steps.step_index, scope="global", desc="更新 SQLite FTS5 索引"),
+    "mineru": StepDef(fn=inbox_steps.step_mineru, scope="inbox", desc="PDF -> Markdown (MinerU)"),
+    "extract": StepDef(fn=inbox_steps.step_extract, scope="inbox", desc="Markdown -> metadata extraction"),
+    "extract_doc": StepDef(fn=inbox_steps.step_extract_doc, scope="inbox", desc="Document -> LLM metadata extraction"),
+    "dedup": StepDef(fn=inbox_steps.step_dedup, scope="inbox", desc="API lookup + DOI deduplication"),
+    "ingest": StepDef(fn=inbox_steps.step_ingest, scope="inbox", desc="Write to configured papers library"),
+    "toc": StepDef(fn=steps.step_toc, scope="papers", desc="Extract TOC with LLM and write JSON"),
+    "l3": StepDef(fn=steps.step_l3, scope="papers", desc="Extract conclusion with LLM and write JSON"),
+    "translate": StepDef(
+        fn=steps.step_translate, scope="papers", desc="Translate paper Markdown to the target language"
+    ),
+    "refetch": StepDef(
+        fn=steps.step_refetch, scope="papers", desc="Re-query APIs to fill citation counts and related fields"
+    ),
+    "embed": StepDef(fn=steps.step_embed, scope="global", desc="Generate semantic vectors into index.db"),
+    "index": StepDef(fn=steps.step_index, scope="global", desc="Update SQLite FTS5 index"),
 }
 
 # Document inbox uses a different step sequence (no DOI dedup).

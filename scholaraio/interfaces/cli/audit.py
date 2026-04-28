@@ -32,10 +32,10 @@ def cmd_audit(args: argparse.Namespace, cfg) -> None:
 
     papers_dir = cfg.papers_dir
     if not papers_dir.exists():
-        _log_error("论文目录不存在: %s", papers_dir)
+        _log_error("Papers directory does not exist: %s", papers_dir)
         sys.exit(1)
 
-    _ui(f"正在审计论文库: {papers_dir}\n")
+    _ui(f"Auditing paper library: {papers_dir}\n")
     issues = audit_papers(papers_dir)
 
     if args.severity:

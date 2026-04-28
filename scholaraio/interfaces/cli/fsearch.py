@@ -118,15 +118,15 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
     scope_str = args.scope or "main"
     scopes = [s.strip() for s in scope_str.split(",") if s.strip()] or ["main"]
 
-    _ui(f'联邦搜索: "{query}"  scope={scope_str}\n')
+    _ui(f'Federated search: "{query}"  scope={scope_str}\n')
 
     for scope in scopes:
         if scope == "main":
-            _ui("── [主库] ──")
+            _ui("-- [Main library] --")
             results: list[dict[str, Any]] = []
             diagnostics: Any = {"vector_degraded": False}
             if not cfg.index_db.exists():
-                _ui("  主库索引不存在，请先运行 scholaraio index")
+                _ui("  Main library index does not exist. Run `scholaraio index` first.")
             else:
                 from scholaraio.services.index import unified_search
 
@@ -139,12 +139,12 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
                         return_diagnostics=True,
                     )
                 except Exception as e:
-                    _ui(f"  主库搜索失败：{e}")
+                    _ui(f"  Main library search failed: {e}")
             if not results:
-                _ui("  无结果")
+                _ui("  no results")
             else:
                 if diagnostics.get("vector_degraded"):
-                    _ui("  提示：向量检索不可用，已降级为关键词检索。")
+                    _ui("  Hint: Vector search is unavailable; falling back to keyword search.")
                 for i, r in enumerate(results, 1):
                     score = r.get("score", 0.0)
                     _print_search_result(i, r, extra=f"{_format_match_tag(r.get('match', '?'))} {score:.3f}")
@@ -155,7 +155,9 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
             from scholaraio.stores.explore import validate_explore_name
 
             if explore_name != "*" and not validate_explore_name(explore_name):
-                _ui(f"  无效的 explore 库名 '{explore_name}'：不能为空，且不能包含路径分隔符或 '..'")
+                _ui(
+                    f"  Invalid explore library name '{explore_name}': must not be empty and must not contain path separators or '..'"
+                )
                 _ui()
                 continue
             if explore_name == "*":
@@ -164,7 +166,7 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
                 names = list_explore_libs(cfg)
                 if not names:
                     _ui("── [explore: *] ──")
-                    _ui("  暂无 explore 库，请先运行 scholaraio explore fetch --name <名称>")
+                    _ui("  No explore libraries yet. Run `scholaraio explore fetch --name <Name>` first.")
                     _ui()
             else:
                 names = [explore_name]
@@ -175,31 +177,31 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
 
                 db = explore_db_path(name, cfg)
                 if not db.exists():
-                    _ui(f"  explore 库 {name} 不存在或未建索引（explore.db 缺失）")
+                    _ui(f"  Explore library {name} does not exist or is not indexed (missing explore.db)")
                     _ui()
                     continue
                 try:
                     results = explore_unified_search(name, query, top_k=top_k, cfg=cfg)
                 except Exception as e:
-                    _ui(f"  搜索失败: {e}")
+                    _ui(f"  Search failed: {e}")
                     _ui()
                     continue
                 if not results:
-                    _ui("  无结果")
+                    _ui("  no results")
                 else:
                     for i, r in enumerate(results, 1):
                         authors = r.get("authors", [])
                         first = authors[0] if authors else "?"
                         score = r.get("score", 0.0)
                         _ui(f"  [{i}] [{r.get('year', '?')}] {r.get('title', '')}")
-                        _ui(f"       {first} | 分数: {score:.3f}")
+                        _ui(f"       {first} | score: {score:.3f}")
                         _ui()
 
         elif scope == "arxiv":
             _ui("── [arXiv] ──")
             arxiv_results = _search_arxiv_from_cli(query, top_k)
             if not arxiv_results:
-                _ui("  arXiv 不可用或无结果")
+                _ui("  arXiv is unavailable or returned no results")
             else:
                 arxiv_dois = [r["doi"].lower() for r in arxiv_results if r.get("doi")]
                 arxiv_ids = [r.get("arxiv_id", "") for r in arxiv_results if r.get("arxiv_id")]
@@ -217,27 +219,27 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
                         (doi and doi.lower() in in_lib_dois)
                         or (normalized_arxiv_id and normalized_arxiv_id in in_lib_arxiv_ids)
                     )
-                    status = "  [已入库]" if in_lib else ""
+                    status = "  [ingested]" if in_lib else ""
                     _ui(f"  [{i}] [{r.get('year', '?')}] {r.get('title', '')}{status}")
                     _ui(f"       {first} | arxiv:{arxiv_id}" + (f" | doi:{doi}" if doi else ""))
                     _ui()
 
         elif scope == "proceedings":
-            _ui("── [论文集] ──")
+            _ui("-- [Proceedings] --")
             from scholaraio.services.index import search_proceedings
 
             db = cfg.proceedings_dir / "proceedings.db"
             if not db.exists():
-                _ui("  proceedings 索引不存在，请先导入论文集")
+                _ui("  Proceedings index does not exist. Import proceedings first.")
                 results = []
             else:
                 try:
                     results = search_proceedings(query, db, top_k=top_k)
                 except Exception as e:
-                    _ui(f"  proceedings 搜索失败：{e}")
+                    _ui(f"  Proceedings search failed: {e}")
                     results = []
             if not results:
-                _ui("  无结果")
+                _ui("  no results")
             else:
                 for i, r in enumerate(results, 1):
                     extra = f"proceedings:{r.get('proceeding_title', r.get('proceeding_dir', '?'))}"
@@ -245,4 +247,4 @@ def cmd_fsearch(args: argparse.Namespace, cfg) -> None:
             _ui()
 
         else:
-            _ui(f"  未知 scope: {scope}，支持: main / proceedings / explore:NAME / explore:* / arxiv")
+            _ui(f"  Unknown scope: {scope}, supported: main / proceedings / explore:NAME / explore:* / arxiv")

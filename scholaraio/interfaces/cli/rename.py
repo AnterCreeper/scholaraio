@@ -47,24 +47,24 @@ def cmd_rename(args: argparse.Namespace, cfg) -> None:
     elif args.paper_id:
         targets = [papers_dir / args.paper_id / "meta.json"]
     else:
-        _log_error("请指定 <paper-id> 或 --all")
+        _log_error("Specify <paper-id> or --all")
         sys.exit(1)
 
     renamed = skip = fail = 0
     for json_path in targets:
         if not json_path.exists():
-            _log_error("未找到论文: %s", json_path.parent.name)
+            _log_error("Paper not found: %s", json_path.parent.name)
             fail += 1
             continue
 
         new_path = rename_paper(json_path, dry_run=args.dry_run)
         if new_path:
-            action = "预览" if args.dry_run else "重命名"
+            action = "Preview" if args.dry_run else "Rename"
             _ui(f"{action}: {json_path.parent.name} -> {new_path.parent.name}")
             renamed += 1
         else:
             skip += 1
 
-    _ui(f"\n完成: {renamed} 已重命名 | {skip} 未变化 | {fail} 失败")
+    _ui(f"\nDone: {renamed} renamed | {skip} unchanged | {fail} failed")
     if renamed and not args.dry_run:
         _log_debug("consider rebuilding index: scholaraio index --rebuild")

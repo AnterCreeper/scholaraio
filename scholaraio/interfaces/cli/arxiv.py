@@ -39,18 +39,18 @@ def cmd_arxiv_search(args: argparse.Namespace, cfg) -> None:
     sort = args.sort or "relevance"
 
     if not query and not category:
-        _ui("请至少提供检索词，或使用 --category 指定 arXiv 分类。")
+        _ui("Provide search terms, or specify an arXiv category with --category.")
         return
 
-    _ui(f'arXiv 搜索: query="{query or "*"}" category={category or "-"} sort={sort}\n')
+    _ui(f'arXiv search: query="{query or "*"}" category={category or "-"} sort={sort}\n')
 
     try:
         results = search_arxiv(query, top_k=top_k, category=category, sort=sort)
     except Exception as e:
-        _ui(f"arXiv 搜索失败: {e}")
+        _ui(f"arXiv search failed: {e}")
         return
     if not results:
-        _ui("arXiv 不可用或无结果")
+        _ui("arXiv is unavailable or returned no results")
         return
 
     for i, r in enumerate(results, 1):
@@ -71,36 +71,36 @@ def cmd_arxiv_fetch(args: argparse.Namespace, cfg) -> None:
 
     canonical_id = normalize_arxiv_ref(args.arxiv_ref)
     if not canonical_id:
-        _ui(f"无效的 arXiv 标识或 URL: {args.arxiv_ref}")
+        _ui(f"Invalid arXiv identifier or URL: {args.arxiv_ref}")
         return
 
     if args.dry_run:
         if args.ingest:
-            _ui(f"[dry-run] 将下载 arXiv PDF 并直接入库: {canonical_id}")
+            _ui(f"[dry-run] Will download arXiv PDF and ingest it: {canonical_id}")
         else:
-            _ui(f"[dry-run] 将下载 arXiv PDF 到 inbox: {canonical_id}")
+            _ui(f"[dry-run] Will download arXiv PDF to inbox: {canonical_id}")
         return
 
     if args.ingest:
-        _ui(f"开始直接入库 arXiv 预印本: {canonical_id}")
+        _ui(f"Start ingesting arXiv preprint: {canonical_id}")
         try:
             with tempfile.TemporaryDirectory(prefix="scholaraio_arxiv_") as tmpdir:
                 tmp_inbox = Path(tmpdir)
                 pdf_path = download_arxiv_pdf(canonical_id, tmp_inbox, overwrite=args.force)
-                _ui(f"已下载 PDF: {pdf_path.name}")
+                _ui(f"Downloaded PDF: {pdf_path.name}")
                 run_pipeline(
                     PRESETS["ingest"],
                     cfg,
                     {"inbox_dir": tmp_inbox, "force": args.force, "include_aux_inboxes": False},
                 )
         except Exception as e:
-            _ui(f"arXiv 下载或入库失败: {e}")
+            _ui(f"arXiv download or ingest failed: {e}")
         return
 
     inbox_dir = _default_inbox_dir(cfg)
     try:
         pdf_path = download_arxiv_pdf(canonical_id, inbox_dir, overwrite=args.force)
     except Exception as e:
-        _ui(f"arXiv 下载失败: {e}")
+        _ui(f"arXiv download failed: {e}")
         return
-    _ui(f"已下载到 inbox: {pdf_path}")
+    _ui(f"Downloaded to inbox: {pdf_path}")

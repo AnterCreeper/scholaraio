@@ -161,13 +161,13 @@ class TestLlmLayerFaults:
     def test_extract_diagram_ir_raises_when_nodes_is_not_list(self, cfg, monkeypatch):
         bad = {"title": "T", "nodes": "oops", "edges": []}
         monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
-        with pytest.raises(ValueError, match="IR 格式不正确"):
+        with pytest.raises(ValueError, match="LLM returned invalid IR"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_extract_diagram_ir_raises_when_edges_is_not_list(self, cfg, monkeypatch):
         bad = {"title": "T", "nodes": [], "edges": {"a": "b"}}
         monkeypatch.setattr("scholaraio.services.diagram._call_llm", lambda p, c, **kw: json.dumps(bad))
-        with pytest.raises(ValueError, match="IR 格式不正确"):
+        with pytest.raises(ValueError, match="LLM returned invalid IR"):
             extract_diagram_ir("# Method\nX", "model_arch", cfg)
 
     def test_critique_diagram_ir_raises_on_llm_exception(self, cfg, monkeypatch):
@@ -209,7 +209,7 @@ class TestRendererFaults:
         )
         ir = {"title": "T", "nodes": [{"id": "a", "label": "A"}], "edges": [], "layout_hint": "horizontal"}
         out = tmp_path / "x.svg"
-        with pytest.raises(RuntimeError, match="未找到 graphviz"):
+        with pytest.raises(RuntimeError, match="Graphviz dot command was not found"):
             render_ir(ir, "svg", out_path=out)
 
     def test_svg_with_dot_compile_failure(self, tmp_path, monkeypatch):
@@ -515,9 +515,9 @@ class TestCliFaults:
             critic_rounds=2,
         )
         cli.cmd_diagram(args, cli_cfg)
-        assert any("已生成:" in m for m in capture_ui)
-        assert any("Critic 闭环完成" in m for m in capture_ui)
-        out_msg = next(m for m in capture_ui if "已生成:" in m)
+        assert any("Generated:" in m for m in capture_ui)
+        assert any("Critic loop completed" in m for m in capture_ui)
+        out_msg = next(m for m in capture_ui if "Generated:" in m)
         assert out_msg.endswith(".ir.json")
 
     def test_from_ir_ignores_critic_flag(self, capture_ui, tmp_path):
@@ -544,9 +544,9 @@ class TestCliFaults:
             critic_rounds=5,
         )
         cli.cmd_diagram(args, None)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
         # Critic log should NOT be printed because from-ir bypasses critic
-        assert not any("Critic 闭环完成" in m for m in capture_ui)
+        assert not any("Critic loop completed" in m for m in capture_ui)
 
     def test_all_format_type_combinations(self, cli_cfg, cli_paper_dir, monkeypatch):
         ir = {
@@ -585,8 +585,8 @@ class TestCliFaults:
         )
         cli.cmd_diagram(args, cli_cfg)
         # With max_rounds<=0, critic is bypassed; no critique log is printed
-        assert not any("Critic 闭环完成" in m for m in capture_ui)
-        assert any("已生成:" in m for m in capture_ui)
+        assert not any("Critic loop completed" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
 
     def test_cli_svg_format_without_graphviz(self, cli_cfg, cli_paper_dir, monkeypatch):
         monkeypatch.setattr(

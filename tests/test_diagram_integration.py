@@ -338,8 +338,8 @@ class TestCliIntegration:
                 critic_rounds=2,
             )
             cli.cmd_diagram(args, cli_cfg)
-            assert any("已生成:" in m for m in capture_ui)
-            assert any("Critic 闭环完成" in m for m in capture_ui)
+            assert any("Generated:" in m for m in capture_ui)
+            assert any("Critic loop completed" in m for m in capture_ui)
 
     def test_cli_dump_ir_then_from_ir(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch, tmp_path):
         ir = {
@@ -378,7 +378,7 @@ class TestCliIntegration:
             critic_rounds=3,
         )
         cli.cmd_diagram(args2, None)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
         drawio_path = tmp_path / "diagram_CLI_RoundTrip.drawio"
         assert drawio_path.exists()
         assert "mxGraphModel" in drawio_path.read_text(encoding="utf-8")
@@ -402,7 +402,7 @@ class TestCliIntegration:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, cli_cfg)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)
 
     def test_cli_with_type_exp_setup(self, capture_ui, cli_cfg, cli_paper_dir, monkeypatch):
         ir = {
@@ -423,4 +423,4 @@ class TestCliIntegration:
             critic_rounds=3,
         )
         cli.cmd_diagram(args, cli_cfg)
-        assert any("已生成:" in m for m in capture_ui)
+        assert any("Generated:" in m for m in capture_ui)

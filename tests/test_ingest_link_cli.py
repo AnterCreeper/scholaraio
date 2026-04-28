@@ -38,7 +38,7 @@ class TestIngestLinkCommand:
         cli.cmd_ingest_link(args, cfg)
 
         assert called == {"extract": 0, "pipeline": 0}
-        assert any("[dry-run]" in m and "2 个链接" in m for m in messages)
+        assert any("[dry-run]" in m and "2 links" in m for m in messages)
 
     def test_ingest_link_uses_temp_doc_inbox_pipeline(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -91,7 +91,7 @@ class TestIngestLinkCommand:
         assert seen["sidecar"]["source_url"] == "https://example.com/article"
         assert seen["sidecar"]["source_type"] == "web"
         assert seen["sidecar"]["extraction_method"] == "qt-web-extractor"
-        assert any("开始直接入库链接" in m for m in messages)
+        assert any("Start ingesting links" in m for m in messages)
 
     def test_ingest_link_no_index_skips_global_steps(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
@@ -367,7 +367,7 @@ class TestIngestLinkCommand:
 
         assert seen["steps"] == ["extract_doc", "ingest"]
         assert seen["files"] == ["01-first-page.md", "03-second-page.md"]
-        assert any("已跳过" in message and "network timeout" in message for message in messages)
+        assert any("skipped" in message and "network timeout" in message for message in messages)
 
     def test_ingest_link_keeps_warned_extractions_with_text(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -409,7 +409,7 @@ class TestIngestLinkCommand:
         assert seen["steps"] == ["extract_doc", "ingest"]
         assert seen["files"] == ["01-warned-page.md"]
         assert "Recovered body" in seen["md_text"]
-        assert any("继续入库" in message and "partial extraction" in message for message in messages)
+        assert any("continuing ingest" in message and "partial extraction" in message for message in messages)
 
     def test_ingest_link_uses_short_fallback_name_for_titleless_long_urls(self, tmp_path, monkeypatch):
         long_url = "https://example.com/download?token=" + ("a" * 400)
@@ -451,7 +451,7 @@ class TestIngestLinkCommand:
         assert seen["steps"] == ["extract_doc", "ingest"]
         assert seen["md_name"] == "01-download.md"
         assert len(seen["md_name"].encode("utf-8")) < 255
-        assert not any("失败" in message for message in messages)
+        assert not any("failed" in message for message in messages)
 
     def test_ingest_link_retries_transient_extraction_exception(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -498,8 +498,8 @@ class TestIngestLinkCommand:
         assert sleep_calls == [1.0, 2.0]
         assert seen["steps"] == ["extract_doc", "ingest"]
         assert seen["files"] == ["01-recovered-page.md"]
-        assert any("提取失败，准备重试" in message for message in messages)
-        assert any("重试后成功" in message for message in messages)
+        assert any("Link extraction failed; retrying" in message for message in messages)
+        assert any("succeeded after retry" in message for message in messages)
 
     def test_ingest_link_skips_url_after_retry_budget_exhausted(self, tmp_path, monkeypatch):
         messages: list[str] = []
@@ -536,5 +536,5 @@ class TestIngestLinkCommand:
         assert attempts["count"] == 3
         assert sleep_calls == [1.0, 2.0]
         assert pipeline_called["value"] is False
-        assert any("已跳过" in message and "temporary outage" in message for message in messages)
-        assert any("没有可入库的链接内容" in message for message in messages)
+        assert any("skipped" in message and "temporary outage" in message for message in messages)
+        assert any("No link content available for ingest" in message for message in messages)
