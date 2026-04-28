@@ -43,8 +43,10 @@ class TestIngestLinkCommand:
     def test_ingest_link_uses_temp_doc_inbox_pipeline(self, tmp_path, monkeypatch):
         messages: list[str] = []
         monkeypatch.setattr(cli, "ui", messages.append)
+        seen_extract: dict[str, object] = {}
 
         def fake_extract(url, *, pdf=None, cfg=None, include_html=False, timeout=120.0):
+            seen_extract["include_html"] = include_html
             assert pdf is None
             return {
                 "url": url,
@@ -82,6 +84,7 @@ class TestIngestLinkCommand:
         cli.cmd_ingest_link(args, cfg)
 
         assert seen["steps"] == ["extract_doc", "ingest", "embed", "index"]
+        assert seen_extract["include_html"] is True
         assert seen["doc_inbox_dir"] != cfg._root / "data" / "inbox-doc"
         assert seen["opts"]["inbox_dir"] != cfg._root / "data" / "inbox"
         assert seen["opts"]["include_aux_inboxes"] is False
@@ -92,6 +95,52 @@ class TestIngestLinkCommand:
         assert seen["sidecar"]["source_type"] == "web"
         assert seen["sidecar"]["extraction_method"] == "qt-web-extractor"
         assert any("Start ingesting links" in m for m in messages)
+
+    def test_ingest_link_localizes_html_images_into_temp_doc_inbox(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli, "ui", lambda _msg="": None)
+
+        def fake_extract(url, *, pdf=None, cfg=None, include_html=False, timeout=120.0):
+            assert include_html is True
+            return {
+                "url": url,
+                "title": "Image Page",
+                "text": "Body",
+                "html": '<article><img src="/figures/chart.png" alt="Chart"></article>',
+                "error": "",
+            }
+
+        def fake_fetch_bytes(url, *, timeout=30.0):
+            assert url == "https://example.com/figures/chart.png"
+            return b"png", "image/png"
+
+        seen: dict[str, object] = {}
+
+        def fake_run_pipeline(step_names, cfg, opts):
+            doc_inbox = opts["doc_inbox_dir"]
+            md_files = sorted(doc_inbox.glob("*.md"))
+            seen["md_text"] = md_files[0].read_text(encoding="utf-8")
+            seen["asset_names"] = sorted(path.name for path in doc_inbox.iterdir())
+            seen["image_bytes"] = (doc_inbox / "01-image-page_images" / "chart.png").read_bytes()
+
+        monkeypatch.setattr("scholaraio.providers.webtools.extract_web", fake_extract)
+        monkeypatch.setattr("scholaraio.services.ingest.link_images._read_url_bytes", fake_fetch_bytes)
+        monkeypatch.setattr("scholaraio.services.ingest.pipeline.run_pipeline", fake_run_pipeline)
+
+        cli.cmd_ingest_link(
+            Namespace(
+                urls=["https://example.com/article"],
+                dry_run=False,
+                force=False,
+                pdf=False,
+                no_index=True,
+                json=False,
+            ),
+            SimpleNamespace(_root=tmp_path, papers_dir=tmp_path / "data" / "papers"),
+        )
+
+        assert "![Chart](01-image-page_images/chart.png)" in seen["md_text"]
+        assert "01-image-page_images" in seen["asset_names"]
+        assert seen["image_bytes"] == b"png"
 
     def test_ingest_link_no_index_skips_global_steps(self, tmp_path, monkeypatch):
         monkeypatch.setattr(

@@ -74,6 +74,7 @@ def extract_document_metadata(
 
     if existing_meta:
         meta = _merge_seeded_metadata(meta, existing_meta)
+        _drop_web_source_url_author(meta)
 
     text = md_path.read_text(encoding="utf-8", errors="replace")
 
@@ -142,6 +143,17 @@ def _merge_seeded_metadata(base: PaperMetadata, seeded: PaperMetadata) -> PaperM
         else:
             merged[field.name] = base_value
     return PaperMetadata(**merged)
+
+
+def _drop_web_source_url_author(meta: PaperMetadata) -> None:
+    if (meta.source_type or "").strip().lower() != "web":
+        return
+    author = (meta.first_author or "").strip()
+    if not author.lower().startswith("source url:"):
+        return
+    meta.authors = []
+    meta.first_author = ""
+    meta.first_author_lastname = ""
 
 
 def _has_value(value: object) -> bool:

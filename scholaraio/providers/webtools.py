@@ -527,6 +527,21 @@ def _extract_mcp_text(payload: dict) -> tuple[str, str]:
     return "", ""
 
 
+def _extract_structured_html(payload: dict) -> str:
+    structured = payload.get("structuredContent")
+    if isinstance(structured, dict):
+        for key in ("html", "raw_html", "rendered_html"):
+            value = structured.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+
+    for key in ("html", "raw_html", "rendered_html"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
 def _extract_web_mcp(url: str, *, cfg: Config | None, timeout: float) -> dict:
     mcp_url = _get_webextract_mcp_url(cfg)
     tool = _get_webextract_mcp_tool(cfg)
@@ -544,11 +559,12 @@ def _extract_web_mcp(url: str, *, cfg: Config | None, timeout: float) -> dict:
         raise WebExtractError(str(e)) from e
 
     title, text = _extract_mcp_text(payload)
+    html = _extract_structured_html(payload)
     return {
         "url": url,
         "title": title,
         "text": text,
-        "html": "",
+        "html": html,
         "error": "",
         "transport": "mcp",
         "mcp_url": mcp_url,

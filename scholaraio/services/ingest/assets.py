@@ -17,9 +17,12 @@ def find_assets(inbox_dir: Path, asset_prefix: str, md_stem: str) -> tuple[Path 
     """
     images_dir = None
     for candidate_stem in asset_stem_candidates(asset_prefix, md_stem):
-        candidate = inbox_dir / f"{candidate_stem}_mineru_images"
-        if path_is_dir(candidate):
-            images_dir = candidate
+        for suffix in ("_mineru_images", "_images"):
+            candidate = inbox_dir / f"{candidate_stem}{suffix}"
+            if path_is_dir(candidate):
+                images_dir = candidate
+                break
+        if images_dir is not None:
             break
     if images_dir is None and path_is_dir(inbox_dir / "images"):
         images_dir = inbox_dir / "images"
@@ -84,6 +87,15 @@ def move_assets(inbox_dir: Path, dest_dir: Path, asset_prefix: str, md_stem: str
     candidate_stems = asset_stem_candidates(asset_prefix, md_stem)
     if images_dir:
         shutil.move(str(images_dir), str(dest_dir / "images"))
+        paper_md = dest_dir / "paper.md"
+        if paper_md.exists():
+            md_text = paper_md.read_text(encoding="utf-8")
+            fixed = md_text
+            for stem in candidate_stems:
+                fixed = fixed.replace(f"{stem}_mineru_images/", "images/")
+                fixed = fixed.replace(f"{stem}_images/", "images/")
+            if fixed != md_text:
+                paper_md.write_text(fixed, encoding="utf-8")
     for f in json_files:
         dest_name = strip_artifact_prefix(f.name, candidate_stems)
         shutil.move(str(f), str(dest_dir / dest_name))

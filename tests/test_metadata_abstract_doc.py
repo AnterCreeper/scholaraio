@@ -110,6 +110,27 @@ def test_extract_document_metadata_preserves_existing_web_source_fields(tmp_path
     assert meta.extraction_method == "qt-web-extractor"
 
 
+def test_extract_document_metadata_drops_source_url_as_web_author(tmp_path):
+    md = tmp_path / "report.md"
+    md.write_text(
+        "# Example Domain\n\nSource URL: https://example.com/docs\n\nRendered body text.\n",
+        encoding="utf-8",
+    )
+
+    existing = PaperMetadata(
+        title="Example Domain",
+        source_url="https://example.com/docs",
+        source_type="web",
+        extraction_method="qt-web-extractor",
+    )
+
+    meta = extract_document_metadata(md, _NoKeyConfig(), existing_meta=existing)
+
+    assert meta.first_author == ""
+    assert meta.first_author_lastname == ""
+    assert meta.authors == []
+
+
 def test_extract_document_metadata_merges_regex_fields_with_sidecar(tmp_path, monkeypatch):
     md = tmp_path / "report.md"
     md.write_text(

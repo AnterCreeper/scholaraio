@@ -73,6 +73,8 @@ scholaraio ingest-link https://example.com/report.pdf --pdf
 - ScholarAIO reuses the existing document ingest flow
 - Final records stay in the current `document` family, not a separate `webdocument` type
 - Provenance fields such as `source_url`, `source_type`, and `extraction_method` are preserved in `meta.json`
+- If the extractor returns rendered HTML, ScholarAIO discovers image references, downloads reachable images into a local `images/` directory during ingest, and rewrites Markdown links to local relative paths.
+- If an image download fails because of access control, SSL, 404, or similar issues, ScholarAIO keeps the original external URL in the Markdown instead of breaking the content.
 
 ## Practical Heuristics
 

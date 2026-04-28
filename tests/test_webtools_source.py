@@ -549,6 +549,45 @@ class TestWebtoolsEnhancedExtract:
         assert result["title"] == "Structured Page"
         assert result["text"] == "# Structured Page\n\nstructured body"
 
+    def test_extract_web_mcp_transport_preserves_structured_html(self, monkeypatch, tmp_path):
+        def fake_urlopen(req, timeout=0):
+            body = json.loads(req.data.decode("utf-8"))
+            if body["method"] == "initialize":
+                return _FakeResponse(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": body["id"],
+                        "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}},
+                    }
+                )
+            if body["method"] == "notifications/initialized":
+                return _FakeResponse("", status=204)
+            return _FakeResponse(
+                {
+                    "jsonrpc": "2.0",
+                    "id": body["id"],
+                    "result": {
+                        "structuredContent": {
+                            "title": "Image Page",
+                            "markdown": "# Image Page\n\nbody",
+                            "html": "<main><img src='/figure.png'></main>",
+                        },
+                        "isError": False,
+                    },
+                }
+            )
+
+        monkeypatch.setattr("scholaraio.providers.mcp.urlopen", fake_urlopen)
+
+        from scholaraio.core.config import _build_config
+        from scholaraio.providers.webtools import extract_web
+
+        cfg = _build_config({"webextract": {"transport": "mcp"}}, tmp_path)
+
+        result = extract_web("https://example.com", cfg=cfg, include_html=True)
+
+        assert result["html"] == "<main><img src='/figure.png'></main>"
+
     def test_extract_web_mcp_transport_env_overrides_empty_config(self, monkeypatch, tmp_path):
         seen: dict[str, object] = {}
 

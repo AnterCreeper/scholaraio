@@ -134,7 +134,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
     output_mode = redirect_console_ui(sys.stderr) if args.json else nullcontext()
 
     def extract_for_ingest(url: str, *, pdf: bool | None = None) -> dict:
-        return webtools.extract_web(url, pdf=pdf, cfg=cfg)
+        return webtools.extract_web(url, pdf=pdf, cfg=cfg, include_html=True)
 
     try:
         with output_mode, tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
@@ -164,6 +164,18 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 sidecar_path = md_path.with_suffix(".json")
 
                 md_text = _render_ingest_link_markdown(title, source_url, text)
+                from scholaraio.services.ingest import link_images
+
+                image_result = link_images.localize_ingest_link_images(
+                    markdown=md_text,
+                    html=result.get("html") or "",
+                    base_url=source_url,
+                    images_dir=doc_inbox_dir / f"{md_path.stem}_images",
+                )
+                md_text = image_result.markdown
+                downloaded = sum(1 for item in image_result.images if item.status == "downloaded")
+                if downloaded:
+                    _ui(f"Localized images: {downloaded}")
                 md_path.write_text(md_text, encoding="utf-8")
 
                 sidecar = {

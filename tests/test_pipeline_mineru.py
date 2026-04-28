@@ -92,6 +92,25 @@ def test_move_assets_normalizes_safe_stem_json_artifacts(tmp_path):
     assert not any(path.name.startswith(safe_stem) for path in dest.iterdir())
 
 
+def test_move_assets_moves_generic_image_dir_and_rewrites_markdown_refs(tmp_path):
+    import scholaraio.services.ingest.pipeline as pipeline
+
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    dest = tmp_path / "paper"
+    dest.mkdir()
+    images = inbox / "paper_images"
+    images.mkdir()
+    (images / "fig.png").write_bytes(b"png")
+    paper_md = dest / "paper.md"
+    paper_md.write_text("![fig](paper_images/fig.png)\n", encoding="utf-8")
+
+    pipeline._move_assets(inbox, dest, "paper", "paper")
+
+    assert (dest / "images" / "fig.png").read_bytes() == b"png"
+    assert paper_md.read_text(encoding="utf-8") == "![fig](images/fig.png)\n"
+
+
 def test_step_mineru_falls_back_without_cloud_key(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
