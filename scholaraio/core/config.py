@@ -399,6 +399,19 @@ class OpenAlexConfig:
 
 
 @dataclass
+class PublishConfig:
+    """Published-paper archive and site-generation configuration.
+
+    Attributes:
+        site_output_dir: Default output directory for ``scholaraio publish-site``.
+        published_dir: Local audited-paper archive root; defaults to ``published``.
+    """
+
+    site_output_dir: str = ""
+    published_dir: str = "published"
+
+
+@dataclass
 class Config:
     """ScholarAIO 全局配置，由 :func:`load_config` 构建。
 
@@ -417,6 +430,7 @@ class Config:
         webextract: 外部网页提取服务配置。
         backup: 备份配置。
         openalex: OpenAlex API 配置。
+        publish: 发布站点配置。
     """
 
     paths: PathsConfig = field(default_factory=PathsConfig)
@@ -433,6 +447,7 @@ class Config:
     webextract: WebServiceConfig = field(default_factory=WebServiceConfig)
     backup: BackupConfig = field(default_factory=BackupConfig)
     openalex: OpenAlexConfig = field(default_factory=OpenAlexConfig)
+    publish: PublishConfig = field(default_factory=PublishConfig)
 
     # Root directory of the config file (used to resolve relative paths)
     _root: Path = field(default_factory=Path.cwd, repr=False, compare=False)
@@ -624,6 +639,23 @@ class Config:
     def backup_source_dir(self) -> Path:
         """备份源目录的绝对路径。"""
         return self._resolve_path(self.backup.source_dir)
+
+    @property
+    def published_dir(self) -> Path:
+        """Audited published-paper archive root."""
+        return self._resolve_path(self.publish.published_dir or "published")
+
+    @property
+    def site_output_dir(self) -> Path | None:
+        """Default static site output directory, if configured."""
+        if not self.publish.site_output_dir:
+            return None
+        return self._resolve_path(self.publish.site_output_dir)
+
+    @property
+    def publish_site_output_dir(self) -> Path | None:
+        """Explicit alias for the publish-site output directory."""
+        return self.site_output_dir
 
     def ensure_dirs(self) -> None:
         """创建运行所需的目录（paper library, spool queues, workspace 等）。"""
@@ -1151,6 +1183,12 @@ def _build_config(data: dict, root: Path) -> Config:
         api_key=str(openalex_data.get("api_key") or "").strip(),
     )
 
+    publish_data = data.get("publish", {}) or {}
+    publish = PublishConfig(
+        site_output_dir=str(publish_data.get("site_output_dir") or "").strip(),
+        published_dir=str(publish_data.get("published_dir") or "published").strip() or "published",
+    )
+
     return Config(
         paths=paths,
         llm=llm,
@@ -1166,6 +1204,7 @@ def _build_config(data: dict, root: Path) -> Config:
         webextract=webextract,
         backup=backup,
         openalex=openalex,
+        publish=publish,
         _root=root,
     )
 

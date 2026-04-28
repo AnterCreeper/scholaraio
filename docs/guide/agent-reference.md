@@ -47,7 +47,7 @@ Representative skills:
 
 - Core research: `search`, `show`, `ingest`, `workspace`, `audit`, `translate`
 - Writing: `academic-writing`, `literature-review`, `paper-guided-reading`, `paper-writing`, `citation-check`, `writing-polish`, `review-response`, `research-gap`, `poster`, `technical-report`
-- Outputs and tooling: `draw`, `document`, `scientific-runtime`, `scientific-tool-onboarding`
+- Outputs and tooling: `draw`, `document`, `publish`, `scientific-runtime`, `scientific-tool-onboarding`
 
 ## Repo And Module Map
 
@@ -87,6 +87,7 @@ Fresh-layout runtime:
 - inbox and pending queues under `data/spool/`
 - stateful indexes and rebuildable state under `data/state/`
 - user project outputs under `workspace/`
+- final audited deliverable archives under git-ignored `published/`
 
 Breaking cleanup behavior:
 

@@ -161,3 +161,21 @@ webextract:
   base_url: http://127.0.0.1:8766
   api_key: "optional-token"
 ```
+
+### Publish Site
+
+`published/` is a local, git-ignored archive for final audited deliverables. The `publish-site` command can generate a separate static site from `published/*/metadata.json`.
+
+```yaml
+publish:
+  site_output_dir: ~/generated-report
+  # published_dir: published
+```
+
+Run:
+
+```bash
+scholaraio publish-site
+```
+
+By default, PDFs and generated source ZIPs are copied into the output site so it can be deployed as a standalone GitHub Pages repository. Use `--symlink` only for local preview.

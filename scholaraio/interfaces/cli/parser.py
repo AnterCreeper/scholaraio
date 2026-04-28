@@ -56,6 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
     cmd_webextract = cli_mod.cmd_webextract
     cmd_backup = cli_mod.cmd_backup
     cmd_metrics = cli_mod.cmd_metrics
+    cmd_publish_site = cli_mod.cmd_publish_site
 
     parser = argparse.ArgumentParser(
         prog="scholaraio",
@@ -609,6 +610,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_ingest_link.add_argument("--no-index", action="store_true", help="Ingest only; skip embed/index")
     p_ingest_link.add_argument("--json", action="store_true", help="Print extraction summary as JSON")
+
+    # --- publish-site ---
+    p_publish = sub.add_parser(
+        "publish-site",
+        help="Generate a static published-paper site",
+        description="Generate a static published-paper site from published/*/metadata.json archives.",
+    )
+    p_publish.set_defaults(func=cmd_publish_site)
+    p_publish.add_argument("--out-dir", default=None, help="Site output directory (default: publish.site_output_dir)")
+    p_publish.add_argument("--symlink", action="store_true", help="Symlink assets for local preview instead of copying")
 
     # --- patent-fetch ---
     p_patent_fetch = sub.add_parser(

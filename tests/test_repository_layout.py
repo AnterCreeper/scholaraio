@@ -91,6 +91,7 @@ LEGACY_FACADE_ROOT_EXPORTS = (
 
 
 def _local_package_spec(module_name: str):
+    importlib.import_module("scholaraio")
     package_root = ROOT / "scholaraio"
     relative_parts = module_name.split(".")[1:]
     search_root = package_root.joinpath(*relative_parts[:-1])
@@ -1384,6 +1385,7 @@ def test_internal_cli_wiring_commands_live_in_interface_namespace() -> None:
         ("cmd_webextract", "scholaraio.interfaces.cli.web"),
         ("cmd_explore", "scholaraio.interfaces.cli.explore"),
         ("cmd_ingest_link", "scholaraio.interfaces.cli.ingest_link"),
+        ("cmd_publish_site", "scholaraio.interfaces.cli.publish"),
         ("cmd_patent_fetch", "scholaraio.interfaces.cli.patent"),
         ("cmd_patent_search", "scholaraio.interfaces.cli.patent"),
         ("cmd_attach_pdf", "scholaraio.interfaces.cli.attach_pdf"),

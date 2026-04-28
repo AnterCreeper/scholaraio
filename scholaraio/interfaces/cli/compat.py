@@ -27,6 +27,7 @@ from scholaraio.interfaces.cli import output as _output_cli
 from scholaraio.interfaces.cli import paper as _paper_cli
 from scholaraio.interfaces.cli import parser as _parser_cli
 from scholaraio.interfaces.cli import paths as _paths_cli
+from scholaraio.interfaces.cli import publish as _publish_cli
 from scholaraio.interfaces.cli import runtime as _runtime_cli
 from scholaraio.interfaces.cli import search_metrics as _search_metrics_cli
 from scholaraio.interfaces.cli import topics as _topics_cli
@@ -89,6 +90,7 @@ _terminal_preview = _web_cli._terminal_preview
 cmd_explore = _explore_cli.cmd_explore
 _explore_root = _explore_cli._explore_root
 cmd_ingest_link = _ingest_link_cli.cmd_ingest_link
+cmd_publish_site = _publish_cli.cmd_publish_site
 _slugify_ingest_link_title = _ingest_link_cli._slugify_ingest_link_title
 _fallback_ingest_link_title = _ingest_link_cli._fallback_ingest_link_title
 _render_ingest_link_markdown = _ingest_link_cli._render_ingest_link_markdown
@@ -193,6 +195,7 @@ __all__ = [
     "cmd_patent_search",
     "cmd_pipeline",
     "cmd_proceedings",
+    "cmd_publish_site",
     "cmd_refetch",
     "cmd_refs",
     "cmd_rename",

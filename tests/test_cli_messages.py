@@ -229,6 +229,14 @@ class TestCliHelpLocalization:
 
         assert "proceedings" in fsearch_help
 
+    def test_publish_site_help_is_english(self):
+        parser = cli._build_parser()
+        publish_help = parser._subparsers._group_actions[0].choices["publish-site"].format_help()
+
+        assert "Generate a static published-paper site" in publish_help
+        assert "--out-dir" in publish_help
+        assert "--symlink" in publish_help
+
     def test_style_list_descriptions_are_english(self, capsys):
         cli.cmd_style(Namespace(style_sub="list"), _build_config({}, Path.cwd()))
 

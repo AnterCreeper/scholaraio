@@ -130,6 +130,11 @@ backup:
   #     exclude: ["*.tmp", "metrics.db"]
   # Prepare SSH keys or a config.local.yaml password override, plus known_hosts; backup run is non-interactive.
 
+# Static published-paper site generation 发布站点生成
+publish:
+  site_output_dir: null # Optional default for `scholaraio publish-site --out-dir`
+  published_dir: published # Local audited archive root; git-ignored by this repo
+
 # OpenAlex API key (optional, enables higher rate limits)
 # openalex:
 #   api_key: null  # -> config.local.yaml or env OPENALEX_API_KEY
