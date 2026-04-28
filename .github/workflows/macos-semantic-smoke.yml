@@ -79,8 +79,8 @@ jobs:
 
           grep -q "Boundary-layer turbulence transfer learning" "$SMOKE_ROOT/semantic.out"
           grep -q "Boundary-layer turbulence transfer learning" "$SMOKE_ROOT/unified.out"
-          grep -q "分数:" "$SMOKE_ROOT/semantic.out"
-          grep -q "分数:" "$SMOKE_ROOT/unified.out"
+          grep -q "score:" "$SMOKE_ROOT/semantic.out"
+          grep -q "score:" "$SMOKE_ROOT/unified.out"
 
           echo "issue-65 macOS explore semantic/unified smoke passed"
 

@@ -15,3 +15,6 @@ def test_macos_semantic_smoke_workflow_runs_issue_search_commands() -> None:
     assert "scholaraio explore embed --name issue-65-smoke" in run_script
     assert 'scholaraio explore search --name issue-65-smoke "boundary layer turbulence" --mode semantic' in run_script
     assert 'scholaraio explore search --name issue-65-smoke "boundary layer turbulence" --mode unified' in run_script
+    assert 'grep -q "score:" "$SMOKE_ROOT/semantic.out"' in run_script
+    assert 'grep -q "score:" "$SMOKE_ROOT/unified.out"' in run_script
+    assert "分数:" not in run_script
