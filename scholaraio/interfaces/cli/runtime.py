@@ -40,15 +40,15 @@ def main() -> None:
 
     layout_version = meta.get("layout_version")
     if not layout_version_is_supported(layout_version):
-        _ui(f"检测到更高版本的运行时布局：layout_version={layout_version}。")
-        _ui(f"当前程序最高支持 {SUPPORTED_LAYOUT_VERSION}；请先升级 ScholarAIO。")
-        _ui("当前仍可运行 `scholaraio migrate status` 查看控制面状态。")
+        _ui(f"Detected a newer runtime layout: layout_version={layout_version}.")
+        _ui(f"This program supports up to layout version {SUPPORTED_LAYOUT_VERSION}; please upgrade ScholarAIO first.")
+        _ui("You can still run `scholaraio migrate status` to inspect the control-plane state.")
         raise SystemExit(2)
 
     lock_status = describe_migration_lock(cfg)
     if lock_status["status"] != "absent":
-        _ui(f"检测到活动的 migration.lock：{cfg.migration_lock_path}")
-        _ui("当前仅允许运行 `scholaraio migrate status` 或 `scholaraio migrate recover --clear-lock`。")
+        _ui(f"Detected an active migration.lock: {cfg.migration_lock_path}")
+        _ui("Only `scholaraio migrate status` or `scholaraio migrate recover --clear-lock` is allowed now.")
         raise SystemExit(2)
 
     is_setup_cmd = args.command == "setup"
@@ -57,7 +57,7 @@ def main() -> None:
     except Exception as exc:
         if not is_setup_cmd:
             raise
-        _ui(f"警告：metrics 初始化失败，已跳过，不影响 setup: {exc}")
+        _ui(f"Warning: metrics initialization failed and was skipped; setup is unaffected: {exc}")
     configure_session(cfg.ingest.contact_email)
     configure_s2_session(cfg.resolved_s2_api_key())
 

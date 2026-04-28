@@ -91,13 +91,13 @@ def _webextract_for_ingest_link(
             last_source_url = source_url
             if not error or text.strip():
                 if attempt > 1:
-                    _ui(f"链接提取重试后成功: {source_url} (第 {attempt} 次)")
+                    _ui(f"Link extraction succeeded after retry: {source_url} (attempt {attempt})")
                 return result
 
         if attempt >= max_attempts:
             break
         wait = backoff_base * float(2 ** (attempt - 1))
-        _ui(f"链接提取失败，准备重试: {last_source_url} ({last_error})，{wait:.1f}s 后重试")
+        _ui(f"Link extraction failed; retrying: {last_source_url} ({last_error}), {wait:.1f}s before retry")
         _sleep(wait)
 
     if last_result is not None:
@@ -117,11 +117,11 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
 
     urls = [u.strip() for u in args.urls if u.strip()]
     if not urls:
-        _ui("请至少提供一个 URL")
+        _ui("Provide at least one URL")
         return
 
     if args.dry_run:
-        _ui(f"[dry-run] 将抓取 {len(urls)} 个链接并直接入库")
+        _ui(f"[dry-run] Will extract and ingest {len(urls)} links")
         for url in urls:
             _ui(f"  - {url}")
         return
@@ -138,7 +138,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
 
     try:
         with output_mode, tempfile.TemporaryDirectory(prefix="scholaraio_link_") as tmpdir:
-            _ui(f"开始直接入库链接: {len(urls)} 个")
+            _ui(f"Start ingesting links: {len(urls)}")
             tmp_root = Path(tmpdir)
             inbox_dir = tmp_root / "inbox"
             inbox_dir.mkdir(parents=True, exist_ok=True)
@@ -152,10 +152,10 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 error = (result.get("error") or "").strip()
                 text = result.get("text") or ""
                 if error and not text.strip():
-                    _ui(f"链接提取失败，已跳过: {source_url} ({error})")
+                    _ui(f"Link extraction failed; skipped: {source_url} ({error})")
                     continue
                 if error:
-                    _ui(f"链接提取有警告，继续入库: {source_url} ({error})")
+                    _ui(f"Link extraction warning; continuing ingest: {source_url} ({error})")
 
                 title = (result.get("title") or "").strip() or _fallback_ingest_link_title(source_url, idx)
                 slug = _slugify_ingest_link_title(title, source_url, idx)
@@ -183,10 +183,10 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                         "markdown_file": md_name,
                     }
                 )
-                _ui(f"已抓取: {title[:80]}")
+                _ui(f"Fetched: {title[:80]}")
 
             if not summaries:
-                _ui("没有可入库的链接内容")
+                _ui("No link content available for ingest")
                 return
 
             run_pipeline(
@@ -200,7 +200,7 @@ def cmd_ingest_link(args: argparse.Namespace, cfg) -> None:
                 },
             )
     except Exception as e:
-        _ui(f"链接抓取或入库失败: {e}")
+        _ui(f"Link extraction or ingest failed: {e}")
         return
 
     if args.json:

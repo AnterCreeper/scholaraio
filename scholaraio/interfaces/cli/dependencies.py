@@ -38,7 +38,7 @@ def _check_import_error(e: ImportError) -> None:
         logger = cli_mod._log
     hint = hints.get(top, "")
     if hint:
-        logger.error("缺少依赖: %s\n  安装: %s", mod, hint)
+        logger.error("Missing dependency: %s\n  Install: %s", mod, hint)
     else:
-        logger.error("缺少依赖: %s\n  请安装所需的 Python 包", e)
+        logger.error("Missing dependency: %s\n  Please install the required Python packages", e)
     sys.exit(1)

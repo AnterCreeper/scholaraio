@@ -204,7 +204,7 @@ def test_toolref_use_rejects_unsafe_version_path(tmp_path, monkeypatch, toolref_
 
     monkeypatch.setattr(paths_mod, "_DEFAULT_TOOLREF_DIR", tmp_path)
 
-    with pytest.raises(ValueError, match="非法版本号"):
+    with pytest.raises(ValueError, match="Invalid version"):
         toolref_use("qe", "../outside", cfg=None)
 
     assert not (tmp_path / "qe" / "current").exists()

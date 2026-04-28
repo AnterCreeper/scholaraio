@@ -41,7 +41,7 @@ def cmd_import_endnote(args: argparse.Namespace, cfg) -> None:
     paths = [Path(f) for f in args.files]
     for p in paths:
         if not p.exists():
-            _ui(f"错误：文件不存在: {p}")
+            _ui(f"Error: File does not exist: {p}")
             sys.exit(1)
 
     try:
@@ -50,14 +50,14 @@ def cmd_import_endnote(args: argparse.Namespace, cfg) -> None:
         _check_import_error(e)
 
     if not records:
-        _ui("未解析到任何记录")
+        _ui("No records parsed")
         return
 
     n_pdfs = sum(1 for p in pdf_paths if p is not None)
     if n_pdfs:
-        _ui(f"解析到 {len(records)} 条记录，{n_pdfs} 个可匹配 PDF")
+        _ui(f"Parsed {len(records)} records, {n_pdfs} matching PDFs")
     else:
-        _ui(f"解析到 {len(records)} 条记录")
+        _ui(f"Parsed {len(records)} records")
 
     stats = import_external(
         records,

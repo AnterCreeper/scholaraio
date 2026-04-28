@@ -26,12 +26,12 @@ def cmd_proceedings(args: argparse.Namespace, cfg) -> None:
 
         proceeding_dir = Path(args.proceeding_dir).expanduser()
         if not proceeding_dir.exists():
-            _ui(f"proceedings 目录不存在: {proceeding_dir}")
+            _ui(f"Proceedings directory does not exist: {proceeding_dir}")
             return
 
         candidates_path = build_proceedings_clean_candidates(proceeding_dir)
-        _ui(f"已生成 proceedings clean candidates: {candidates_path}")
-        _ui("等待 agent 审阅 clean_candidates.json 并生成 clean_plan.json，然后再执行后续清洗。")
+        _ui(f"Generated proceedings clean candidates: {candidates_path}")
+        _ui("Waiting for an agent to review clean_candidates.json and create clean_plan.json before cleanup.")
         return
 
     if args.proceedings_action == "apply-split":
@@ -41,15 +41,15 @@ def cmd_proceedings(args: argparse.Namespace, cfg) -> None:
         split_plan = Path(args.split_plan).expanduser()
 
         if not proceeding_dir.exists():
-            _ui(f"proceedings 目录不存在: {proceeding_dir}")
+            _ui(f"Proceedings directory does not exist: {proceeding_dir}")
             return
         if not split_plan.exists():
-            _ui(f"split plan 不存在: {split_plan}")
+            _ui(f"Split plan does not exist: {split_plan}")
             return
 
         apply_proceedings_split_plan(proceeding_dir, split_plan)
         meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
-        _ui(f"已应用 proceedings split plan: {proceeding_dir.name} ({meta.get('child_paper_count', 0)} 篇)")
+        _ui(f"Applied proceedings split plan: {proceeding_dir.name} ({meta.get('child_paper_count', 0)} papers)")
         return
 
     if args.proceedings_action == "apply-clean":
@@ -59,15 +59,15 @@ def cmd_proceedings(args: argparse.Namespace, cfg) -> None:
         clean_plan = Path(args.clean_plan).expanduser()
 
         if not proceeding_dir.exists():
-            _ui(f"proceedings 目录不存在: {proceeding_dir}")
+            _ui(f"Proceedings directory does not exist: {proceeding_dir}")
             return
         if not clean_plan.exists():
-            _ui(f"clean plan 不存在: {clean_plan}")
+            _ui(f"Clean plan does not exist: {clean_plan}")
             return
 
         apply_proceedings_clean_plan(proceeding_dir, clean_plan)
         meta = json.loads((proceeding_dir / "meta.json").read_text(encoding="utf-8"))
-        _ui(f"已应用 proceedings clean plan: {proceeding_dir.name} ({meta.get('child_paper_count', 0)} 篇)")
+        _ui(f"Applied proceedings clean plan: {proceeding_dir.name} ({meta.get('child_paper_count', 0)} papers)")
         return
 
-    _ui(f"未知 proceedings 子命令: {args.proceedings_action}")
+    _ui(f"Unknown proceedings subcommand: {args.proceedings_action}")

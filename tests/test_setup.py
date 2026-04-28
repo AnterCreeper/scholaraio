@@ -18,7 +18,12 @@ from scholaraio.services.setup import (
     check_dep_group,
     recommend_pdf_parser,
     run_check,
+    run_wizard,
 )
+
+
+def _has_cjk(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
 
 
 def test_check_dep_group_treats_runtime_import_failure_as_missing(monkeypatch):
@@ -444,6 +449,30 @@ def test_wizard_deps_does_not_auto_install_when_input_stream_hits_eof(monkeypatc
     out = capsys.readouterr().out
     assert called == []
     assert "已跳过" in out
+
+
+def test_wizard_defaults_to_english_when_language_input_hits_eof(monkeypatch, capsys):
+    cfg = Config()
+    monkeypatch.setattr("builtins.input", lambda *_args, **_kwargs: (_ for _ in ()).throw(EOFError()))
+    monkeypatch.setattr("scholaraio.services.setup._wizard_deps", lambda lang: print(f"deps:{lang}"))
+    monkeypatch.setattr("scholaraio.services.setup._wizard_config", lambda root, lang: print(f"config:{lang}"))
+    monkeypatch.setattr(
+        "scholaraio.services.setup._wizard_parser",
+        lambda cfg, lang: ParserChoice(parser="docling", needs_mineru_key=False),
+    )
+    monkeypatch.setattr(
+        "scholaraio.services.setup._wizard_keys", lambda root, lang, parser_choice: print(f"keys:{lang}")
+    )
+    monkeypatch.setattr("scholaraio.services.setup.run_check", lambda cfg=None, lang="en": [])
+    monkeypatch.setattr("scholaraio.services.setup.format_check_results", lambda results: "")
+
+    run_wizard(cfg)
+
+    out = capsys.readouterr().out
+    assert "Language:" in out
+    assert "ScholarAIO Setup Wizard" in out
+    assert "deps:en" in out
+    assert not _has_cjk(out)
 
 
 def test_wizard_parser_auto_prefers_mineru_when_cli_exists_even_without_token_probe(monkeypatch, capsys):

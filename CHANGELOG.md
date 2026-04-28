@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **English CLI and service messages**: Migrated user-facing CLI help, status output, warnings, and service error messages from Chinese to English, and updated the corresponding regression tests so ScholarAIO no longer preserves Chinese compatibility for these message strings.
+
 ## [1.4.0] — 2026-04-25
 
 ### Added

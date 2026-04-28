@@ -62,7 +62,7 @@ def cmd_enrich_toc(args: argparse.Namespace, cfg) -> None:
     elif args.paper_id:
         targets = [papers_dir / args.paper_id / "meta.json"]
     else:
-        _log_error("请指定 <paper-id> 或 --all")
+        _log_error("Specify <paper-id> or --all")
         sys.exit(1)
 
     if args.all:
@@ -77,7 +77,7 @@ def cmd_enrich_toc(args: argparse.Namespace, cfg) -> None:
                 inspect=args.inspect,
             ),
             success_message=_toc_success_message,
-            failure_message="  TOC 提取失败",
+            failure_message="  TOC extraction failed",
             max_retries=2,
         )
     else:
@@ -85,12 +85,12 @@ def cmd_enrich_toc(args: argparse.Namespace, cfg) -> None:
         for json_path in targets:
             md_path = json_path.parent / "paper.md"
             if not md_path.exists():
-                _log_error("已跳过（缺少 paper.md）: %s", json_path.parent.name)
+                _log_error("Skipped (missing paper.md): %s", json_path.parent.name)
                 skip += 1
                 continue
 
             _ui(f"\n{json_path.parent.name}")
-            _ui("  开始提取 TOC...")
+            _ui("  Extracting TOC...")
             success = enrich_toc(
                 json_path,
                 md_path,
@@ -103,10 +103,10 @@ def cmd_enrich_toc(args: argparse.Namespace, cfg) -> None:
                 _ui(_toc_success_message(json_path))
             else:
                 fail += 1
-                _ui("  TOC 提取失败")
+                _ui("  TOC extraction failed")
 
     if args.all or len(targets) > 1:
-        _ui(f"\n完成: {ok} 成功 | {fail} 失败 | {skip} 跳过")
+        _ui(f"\nDone: {ok} succeeded | {fail} failed | {skip} skipped")
 
 
 def cmd_enrich_l3(args: argparse.Namespace, cfg) -> None:
@@ -120,7 +120,7 @@ def cmd_enrich_l3(args: argparse.Namespace, cfg) -> None:
     elif args.paper_id:
         targets = [papers_dir / args.paper_id / "meta.json"]
     else:
-        _log_error("请指定 <paper-id> 或 --all")
+        _log_error("Specify <paper-id> or --all")
         sys.exit(1)
 
     if args.all:
@@ -135,8 +135,8 @@ def cmd_enrich_l3(args: argparse.Namespace, cfg) -> None:
                 max_retries=args.max_retries,
                 inspect=args.inspect,
             ),
-            success_message="  结论提取完成",
-            failure_message="  结论提取失败",
+            success_message="  Conclusion extraction completed",
+            failure_message="  Conclusion extraction failed",
             max_retries=args.max_retries,
         )
     else:
@@ -144,7 +144,7 @@ def cmd_enrich_l3(args: argparse.Namespace, cfg) -> None:
         for json_path in targets:
             md_path = json_path.parent / "paper.md"
             if not md_path.exists():
-                _log_error("已跳过（缺少 paper.md）: %s", json_path.parent.name)
+                _log_error("Skipped (missing paper.md): %s", json_path.parent.name)
                 skip += 1
                 continue
 
@@ -159,21 +159,21 @@ def cmd_enrich_l3(args: argparse.Namespace, cfg) -> None:
             )
             if success:
                 ok += 1
-                _ui("  结论提取完成")
+                _ui("  Conclusion extraction completed")
             else:
                 fail += 1
-                _ui("  结论提取失败")
+                _ui("  Conclusion extraction failed")
 
     if args.all or len(targets) > 1:
-        _ui(f"\n完成: {ok} 成功 | {fail} 失败 | {skip} 跳过")
+        _ui(f"\nDone: {ok} succeeded | {fail} failed | {skip} skipped")
 
 
 def _toc_success_message(json_path: Path) -> str:
     try:
         data = json.loads(json_path.read_text(encoding="utf-8"))
-        return f"  TOC 提取完成: {len(data.get('toc', []))} 节"
+        return f"  TOC extraction completed: {len(data.get('toc', []))} sections"
     except (OSError, json.JSONDecodeError):
-        return "  TOC 提取完成"
+        return "  TOC extraction completed"
 
 
 def _run_batch_enrich(
@@ -193,7 +193,7 @@ def _run_batch_enrich(
     for json_path in targets:
         md_path = json_path.parent / "paper.md"
         if not md_path.exists():
-            _log_error("已跳过（缺少 paper.md）: %s", json_path.parent.name)
+            _log_error("Skipped (missing paper.md): %s", json_path.parent.name)
             skip += 1
             continue
         queued.append((json_path, md_path))
@@ -202,7 +202,7 @@ def _run_batch_enrich(
         return 0, 0, skip
 
     workers = min(max(1, int(getattr(cfg.llm, "concurrency", 1))), len(queued))
-    _ui(f"并发处理（{workers} workers，共 {len(queued)} 篇）...")
+    _ui(f"Concurrent processing ({workers} workers, total {len(queued)} papers)...")
 
     def _retry_one(json_path: Path, md_path: Path) -> tuple[Path, bool, int]:
         for attempt in range(1, max_retries + 2):
@@ -211,7 +211,7 @@ def _run_batch_enrich(
                 if success:
                     return json_path, True, attempt
             except Exception as e:
-                _log_warning("批量富化失败（%s，第 %d 次）: %s", json_path.parent.name, attempt, e)
+                _log_warning("Batch enrichment failed (%s, attempt %d): %s", json_path.parent.name, attempt, e)
             if attempt <= max_retries:
                 _sleep(float(2 ** (attempt - 1)))
         return json_path, False, max_retries + 1
@@ -221,14 +221,14 @@ def _run_batch_enrich(
     with futures_mod.ThreadPoolExecutor(max_workers=workers) as pool:
         futures = []
         for json_path, md_path in queued:
-            _ui(f"\n{_batch_message(json_path, '开始处理...')}")
+            _ui(f"\n{_batch_message(json_path, 'Start processing...')}")
             futures.append(pool.submit(_retry_one, json_path, md_path))
         for future in futures_mod.as_completed(futures):
             json_path, success, attempts = future.result()
             if success:
                 ok += 1
                 if attempts > 1:
-                    _ui(_batch_message(json_path, f"重试后成功（共 {attempts} 次）"))
+                    _ui(_batch_message(json_path, f"Succeeded after retry (total {attempts} times)"))
                 _ui(
                     _batch_message(
                         json_path,
@@ -238,7 +238,7 @@ def _run_batch_enrich(
             else:
                 fail += 1
                 if attempts > 1:
-                    _ui(_batch_message(json_path, f"已重试 {attempts - 1}/{max_retries} 次"))
+                    _ui(_batch_message(json_path, f"Retried {attempts - 1}/{max_retries} times"))
                 _ui(_batch_message(json_path, failure_message))
 
     return ok, fail, skip

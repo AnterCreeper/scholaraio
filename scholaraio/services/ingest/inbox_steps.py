@@ -133,7 +133,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
             _log_error("preferred parser chain failed: %s", err)
             ctx.status = "failed"
             return StepResult.FAIL
-        _ui(f"已按配置优先使用 {parser_name} 解析。")
+        _ui(f"Used configured preferred parser: {parser_name}.")
         ctx.md_path = md_path
         return StepResult.OK
 
@@ -153,7 +153,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
                 _log_error("fallback parsers failed: %s", fallback_err)
                 ctx.status = "failed"
                 return StepResult.FAIL
-            _ui(f"MinerU 不可用，已降级使用 {parser_name} 解析。")
+            _ui(f"MinerU is unavailable; fell back to {parser_name}.")
             ctx.md_path = md_path
             return StepResult.OK
 
@@ -172,14 +172,14 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
         page_count = _get_pdf_page_count(pdf_path)
         is_long = page_count > local_chunk_limit
         if is_long:
-            _ui(f"检测到长 PDF（{page_count} 页，超过 {local_chunk_limit} 页限制），正在分片处理...")
+            _ui(f"Detected a long PDF ({page_count} pages, over the {local_chunk_limit}-page limit); chunking...")
     else:
         is_long, cloud_chunk_size, cloud_chunk_reason = _plan_cloud_chunking(
             pdf_path,
             default_chunk_size=local_chunk_limit,
         )
         if is_long:
-            _ui(f"检测到云端需分片 PDF（{cloud_chunk_reason}），正在分片处理...")
+            _ui(f"Detected a PDF that needs cloud chunking ({cloud_chunk_reason}); chunking...")
 
     # Try local MinerU first, fallback to MinerU cloud CLI
     if local_mineru_available:
@@ -231,7 +231,7 @@ def step_mineru(ctx: InboxCtx) -> StepResult:
             _log_error("fallback parsers failed: %s", fallback_err)
             ctx.status = "failed"
             return StepResult.FAIL
-        _ui(f"MinerU 不可用，已降级使用 {parser_name} 解析。")
+        _ui(f"MinerU is unavailable; fell back to {parser_name}.")
         ctx.md_path = md_path
         return StepResult.OK
 
@@ -272,7 +272,7 @@ def step_office_convert(ctx: InboxCtx) -> StepResult:
     try:
         from markitdown import MarkItDown
     except ImportError:
-        _log_error("MarkItDown 未安装，无法转换 Office 文件。请运行: pip install scholaraio[office]")
+        _log_error("MarkItDown is not installed; cannot convert Office files. Run: pip install scholaraio[office]")
         ctx.status = "failed"
         return StepResult.FAIL
 
@@ -281,13 +281,13 @@ def step_office_convert(ctx: InboxCtx) -> StepResult:
         result = md_obj.convert(str(office_path))
         md_text = result.text_content or ""
         if not md_text.strip():
-            _log.warning("Office 文件内容为空: %s", office_path.name)
+            _log.warning("Office file content is empty: %s", office_path.name)
         md_path.write_text(md_text, encoding="utf-8")
         ctx.md_path = md_path
         _log_debug("office convert OK: %s -> %s", office_path.name, md_path.name)
         return StepResult.OK
     except Exception as exc:
-        _log_error("MarkItDown 转换失败 %s: %s", office_path.name, exc)
+        _log_error("MarkItDown conversion failed for %s: %s", office_path.name, exc)
         ctx.status = "failed"
         return StepResult.FAIL
 
@@ -406,14 +406,14 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
     if ctx.is_thesis:
         ctx.meta.paper_type = "thesis"
         _log_debug("thesis inbox, skipping API and dedup")
-        _ui(f"学位论文: {ctx.meta.title or '?'}")
+        _ui(f"Thesis: {ctx.meta.title or '?'}")
         return StepResult.OK
 
     # Patent inbox: set paper_type, skip API query, use publication_number for dedup
     if ctx.is_patent:
         ctx.meta.paper_type = "patent"
         _log_debug("patent inbox, skipping API query")
-        _ui(f"专利: {ctx.meta.title or '?'}")
+        _ui(f"Patent: {ctx.meta.title or '?'}")
         # Patent publication number dedup
         pub_num = (ctx.meta.publication_number or "").upper().strip()
         if not pub_num:
@@ -421,7 +421,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
             move_to_pending(
                 ctx,
                 issue="no_pub_num",
-                message="专利 inbox 未提取到公开号，需人工确认",
+                message="Patent inbox item has no extracted publication number; manual review required",
             )
             ctx.status = "needs_review"
             return StepResult.FAIL
@@ -431,7 +431,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
             move_to_pending(
                 ctx,
                 issue="duplicate",
-                message="专利公开号与已入库专利重复",
+                message="Patent publication number duplicates an ingested patent",
                 extra={"duplicate_of": existing_json.parent.name, "publication_number": pub_num},
             )
             ctx.status = "duplicate"
@@ -458,7 +458,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
         move_to_pending(
             ctx,
             issue="duplicate",
-            message="arXiv 预印本与已入库论文重复",
+            message="arXiv preprint duplicates an ingested paper",
             extra={"duplicate_of": existing_json.parent.name, "arxiv_id": arxiv_key},
         )
         ctx.status = "duplicate"
@@ -474,7 +474,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
                 move_to_pending(
                     ctx,
                     issue="no_pub_num",
-                    message="检测为专利但未提取到公开号，需人工确认",
+                    message="Detected as patent but no publication number was extracted; manual review required",
                 )
                 ctx.status = "needs_review"
                 return StepResult.FAIL
@@ -483,29 +483,29 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
                 move_to_pending(
                     ctx,
                     issue="duplicate",
-                    message="专利公开号与已入库专利重复",
+                    message="Patent publication number duplicates an ingested patent",
                     extra={"duplicate_of": existing_json.parent.name, "publication_number": pub_num},
                 )
                 ctx.status = "duplicate"
                 return StepResult.FAIL
-            _ui("检测为专利，无 DOI 直接入库")
+            _ui("Detected patent; ingesting directly without DOI")
             return StepResult.OK
         # No DOI -> LLM thesis detection
         if detect_thesis(ctx):
             ctx.meta.paper_type = "thesis"
             ctx.is_thesis = True
-            _ui("检测为学位论文，无 DOI 直接入库")
+            _ui("Detected thesis; ingesting directly without DOI")
             return StepResult.OK
         # No DOI -> LLM book detection
         if detect_book(ctx):
             ctx.meta.paper_type = "book"
-            _ui("检测为书籍，无 DOI 直接入库")
+            _ui("Detected book; ingesting directly without DOI")
             return StepResult.OK
         # No DOI -> check arXiv preprint (has arXiv ID from extraction or API)
         if ctx.meta.arxiv_id:
             if not ctx.meta.paper_type:
                 ctx.meta.paper_type = "preprint"
-            _ui(f"检测为 arXiv 预印本（{ctx.meta.arxiv_id}），无 DOI 直接入库")
+            _ui(f"Detected arXiv preprint ({ctx.meta.arxiv_id}); ingesting directly without DOI")
             return StepResult.OK
         # Not thesis/book/patent/arXiv -> move to pending
         _log_debug("no DOI and not thesis/book/patent/arXiv, moving to pending")
@@ -540,7 +540,7 @@ def step_dedup(ctx: InboxCtx) -> StepResult:
             move_to_pending(
                 ctx,
                 issue="duplicate",
-                message="DOI 与已入库论文重复，如需覆盖请手动处理",
+                message="DOI duplicates an ingested paper; handle manually if you need to overwrite it",
                 extra={"duplicate_of": existing_json.parent.name, "doi": doi_key},
             )
         ctx.status = "duplicate"
@@ -576,7 +576,7 @@ def step_ingest(ctx: InboxCtx) -> StepResult:
 
     if not (ctx.meta.title or "").strip() and not (ctx.meta.abstract or "").strip():
         _log_error("ingest failed: no title and no abstract")
-        _ui("跳过：无标题且无摘要，无法入库")
+        _ui("Skipped: no title or abstract; cannot ingest")
         ctx.status = "failed"
         return StepResult.FAIL
 

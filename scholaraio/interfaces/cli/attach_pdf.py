@@ -37,29 +37,29 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
     pdf_path = Path(args.pdf_path)
 
     if not pdf_path.exists():
-        _ui(f"错误：PDF 文件不存在: {pdf_path}")
+        _ui(f"Error: PDF file does not exist: {pdf_path}")
         sys.exit(1)
 
     existing_md = paper_d / "paper.md"
     dry_run = getattr(args, "dry_run", False)
 
     if dry_run:
-        _ui(f"[dry-run] 论文目录: {paper_d}")
-        _ui(f"[dry-run] PDF 来源: {pdf_path}")
-        _ui(f"[dry-run] 目标 paper.md: {paper_d / 'paper.md'}")
+        _ui(f"[dry-run] Paper directory: {paper_d}")
+        _ui(f"[dry-run] PDF source: {pdf_path}")
+        _ui(f"[dry-run] Target paper.md: {paper_d / 'paper.md'}")
         if existing_md.exists():
-            _ui("[dry-run] 警告：已有 paper.md，实际运行时将被覆盖")
-        _ui("[dry-run] 将执行: MinerU 转换 → 摘要补全 → 重新嵌入 → 重建索引")
-        _ui("[dry-run] 如确认无误，去掉 --dry-run 参数再运行")
+            _ui("[dry-run] Warning: paper.md already exists and will be overwritten")
+        _ui("[dry-run] Will run: MinerU conversion -> abstract backfill -> re-embed -> rebuild index")
+        _ui("[dry-run] If this looks correct, rerun without --dry-run")
         return
 
     if existing_md.exists():
-        _ui(f"警告：{paper_d.name} 已有 paper.md，将被覆盖")
+        _ui(f"Warning: {paper_d.name} already has paper.md and it will be overwritten")
 
     # Copy PDF to paper directory.
     dest_pdf = paper_d / pdf_path.name
     shutil.copy2(str(pdf_path), str(dest_pdf))
-    _ui(f"已复制 PDF: {dest_pdf.name}")
+    _ui(f"Copied PDF: {dest_pdf.name}")
 
     # Convert PDF -> markdown via MinerU.
     from scholaraio.providers.mineru import (
@@ -104,7 +104,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
     def _ensure_valid_for_mineru() -> None:
         validation = validate_pdf_for_mineru(dest_pdf)
         if not validation.ok:
-            _ui(f"PDF 校验失败: {validation.error or 'PDF validation failed'}")
+            _ui(f"PDF validation failed: {validation.error or 'PDF validation failed'}")
             sys.exit(1)
 
     if prefers_fallback_parser(getattr(cfg.ingest, "pdf_preferred_parser", "mineru")):
@@ -115,22 +115,24 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
             auto_detect=fallback_auto_detect,
         )
         if not ok:
-            _ui(f"首选解析器失败: {fallback_err}")
+            _ui(f"Preferred parser failed: {fallback_err}")
             sys.exit(1)
-        _ui(f"已按配置优先使用 {parser_name} 生成 paper.md")
+        _ui(f"Generated paper.md with preferred parser {parser_name}")
         preferred_done = True
     elif check_server(cfg.ingest.mineru_endpoint):
         _ensure_valid_for_mineru()
         page_count = _get_pdf_page_count(dest_pdf)
         if page_count > local_chunk_limit:
-            _ui(f"检测到长 PDF（{page_count} 页，超过 {local_chunk_limit} 页限制），正在分片处理...")
+            _ui(
+                f"Detected long PDF ({page_count} pages, exceeds {local_chunk_limit} page limit), splitting into chunks..."
+            )
             result = _convert_long_pdf(dest_pdf, mineru_opts, chunk_size=local_chunk_limit)
         else:
             result = convert_pdf(dest_pdf, mineru_opts)
     else:
         api_key = cfg.resolved_mineru_api_key()
         if not api_key:
-            _ui("MinerU 不可达且无 MinerU token，改用 fallback 解析器")
+            _ui("MinerU is unreachable and no MinerU token is configured; using fallback parser")
         else:
             from scholaraio.providers.mineru import convert_pdf_cloud
 
@@ -140,7 +142,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
                 default_chunk_size=local_chunk_limit,
             )
             if should_chunk:
-                _ui(f"检测到云端需分片 PDF（{reason}），正在分片处理...")
+                _ui(f"Detected cloud PDF chunking requirement ({reason}), splitting into chunks...")
                 try:
                     result = _convert_long_pdf_cloud(
                         dest_pdf,
@@ -151,10 +153,13 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
                     )
                 except ImportError as exc:
                     result = None
-                    _ui(f"云端分片依赖缺失，尝试 fallback：{exc}。可安装 scholaraio[pdf]")
+                    _ui(
+                        f"Cloud chunking dependency is missing; trying fallback: {exc}. "
+                        "Install with: pip install scholaraio[pdf]"
+                    )
                 except Exception as exc:
                     result = None
-                    _ui(f"云端分片失败，尝试 fallback：{exc}")
+                    _ui(f"Cloud chunking failed; trying fallback: {exc}")
             else:
                 result = convert_pdf_cloud(
                     dest_pdf,
@@ -166,9 +171,9 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
     if not preferred_done and (result is None or not result.success):
         err = result.error if result is not None else "MinerU unavailable"
         if is_pdf_validation_error(result):
-            _ui(f"PDF 校验失败: {err}")
+            _ui(f"PDF validation failed: {err}")
             sys.exit(1)
-        _ui(f"MinerU 转换失败，尝试 fallback: {err}")
+        _ui(f"MinerU conversion failed; trying fallback: {err}")
         ok, parser_name, fallback_err = convert_pdf_with_fallback(
             dest_pdf,
             existing_md,
@@ -176,9 +181,9 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
             auto_detect=fallback_auto_detect,
         )
         if not ok:
-            _ui(f"fallback 解析失败: {fallback_err}")
+            _ui(f"Fallback parsing failed: {fallback_err}")
             sys.exit(1)
-        _ui(f"已降级使用 {parser_name} 生成 paper.md")
+        _ui(f"Fell back to {parser_name} to generate paper.md")
     elif result is not None:
         # Move/rename output to paper.md.
         if result.md_path and result.md_path != existing_md:
@@ -215,7 +220,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
     if dest_pdf.exists() and dest_pdf.name != "paper.pdf":
         dest_pdf.unlink()
 
-    _ui(f"paper.md 已生成: {paper_d.name}/")
+    _ui(f"Generated paper.md: {paper_d.name}/")
 
     # Backfill abstract if missing.
     from scholaraio.stores.papers import read_meta, write_meta
@@ -228,7 +233,7 @@ def cmd_attach_pdf(args: argparse.Namespace, cfg) -> None:
         if abstract:
             data["abstract"] = abstract
             write_meta(paper_d, data)
-            _ui(f"abstract 已补全 ({len(abstract)} chars)")
+            _ui(f"Abstract filled ({len(abstract)} chars)")
 
     # Incremental re-embed + re-index.
     from scholaraio.services.ingest.pipeline import step_embed, step_index

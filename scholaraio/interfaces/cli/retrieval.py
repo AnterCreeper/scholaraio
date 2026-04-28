@@ -72,20 +72,20 @@ def cmd_embed(args: argparse.Namespace, cfg) -> None:
 
     papers_dir = cfg.papers_dir
     if not papers_dir.exists():
-        _log_error("论文目录不存在: %s", papers_dir)
+        _log_error("Papers directory does not exist: %s", papers_dir)
         sys.exit(1)
 
     provider = (getattr(cfg.embed, "provider", "local") or "local").strip().lower()
-    action = "重建向量索引" if args.rebuild else "更新向量索引"
+    action = "Rebuild vector index" if args.rebuild else "Update vector index"
     _ui(f"{action}: {papers_dir} -> {cfg.index_db}")
     count = build_vectors(papers_dir, cfg.index_db, rebuild=args.rebuild, cfg=cfg)
     if provider == "none":
-        _ui("当前 embed.provider=none：已禁用向量生成，系统将使用关键词检索。")
-        _ui("如需语义检索，请将 embed.provider 改为 local 或 openai-compat 后重新运行 `scholaraio embed`。")
+        _ui("Current embed.provider=none: vector generation is disabled; keyword search will be used.")
+        _ui("For semantic search, set embed.provider to local or openai-compat and rerun `scholaraio embed`.")
         return
-    label = "总计" if args.rebuild else "新增"
-    _ui(f"完成：{label} {count} 条向量。")
-    _ui("下一步：运行 `scholaraio vsearch <问题>` 或 `scholaraio usearch <问题>` 试试检索效果。")
+    label = "total" if args.rebuild else "added"
+    _ui(f"Done: {label} {count} vectors.")
+    _ui("Next: run `scholaraio vsearch <query>` or `scholaraio usearch <query>` to try retrieval.")
 
 
 def cmd_vsearch(args: argparse.Namespace, cfg) -> None:
@@ -117,13 +117,13 @@ def cmd_vsearch(args: argparse.Namespace, cfg) -> None:
     _record_search_metrics(store, "vsearch", query, results, elapsed, args)
 
     if not results:
-        _ui(f'未找到与 "{query}" 相关的结果。')
+        _ui(f'No results found for "{query}".')
         return
 
-    _ui(f'语义检索结果（"{query}"，共 {len(results)} 条）\n')
+    _ui(f'Semantic search results for "{query}" ({len(results)} records)\n')
     for i, r in enumerate(results, start=1):
         score = r.get("score", 0.0)
-        _print_search_result(i, r, extra=f"分数: {score:.3f}")
+        _print_search_result(i, r, extra=f"score: {score:.3f}")
     _print_search_next_steps()
 
 
@@ -148,12 +148,12 @@ def cmd_usearch(args: argparse.Namespace, cfg) -> None:
     _record_search_metrics(store, "usearch", query, results, elapsed, args)
 
     if not results:
-        _ui(f'未找到与 "{query}" 相关的结果。')
+        _ui(f'No results found for "{query}".')
         return
 
     if diagnostics.get("vector_degraded"):
-        _ui("提示：向量检索不可用，已降级为关键词检索。\n")
-    _ui(f'融合检索结果（"{query}"，共 {len(results)} 条）\n')
+        _ui("Hint: Vector search is unavailable; falling back to keyword search.\n")
+    _ui(f'Unified search results for "{query}" ({len(results)} records)\n')
     for i, r in enumerate(results, start=1):
         score = r.get("score", 0.0)
         match = r.get("match", "?")

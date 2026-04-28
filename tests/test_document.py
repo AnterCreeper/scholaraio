@@ -118,7 +118,7 @@ class TestInspectDispatcher:
 
         p = tmp_path / "test.pdf"
         p.write_text("dummy")
-        with pytest.raises(ValueError, match="不支持"):
+        with pytest.raises(ValueError, match="Unsupported"):
             inspect(p)
 
     def test_file_not_found(self, tmp_path):
@@ -130,7 +130,7 @@ class TestInspectDispatcher:
     def test_directory_path_rejected(self, tmp_path):
         from scholaraio.services.document import inspect
 
-        with pytest.raises(ValueError, match="不是文件"):
+        with pytest.raises(ValueError, match="not a file"):
             inspect(tmp_path)
 
 
@@ -139,7 +139,7 @@ class TestInspectPptx:
         from scholaraio.services.document import inspect_pptx
 
         result = inspect_pptx(sample_pptx)
-        assert "2 页" in result
+        assert "2 slides" in result
 
     def test_text_content(self, sample_pptx):
         from scholaraio.services.document import inspect_pptx
@@ -158,8 +158,8 @@ class TestInspectPptx:
         from scholaraio.services.document import inspect_pptx
 
         result = inspect_pptx(sample_pptx)
-        assert "总结" in result
-        assert "表格: 1" in result
+        assert "Summary" in result
+        assert "Tables: 1" in result
 
 
 class TestInspectDocx:
@@ -186,7 +186,7 @@ class TestInspectDocx:
         from scholaraio.services.document import inspect_docx
 
         result = inspect_docx(sample_docx)
-        assert "总结" in result
+        assert "Summary" in result
         assert "H1:" in result
         assert "H2:" in result
 
@@ -216,7 +216,7 @@ class TestInspectXlsx:
         from scholaraio.services.document import inspect_xlsx
 
         result = inspect_xlsx(sample_xlsx)
-        assert "冻结窗格" in result
+        assert "Frozen panes" in result
 
     def test_chart_detected(self, sample_xlsx):
         from scholaraio.services.document import inspect_xlsx
@@ -229,4 +229,4 @@ class TestInspectXlsx:
         from scholaraio.services.document import inspect_xlsx
 
         result = inspect_xlsx(sample_xlsx)
-        assert "图表: 1" in result
+        assert "Charts: 1" in result

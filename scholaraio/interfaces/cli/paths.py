@@ -24,7 +24,7 @@ def _resolve_ws_paper_ids(args: argparse.Namespace, cfg) -> set[str] | None:
     from scholaraio.projects import workspace
 
     if not workspace.validate_workspace_name(ws_name):
-        raise ValueError(f"非法工作区名称: {ws_name}")
+        raise ValueError(f"Invalid workspace name: {ws_name}")
 
     try:
         from scholaraio.interfaces.cli import compat as cli_mod
@@ -35,7 +35,7 @@ def _resolve_ws_paper_ids(args: argparse.Namespace, cfg) -> set[str] | None:
     ws_dir = workspace_root(cfg) / ws_name
     pids = workspace.read_paper_ids(ws_dir)
     if not pids:
-        _ui(f"工作区 {ws_name} 为空或不存在")
+        _ui(f"Workspace {ws_name} is empty or does not exist")
     return pids
 
 

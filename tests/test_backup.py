@@ -201,8 +201,8 @@ def test_cmd_backup_list_displays_configured_targets(tmp_path: Path, monkeypatch
 
     cli.cmd_backup(Namespace(backup_action="list"), cfg)
 
-    assert any("备份源目录" in msg for msg in messages)
-    assert any("[lab] 启用" in msg for msg in messages)
+    assert any("Backup source directory" in msg for msg in messages)
+    assert any("[lab] enabled" in msg for msg in messages)
     assert any("append-verify" in msg for msg in messages)
 
 
@@ -220,8 +220,8 @@ def test_cmd_backup_run_reports_dry_run_completion(tmp_path: Path, monkeypatch):
 
     cli.cmd_backup(Namespace(backup_action="run", target="lab", dry_run=True), _build_backup_cfg(tmp_path))
 
-    assert any("即将执行备份命令" in msg for msg in messages)
-    assert any("预演完成" in msg for msg in messages)
+    assert any("About to run backup command" in msg for msg in messages)
+    assert any("Dry run complete" in msg for msg in messages)
 
 
 def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatch):
@@ -245,7 +245,7 @@ def test_cmd_backup_run_displays_shell_quoted_preview(tmp_path: Path, monkeypatc
 
     cli.cmd_backup(Namespace(backup_action="run", target="lab", dry_run=True), _build_backup_cfg(tmp_path))
 
-    assert any("即将执行备份命令" in msg for msg in messages)
+    assert any("About to run backup command" in msg for msg in messages)
     assert any("'ssh -p 2222 -i /tmp/test key'" in msg for msg in messages)
 
 
@@ -268,7 +268,7 @@ def test_cmd_backup_run_exits_cleanly_when_backup_runtime_error_occurs(tmp_path:
     with pytest.raises(SystemExit, match="1"):
         cli.cmd_backup(Namespace(backup_action="run", target="lab", dry_run=False), _build_backup_cfg(tmp_path))
 
-    assert any("即将执行备份命令" in msg for msg in messages)
+    assert any("About to run backup command" in msg for msg in messages)
     assert any("failed to execute rsync" in msg for msg in errors)
 
 
@@ -297,7 +297,7 @@ def test_cmd_backup_run_shows_guidance_for_noninteractive_auth_failures(tmp_path
     assert any("BatchMode=yes" in msg for msg in messages)
     assert any("config.local.yaml" in msg for msg in messages)
     assert any("known_hosts" in msg for msg in messages)
-    assert any("备份失败，退出码: 255" in msg for msg in errors)
+    assert any("Backup failed, exit code: 255" in msg for msg in errors)
 
 
 def test_cmd_backup_run_shows_guidance_for_host_key_failures(tmp_path: Path, monkeypatch):
@@ -324,4 +324,4 @@ def test_cmd_backup_run_shows_guidance_for_host_key_failures(tmp_path: Path, mon
     assert any("Host key verification failed" in msg for msg in messages)
     assert any("known_hosts" in msg for msg in messages)
     assert any("ssh-keyscan" in msg for msg in messages)
-    assert any("备份失败，退出码: 255" in msg for msg in errors)
+    assert any("Backup failed, exit code: 255" in msg for msg in errors)

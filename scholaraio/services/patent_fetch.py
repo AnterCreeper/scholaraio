@@ -116,7 +116,7 @@ def extract_pdf_url(
         PDF 下载链接，未找到则返回 None。
 
     Raises:
-        PatentFetchError: 页面获取失败。
+        PatentFetchError: Page fetch failed.
     """
     url = _resolve_url(id_or_url)
 
@@ -125,9 +125,9 @@ def extract_pdf_url(
         resp = requests.get(url, timeout=timeout)
         resp.raise_for_status()
     except requests.exceptions.Timeout:
-        raise PatentFetchError(f"请求超时（{timeout}秒）")
+        raise PatentFetchError(f"Request timed out ({timeout}s)")
     except requests.exceptions.RequestException as e:
-        raise PatentFetchError(f"页面获取失败: {e}")
+        raise PatentFetchError(f"Failed to fetch page: {e}")
 
     html = resp.text
     matches = PDF_URL_PATTERN.findall(html)
@@ -135,7 +135,7 @@ def extract_pdf_url(
     if not matches:
         return None
 
-    # 去重并保持顺序
+    # Deduplicate while preserving order.
     seen = set()
     for candidate in matches:
         if candidate not in seen:
@@ -193,7 +193,7 @@ def download_patent_pdf(
 
     # 检查是否已存在
     if out_file.exists():
-        ui(f"文件已存在: {out_file}")
+        ui(f"File already exists: {out_file}")
         return out_file
 
     normalized_patent_id = _normalize_identifier(patent_id)
@@ -205,18 +205,18 @@ def download_patent_pdf(
         timeout=timeout,
     )
     if ppubs_path is not None:
-        ui(f"已下载: {ppubs_path} ({ppubs_path.stat().st_size} bytes)")
+        ui(f"Downloaded: {ppubs_path} ({ppubs_path.stat().st_size} bytes)")
         return ppubs_path
 
     # 回退到 Google Patents 页面抓取
     try:
         pdf_url = extract_pdf_url(id_or_url, timeout=30.0)
     except PatentFetchError as e:
-        ui(f"错误: {e}")
+        ui(f"Error: {e}")
         return None
 
     if not pdf_url:
-        ui("未在该页面找到 PDF 下载链接")
+        ui("No PDF download link was found on this page")
         return None
 
     # 下载 PDF
@@ -227,11 +227,11 @@ def download_patent_pdf(
         resp = requests.get(pdf_url, headers=headers, timeout=timeout)
         resp.raise_for_status()
         out_file.write_bytes(resp.content)
-        ui(f"已下载: {out_file} ({len(resp.content)} bytes)")
+        ui(f"Downloaded: {out_file} ({len(resp.content)} bytes)")
         return out_file
     except requests.exceptions.Timeout:
-        ui(f"下载超时（{timeout}秒）")
+        ui(f"Download timed out ({timeout}s)")
         return None
     except requests.exceptions.RequestException as e:
-        ui(f"下载失败: {e}")
+        ui(f"Download failed: {e}")
         return None

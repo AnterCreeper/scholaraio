@@ -119,19 +119,21 @@ def step_translate(json_path: Path, cfg: Config, opts: dict) -> StepResult:
 
         target_lang = validate_lang(target_lang)
     except ValueError as exc:
-        _ui(f"  跳过翻译（语言无效: {exc}）")
+        _ui(f"  Skipping translation (invalid language: {exc})")
         return StepResult.SKIP
     force = opts.get("force", False)
     tr = translate_paper(paper_d, cfg, target_lang=target_lang, force=force)
     if tr.partial:
-        _ui(f"  翻译中断: 已完成 {tr.completed_chunks}/{tr.total_chunks} 块，可稍后继续续翻")
+        _ui(
+            f"  Translation interrupted: completed {tr.completed_chunks}/{tr.total_chunks} chunks; rerun later to resume"
+        )
         return StepResult.FAIL
     if tr.skip_reason == SKIP_ALL_CHUNKS_FAILED:
-        _ui("  翻译失败: 全部分块翻译失败")
+        _ui("  Translation failed: all chunks failed")
         return StepResult.FAIL
     if not tr.ok:
         return StepResult.SKIP
-    _ui(f"  已翻译: {tr.path.name}")  # type: ignore[union-attr]
+    _ui(f"  Translated: {tr.path.name}")  # type: ignore[union-attr]
     return StepResult.OK
 
 
@@ -149,7 +151,7 @@ def step_embed(papers_dir: Path, cfg: Config, opts: dict) -> StepResult:
     try:
         from scholaraio.services.vectors import build_vectors
     except ImportError:
-        _ui("跳过 embed 步骤：缺少依赖，安装: pip install scholaraio[embed]")
+        _ui("Skipping embed step: missing dependencies; install with: pip install scholaraio[embed]")
         return StepResult.SKIP
 
     db_path = cfg.index_db

@@ -109,11 +109,11 @@ def parse_year_range(year: str) -> tuple[int | None, int | None]:
         try:
             return (int(start) if start else None, int(end) if end else None)
         except ValueError as e:
-            raise ValueError(f"无法解析年份范围: {year!r}（格式: 2020, 2020-2024, 2020-, -2024）") from e
+            raise ValueError(f"Cannot parse year range: {year!r} (formats: 2020, 2020-2024, 2020-, -2024)") from e
     try:
         y = int(year)
     except ValueError as e:
-        raise ValueError(f"无法解析年份: {year!r}（格式: 2020, 2020-2024, 2020-, -2024）") from e
+        raise ValueError(f"Cannot parse year: {year!r} (formats: 2020, 2020-2024, 2020-, -2024)") from e
     return (y, y)
 
 

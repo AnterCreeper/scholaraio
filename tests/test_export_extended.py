@@ -141,7 +141,7 @@ class TestCitationStyles:
         cfg = Config()
         cfg._root = tmp_path
         (tmp_path / "data" / "papers").mkdir(parents=True)
-        with pytest.raises(FileNotFoundError, match="不存在"):
+        with pytest.raises(FileNotFoundError, match="does not exist"):
             get_formatter("nonexistent-style", cfg)
 
     def test_custom_style_loaded_from_file(self, tmp_path):
@@ -205,7 +205,7 @@ class TestCitationStyles:
         from scholaraio.stores.citation_styles import get_formatter
 
         cfg = Config()
-        with pytest.raises(ValueError, match="引用格式名称无效"):
+        with pytest.raises(ValueError, match="Invalid citation style name"):
             get_formatter("../../../etc/passwd", cfg)
 
     def test_path_traversal_dots_rejected(self):
@@ -213,7 +213,7 @@ class TestCitationStyles:
         from scholaraio.stores.citation_styles import get_formatter
 
         cfg = Config()
-        with pytest.raises(ValueError, match="引用格式名称无效"):
+        with pytest.raises(ValueError, match="Invalid citation style name"):
             get_formatter("foo/bar", cfg)
 
 

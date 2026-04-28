@@ -47,7 +47,7 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
     elif args.paper_id:
         targets = [_resolve_paper(args.paper_id, cfg) / "meta.json"]
     else:
-        _log_error("请指定 <paper-id> 或 --all")
+        _log_error("Specify <paper-id> or --all")
         sys.exit(1)
 
     references_only = bool(getattr(args, "references_only", False))
@@ -59,7 +59,7 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
             data = json.loads(jp.read_text(encoding="utf-8"))
             if data.get("doi") and not (data.get("references") or []):
                 filtered.append(jp)
-        _ui(f"共 {len(targets)} 篇，{len(filtered)} 篇需要补全 references")
+        _ui(f"Total {len(targets)} papers, {len(filtered)} papers need reference backfill")
         targets = filtered
     elif args.all and not args.force:
         filtered = []
@@ -71,11 +71,11 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
             missing_bib = not all(data.get(k) for k in ("volume", "publisher"))
             if missing_cite or missing_bib:
                 filtered.append(jp)
-        _ui(f"共 {len(targets)} 篇，{len(filtered)} 篇需要补全")
+        _ui(f"Total {len(targets)} papers, {len(filtered)} papers need backfill")
         targets = filtered
 
     if not targets:
-        _ui("无需更新")
+        _ui("No updates needed")
         return
 
     # Filter out non-existent paths
@@ -85,19 +85,19 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
         if jp.exists():
             valid.append(jp)
         else:
-            _log_error("未找到论文: %s", jp.parent.name)
+            _log_error("Paper not found: %s", jp.parent.name)
             fail += 1
     targets = valid
     if not targets:
         if args.all:
-            _ui("无需更新")
+            _ui("No updates needed")
             return
         sys.exit(1)
 
     ok = skip = 0
     total = len(targets)
     workers = min(getattr(args, "jobs", 5) or 5, total)
-    _ui(f"并发 refetch（{workers} workers，共 {total} 篇）...")
+    _ui(f"Concurrent refetch ({workers} workers, total {total} papers)...")
 
     def _do_refetch(jp: Path) -> tuple[Path, bool | None]:
         try:
@@ -105,7 +105,7 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
                 return jp, refetch_metadata(jp, references_only=True)
             return jp, refetch_metadata(jp)
         except Exception as e:
-            _log_error("refetch 失败 %s: %s", jp.parent.name, e)
+            _log_error("refetch failed %s: %s", jp.parent.name, e)
             return jp, None
 
     done = 0
@@ -125,4 +125,4 @@ def cmd_refetch(args: argparse.Namespace, cfg) -> None:
                 skip += 1
                 _ui(f"[{done}/{total}] - {name}")
 
-    _ui(f"\n完成: {ok} 更新 | {skip} 无变化 | {fail} 失败")
+    _ui(f"\nDone: {ok} updated | {skip} unchanged | {fail} failed")

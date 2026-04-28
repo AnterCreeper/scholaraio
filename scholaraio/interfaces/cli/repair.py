@@ -148,7 +148,7 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
     json_path = paper_d / "meta.json"
 
     if not md_path.exists():
-        _log_error("文件不存在: %s", md_path)
+        _log_error("File does not exist: %s", md_path)
         sys.exit(1)
 
     # Preserve existing UUID
@@ -196,9 +196,9 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         meta.first_author = args.author
         meta.first_author_lastname = _extract_lastname(args.author)
 
-    _ui(f"修复论文: {paper_id}")
-    _ui(f"  标题: {meta.title}")
-    _ui(f"  作者: {meta.first_author or '?'} | 年份: {meta.year or '?'} | DOI: {meta.doi or '无'}")
+    _ui(f"Repair paper: {paper_id}")
+    _ui(f"  Title: {meta.title}")
+    _ui(f"  Author: {meta.first_author or '?'} | Year: {meta.year or '?'} | DOI: {meta.doi or 'none'}")
 
     # API enrichment
     if not args.no_api:
@@ -219,20 +219,20 @@ def cmd_repair(args: argparse.Namespace, cfg) -> None:
         meta.extraction_method = "manual_fix"
         _log_debug("skipping API query (--no-api)")
 
-    _ui(f"  结果: {meta.first_author_lastname} ({meta.year}) {meta.title[:60]}")
+    _ui(f"  Result: {meta.first_author_lastname} ({meta.year}) {meta.title[:60]}")
     if meta.doi:
         _ui(f"  DOI: {meta.doi}")
-    _ui(f"  方法: {meta.extraction_method}")
+    _ui(f"  Method: {meta.extraction_method}")
 
     if args.dry_run:
-        _ui("  [dry-run] 未写入任何文件")
+        _ui("  [dry-run] No files were written")
         return
 
     # Preserve existing enriched or custom top-level fields while updating metadata.
     new_data = dict(existing_data)
     new_data.update(metadata_to_dict(meta))
     write_meta(json_path.parent, new_data)
-    _ui(f"  已写入: {json_path.name}")
+    _ui(f"  Wrote: {json_path.name}")
 
     new_stem = generate_new_stem(meta)
     rename_files(md_path, json_path, new_stem, dry_run=False)

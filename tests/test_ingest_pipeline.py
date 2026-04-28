@@ -536,7 +536,7 @@ def test_step_translate_treats_all_chunks_failed_as_failure(tmp_path: Path, monk
     result = step_translate(json_path, cfg, {"force": False})
 
     assert result == StepResult.FAIL
-    assert any("全部分块翻译失败" in msg for msg in messages)
+    assert any("Translation failed: all chunks failed" in msg for msg in messages)
 
 
 def test_run_pipeline_auto_injects_translate_for_new_ingest(tmp_path: Path, monkeypatch):

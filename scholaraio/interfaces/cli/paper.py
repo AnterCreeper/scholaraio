@@ -67,7 +67,7 @@ def _resolve_paper(paper_id: str, cfg) -> Path:
         doi = str(data.get("doi") or "").strip().lower()
         if data.get("id") == paper_id or (doi and doi == normalized_doi):
             return pdir
-    _log.error("未找到论文: %s", paper_id)
+    _log.error("Paper not found: %s", paper_id)
     sys.exit(1)
 
 
@@ -76,19 +76,19 @@ def _print_header(l1: dict) -> None:
     author_str = ", ".join(authors[:3])
     if len(authors) > 3:
         author_str += f" et al. ({len(authors)} total)"
-    _ui(f"论文ID   : {l1['paper_id']}")
+    _ui(f"Paper ID   : {l1['paper_id']}")
     if l1.get("dir_name") and l1["dir_name"] != l1["paper_id"]:
-        _ui(f"目录名   : {l1['dir_name']}")
-    _ui(f"标题     : {l1['title']}")
-    _ui(f"作者     : {author_str}")
-    _ui(f"年份     : {l1.get('year') or '?'}  |  期刊: {l1.get('journal') or '?'}")
+        _ui(f"Directory   : {l1['dir_name']}")
+    _ui(f"Title     : {l1['title']}")
+    _ui(f"Author     : {author_str}")
+    _ui(f"Year     : {l1.get('year') or '?'}  |  Journal: {l1.get('journal') or '?'}")
     if l1.get("doi"):
         _ui(f"DOI      : {l1['doi']}")
     ids = l1.get("ids") or {}
     if ids.get("patent_publication_number"):
-        _ui(f"公开号   : {ids['patent_publication_number']}")
+        _ui(f"Publication number   : {ids['patent_publication_number']}")
     if l1.get("paper_type"):
-        _ui(f"类型     : {l1['paper_type']}")
+        _ui(f"Type     : {l1['paper_type']}")
     try:
         from scholaraio.interfaces.cli import compat as cli_mod
     except ImportError:
@@ -97,7 +97,7 @@ def _print_header(l1: dict) -> None:
         format_citations = cli_mod._format_citations
     cite_str = format_citations(l1.get("citation_count") or {})
     if cite_str:
-        _ui(f"引用     : {cite_str}")
+        _ui(f"Citations     : {cite_str}")
     if ids.get("semantic_scholar_url"):
         _ui(f"S2       : {ids['semantic_scholar_url']}")
     if ids.get("openalex_url"):

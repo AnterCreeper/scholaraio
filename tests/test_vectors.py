@@ -298,7 +298,7 @@ def test_vsearch_does_not_embed_when_vector_table_is_empty(tmp_db, monkeypatch):
         ),
     )
 
-    with np.testing.assert_raises_regex(FileNotFoundError, "向量索引为空"):
+    with np.testing.assert_raises_regex(FileNotFoundError, "Vector index is empty"):
         vectors.vsearch("turbulence", tmp_db, top_k=1)
 
 
@@ -372,5 +372,5 @@ def test_explore_vsearch_does_not_embed_when_vector_table_is_empty(tmp_path, mon
         ),
     )
 
-    with np.testing.assert_raises_regex(FileNotFoundError, "向量库为空"):
+    with np.testing.assert_raises_regex(FileNotFoundError, "Vector store is empty"):
         explore.explore_vsearch("demo", "turbulence", top_k=1, cfg=cfg)

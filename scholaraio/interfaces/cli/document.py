@@ -22,7 +22,7 @@ def cmd_document(args: argparse.Namespace, cfg) -> None:
     if action == "inspect":
         _cmd_document_inspect(args, cfg)
     else:
-        _log_error("请指定 document 子命令: inspect")
+        _log_error("Specify the document subcommand: inspect")
         sys.exit(1)
 
 
@@ -31,7 +31,7 @@ def _cmd_document_inspect(args: argparse.Namespace, cfg) -> None:
 
     file_path = Path(args.file)
     if not file_path.exists():
-        _log_error("文件不存在: %s", file_path)
+        _log_error("File does not exist: %s", file_path)
         sys.exit(1)
     fmt = getattr(args, "format", None)
     try:

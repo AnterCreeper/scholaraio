@@ -88,17 +88,17 @@ def toolref_use(tool: str, version: str, *, cfg: Config | None = None) -> None:
     from scholaraio.core.log import ui
 
     if not validate_tool_name(tool):
-        raise ValueError(f"未知工具：{tool}")
+        raise ValueError(f"Unknown tool: {tool}")
     if not _validate_version(version):
-        raise ValueError(f"非法版本号：{version}")
+        raise ValueError(f"Invalid version: {version}")
     vdir = _version_dir(tool, version, cfg)
     if not vdir.exists():
         raise FileNotFoundError(
-            f"{tool} 版本 {version} 未找到。请先运行 `scholaraio toolref fetch {tool} --version {version}`"
+            f"{tool} version {version} was not found. Run `scholaraio toolref fetch {tool} --version {version}` first"
         )
     _set_current(tool, version, cfg)
     display_name = TOOL_REGISTRY.get(tool, {}).get("display_name", tool)
-    ui(f"[toolref] {display_name} 当前版本已切换为 {version}")
+    ui(f"[toolref] {display_name} current version switched to {version}")
 
 
 def toolref_list(tool: str | None = None, *, cfg: Config | None = None) -> list[dict]:

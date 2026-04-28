@@ -32,17 +32,17 @@ def cmd_metrics(args: argparse.Namespace, cfg) -> None:
     ui = _ui
     store = get_store()
     if not store:
-        _log_error("Metrics 数据库尚未初始化。")
+        _log_error("Metrics database is not initialized.")
         return
 
     if args.summary:
         s = store.summary()
-        ui("LLM 调用统计（全部会话）：")
-        ui(f"  调用次数:      {s['call_count']}")
-        ui(f"  输入 tokens:   {s['total_tokens_in']:,}")
-        ui(f"  输出 tokens:   {s['total_tokens_out']:,}")
-        ui(f"  总 tokens:     {s['total_tokens_in'] + s['total_tokens_out']:,}")
-        ui(f"  总耗时:        {s['total_duration_s']:.1f}s")
+        ui("LLM call statistics (all sessions): ")
+        ui(f"  Call count:      {s['call_count']}")
+        ui(f"  Input tokens:   {s['total_tokens_in']:,}")
+        ui(f"  Output tokens:   {s['total_tokens_out']:,}")
+        ui(f"  Total tokens:     {s['total_tokens_in'] + s['total_tokens_out']:,}")
+        ui(f"  Total duration:        {s['total_duration_s']:.1f}s")
         return
 
     rows = store.query(
@@ -51,7 +51,7 @@ def cmd_metrics(args: argparse.Namespace, cfg) -> None:
         limit=args.last,
     )
     if not rows:
-        ui("没有记录。")
+        ui("No records.")
         return
 
     if args.category == "llm":

@@ -211,9 +211,9 @@ def process_inbox(
                     batch_retry_stems.add(did)
                     _logger().error("MinerU batch failed for %s: %s", br.pdf_path.name, br.error)
                     if is_pdf_validation_error(br):
-                        _ui(f"  {br.pdf_path.name}: PDF 校验失败，后续不会降级解析")
+                        _ui(f"  {br.pdf_path.name}: PDF validation failed; fallback parsing will not run")
                     else:
-                        _ui(f"  {br.pdf_path.name}: MinerU 批量预处理失败，后续将按单文件解析流重试")
+                        _ui(f"  {br.pdf_path.name}: MinerU batch preprocessing failed; retrying via the per-file flow")
                     continue
                 entry = entries.get(did)
                 if entry is not None and entry["md"] is None and br.md_path and br.md_path.exists():
@@ -227,14 +227,17 @@ def process_inbox(
                     batch_completed_stems.add(did)
                 else:
                     batch_retry_stems.add(did)
-                    _ui(f"  {br.pdf_path.name}: MinerU 批量预处理未生成有效 Markdown，后续将按单文件解析流重试")
+                    _ui(
+                        f"  {br.pdf_path.name}: MinerU batch preprocessing did not produce valid Markdown; "
+                        "retrying via the per-file flow"
+                    )
 
             missing_batch_stems = expected_batch_stems - batch_completed_stems - batch_retry_stems
             if missing_batch_stems:
                 batch_retry_stems.update(missing_batch_stems)
                 for stem in sorted(missing_batch_stems):
                     _logger().error("MinerU batch missing result for %s.pdf", stem)
-                    _ui(f"  {stem}.pdf: MinerU 批量预处理结果缺失，后续将按单文件解析流重试")
+                    _ui(f"  {stem}.pdf: MinerU batch preprocessing result is missing; retrying via the per-file flow")
 
     # ---- Per-file pipeline (remaining steps, or all steps if local MinerU) ----
     per_file_steps = inbox_steps

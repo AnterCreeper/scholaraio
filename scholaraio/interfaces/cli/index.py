@@ -34,11 +34,11 @@ def cmd_index(args: argparse.Namespace, cfg) -> None:
     db_path = cfg.index_db
 
     if not papers_dir.exists():
-        _log_error("论文目录不存在: %s", papers_dir)
+        _log_error("Papers directory does not exist: %s", papers_dir)
         sys.exit(1)
 
-    action = "重建索引" if args.rebuild else "构建索引"
+    action = "Rebuild index" if args.rebuild else "Build index"
     _ui(f"{action}: {papers_dir} -> {db_path}")
     count = build_index(papers_dir, db_path, rebuild=args.rebuild)
-    _ui(f"完成：已索引 {count} 篇论文。")
-    _ui("下一步：运行 `scholaraio search <关键词>` 或 `scholaraio usearch <关键词>` 开始检索。")
+    _ui(f"Done: indexed {count} papers.")
+    _ui("Next: run `scholaraio search <keywords>` or `scholaraio usearch <keywords>` to start searching.")

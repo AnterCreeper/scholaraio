@@ -228,9 +228,9 @@ class FallbackExtractor:
                 _log.debug("[extractor] no LLM API key, using regex result")
                 return meta
             raise RuntimeError(
-                "regex 提取 title 失败，需要 LLM 兜底，但未配置 LLM API key。\n"
-                "请在 config.local.yaml 中设置 llm.api_key，"
-                "或设置环境变量 SCHOLARAIO_LLM_API_KEY / DEEPSEEK_API_KEY。"
+                "Regex title extraction failed and LLM fallback is required, but no LLM API key is configured.\n"
+                "Set llm.api_key in config.local.yaml, "
+                "or set SCHOLARAIO_LLM_API_KEY / DEEPSEEK_API_KEY."
             )
         return LLMExtractor(self._llm_config, api_key=self._api_key).extract(filepath)
 
@@ -441,9 +441,9 @@ def get_extractor(config: Config) -> MetadataExtractor:
         api_key = config.resolved_api_key()
         if not api_key:
             raise RuntimeError(
-                "robust 模式需要 LLM API key。\n"
-                "请在 config.local.yaml 中设置 llm.api_key，"
-                "或设置环境变量 SCHOLARAIO_LLM_API_KEY / DEEPSEEK_API_KEY。"
+                "Robust mode requires an LLM API key.\n"
+                "Set llm.api_key in config.local.yaml, "
+                "or set SCHOLARAIO_LLM_API_KEY / DEEPSEEK_API_KEY."
             )
         return RobustExtractor(config.llm, api_key=api_key)
 

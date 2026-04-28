@@ -512,9 +512,9 @@ class TestTranslatePaper:
         assert (workdir / "parts" / "000001.md").exists()
         assert (workdir / "state.json").exists()
         assert (workdir / "chunks.json").exists()
-        assert any("开始翻译，共 3 块" in msg for msg in progress_messages)
-        assert any("翻译进度: 1/3" in msg for msg in progress_messages)
-        assert any("翻译在第 2/3 块中断" in msg for msg in progress_messages)
+        assert any("Starting translation: 3 chunks" in msg for msg in progress_messages)
+        assert any("Translation progress: 1/3" in msg for msg in progress_messages)
+        assert any("Translation interrupted at chunk 2/3" in msg for msg in progress_messages)
 
         second_run_calls: list[str] = []
         resume_messages: list[str] = []
@@ -540,8 +540,8 @@ class TestTranslatePaper:
         assert second_run_calls == ["chunk-2", "chunk-3"]
         assert out_path.read_text(encoding="utf-8") == "译文-1\n\n译文-2\n\n译文-3"
         assert not workdir.exists()
-        assert any("继续翻译：已完成 1/3 块" in msg for msg in resume_messages)
-        assert any("翻译完成: 3/3 块" in msg for msg in resume_messages)
+        assert any("Resuming translation: completed 1/3 chunks" in msg for msg in resume_messages)
+        assert any("Translation completed: 3/3 chunks" in msg for msg in resume_messages)
 
     def test_translate_paper_reuses_trailing_successful_chunks_after_gap(self, tmp_path, monkeypatch):
         paper_dir = tmp_path / "Smith-2023-Test"
@@ -589,7 +589,7 @@ class TestTranslatePaper:
         assert out_path.read_text(encoding="utf-8") == "译文-1"
         assert (workdir / "parts" / "000001.md").exists()
         assert (workdir / "parts" / "000003.md").exists()
-        assert any("已完成 2/3 块" in msg and "前缀 1/3" in msg for msg in progress_messages)
+        assert any("completed 2/3 chunks" in msg and "prefix 1/3" in msg for msg in progress_messages)
 
         second_run_calls: list[str] = []
 

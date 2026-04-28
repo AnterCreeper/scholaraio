@@ -53,7 +53,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
 
     if action == "fetch":
         if args.limit is not None and args.limit <= 0:
-            _ui(f"--limit 必须为正整数，当前为: {args.limit}")
+            _ui(f"--limit must be a positive integer; current value: {args.limit}")
             return
         # Determine name: explicit --name, or derive from filters
         name = args.name
@@ -67,7 +67,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             elif args.keyword:
                 name = args.keyword.replace(" ", "-")[:30]
             else:
-                _ui("请提供 --name 或至少一个过滤条件")
+                _ui("Provide --name or at least one filter")
                 return
         from scholaraio.stores.explore import fetch_explore
 
@@ -87,7 +87,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             limit=getattr(args, "limit", None),
             cfg=cfg,
         )
-        _ui(f"\n已抓取 {total} 篇论文")
+        _ui(f"\nFetched {total} papers")
 
     elif action == "embed":
         try:
@@ -97,9 +97,11 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
         n = build_explore_vectors(args.name, rebuild=args.rebuild, cfg=cfg)
         provider = (getattr(cfg.embed, "provider", "local") or "local").strip().lower()
         if provider == "none":
-            _ui("当前 embed.provider=none：探索库跳过向量生成，仅保留关键词检索。")
+            _ui(
+                "Current embed.provider=none: skipping explore-library vector generation; keyword search remains available."
+            )
             return
-        _ui(f"完成: 新增 {n} 条向量嵌入")
+        _ui(f"Done: added {n} vector embeddings")
 
     elif action == "topics":
         try:
@@ -126,23 +128,25 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             except FileNotFoundError as e:
                 _log_error("%s", e)
                 sys.exit(1)
-            _ui(f"\n聚类完成: {info['n_topics']} 个主题，{info['n_outliers']} 篇离群论文，{info['n_papers']} 篇论文")
+            _ui(
+                f"\nClustering completed: {info['n_topics']} topics, {info['n_outliers']} outlier papers, {info['n_papers']} papers"
+            )
 
         try:
             model = load_model(model_dir)
         except FileNotFoundError:
-            _ui("尚未构建主题模型。请先运行 scholaraio explore topics --name <name> --build。")
+            _ui("No topic model exists yet. Run `scholaraio explore topics --name <name> --build` first.")
             return
 
         if args.topic is not None:
             papers = get_topic_papers(model, args.topic)
             top_n = _resolve_top(args, 20)
             papers = papers[:top_n]
-            _ui(f"主题 {args.topic}: {len(papers)} 篇论文\n")
+            _ui(f"Topic {args.topic}: {len(papers)} papers\n")
             for i, p in enumerate(papers, 1):
                 cc = p.get("citation_count", {})
                 best = max((v for v in (cc or {}).values() if isinstance(v, (int, float))), default=0)
-                cite_str = f"  [被引: {best}]" if best else ""
+                cite_str = f"  [cited: {best}]" if best else ""
                 authors = p.get("authors", "")
                 first_author = authors.split(",")[0].strip() if authors else ""
                 title = p.get("title", "")
@@ -154,23 +158,23 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
 
         overview = get_topic_overview(model)
         if not overview:
-            _ui("没有可用主题。请先运行 scholaraio explore topics --name <name> --build。")
+            _ui("No topics are available. Run `scholaraio explore topics --name <name> --build` first.")
             return
         from scholaraio.services.topics import get_outliers
 
         outliers = get_outliers(model)
         total = sum(t["count"] for t in overview) + len(outliers)
-        _ui(f"\n{len(overview)} 个主题，{total} 篇论文，{len(outliers)} 篇离群论文\n")
+        _ui(f"\n{len(overview)} topics, {total} papers, {len(outliers)} outlier papers\n")
         for t in overview:
             kw = ", ".join(t["keywords"][:6])
-            _ui(f"主题 {t['topic_id']:2d}（{t['count']:3d} 篇）: {kw}")
+            _ui(f"Topic {t['topic_id']:2d} ({t['count']:3d} papers): {kw}")
             for p in t["representative_papers"][:3]:
                 title = p.get("title", "")
                 if len(title) > 65:
                     title = title[:62] + "..."
                 cc = p.get("citation_count", {})
                 best = max((v for v in (cc or {}).values() if isinstance(v, (int, float))), default=0)
-                cite_str = f"  [被引: {best}]" if best else ""
+                cite_str = f"  [cited: {best}]" if best else ""
                 _ui(f"    [{p.get('year', '?')}] {title}{cite_str}")
             _ui()
 
@@ -199,15 +203,15 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                 _log_error("%s", e)
                 sys.exit(1)
         if not results:
-            _ui("未找到结果。")
+            _ui("No results found.")
             return
         for i, r in enumerate(results, 1):
             authors = r.get("authors", [])
             first = authors[0] if authors else ""
             cited = r.get("cited_by_count", 0)
-            cite_str = f"  [被引: {cited}]" if cited else ""
+            cite_str = f"  [cited: {cited}]" if cited else ""
             _ui(f"[{i}] [{r.get('year', '?')}] {r.get('title', '')}")
-            _ui(f"     {first} | {r.get('doi', '')}  (分数: {r['score']:.3f}){cite_str}")
+            _ui(f"     {first} | {r.get('doi', '')}  (score: {r['score']:.3f}){cite_str}")
             _ui()
 
     elif action == "viz":
@@ -220,7 +224,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
         try:
             model = load_model(model_dir)
         except FileNotFoundError:
-            _ui("尚未构建主题模型。请先运行 scholaraio explore topics --name <name> --build。")
+            _ui("No topic model exists yet. Run `scholaraio explore topics --name <name> --build` first.")
             return
         from scholaraio.interfaces.cli.topics import _write_all_viz
 
@@ -229,7 +233,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
     elif action == "list":
         explore_root = _explore_root(cfg)
         if not explore_root.exists():
-            _ui("暂无 explore 库，请先运行 scholaraio explore fetch --issn <ISSN> 创建。")
+            _ui("No explore libraries yet. Run `scholaraio explore fetch --issn <ISSN>` first.")
             return
         for d in sorted(explore_root.iterdir()):
             if not d.is_dir():
@@ -239,7 +243,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                 try:
                     meta = json.loads(meta_file.read_text("utf-8"))
                 except (OSError, json.JSONDecodeError) as e:
-                    _ui(f"  {d.name}: meta.json 读取失败，已跳过（{e}）")
+                    _ui(f"  {d.name}: meta.json read failed; skipped ({e})")
                     continue
                 query = meta.get("query", {})
                 if query:
@@ -248,7 +252,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                     qinfo = f"ISSN {meta['issn']}"
                 else:
                     qinfo = "?"
-                _ui(f"  {d.name}: {meta.get('count', '?')} 篇 ({qinfo}，抓取时间 {meta.get('fetched_at', '?')})")
+                _ui(f"  {d.name}: {meta.get('count', '?')} papers ({qinfo}, fetched_at {meta.get('fetched_at', '?')})")
         return
 
     elif action == "info":
@@ -256,7 +260,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             # List all explore libraries
             explore_root = _explore_root(cfg)
             if not explore_root.exists():
-                _ui("暂无 explore 库，请先运行 scholaraio explore fetch --issn <ISSN> 创建。")
+                _ui("No explore libraries yet. Run `scholaraio explore fetch --issn <ISSN>` first.")
                 return
             for d in sorted(explore_root.iterdir()):
                 if not d.is_dir():
@@ -266,7 +270,7 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                     try:
                         meta = json.loads(meta_file.read_text("utf-8"))
                     except (OSError, json.JSONDecodeError) as e:
-                        _ui(f"  {d.name}: meta.json 读取失败，已跳过（{e}）")
+                        _ui(f"  {d.name}: meta.json read failed; skipped ({e})")
                         continue
                     # Show query info (backward compatible with old ISSN-only format)
                     query = meta.get("query", {})
@@ -276,7 +280,9 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
                         qinfo = f"ISSN {meta['issn']}"
                     else:
                         qinfo = "?"
-                    _ui(f"  {d.name}: {meta.get('count', '?')} 篇 ({qinfo}，抓取时间 {meta.get('fetched_at', '?')})")
+                    _ui(
+                        f"  {d.name}: {meta.get('count', '?')} papers ({qinfo}, fetched_at {meta.get('fetched_at', '?')})"
+                    )
             return
         from scholaraio.stores.explore import count_papers
 
@@ -286,15 +292,15 @@ def cmd_explore(args: argparse.Namespace, cfg) -> None:
             try:
                 meta = json.loads(meta_file.read_text("utf-8"))
             except (OSError, json.JSONDecodeError) as e:
-                _ui(f"读取 {meta_file} 失败：{e}")
+                _ui(f"Read {meta_file} failed: {e}")
                 return
-            _ui(f"Explore 库: {args.name}")
+            _ui(f"Explore library: {args.name}")
             for k, v in meta.items():
                 _ui(f"  {k}: {v}")
         else:
             n = count_papers(args.name, cfg=cfg)
-            _ui(f"Explore 库 {args.name}: {n} 篇论文")
+            _ui(f"Explore library {args.name}: {n} papers")
 
     else:
-        _log_error("未知操作: %s", action)
+        _log_error("Unknown action: %s", action)
         sys.exit(1)

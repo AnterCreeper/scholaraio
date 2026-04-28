@@ -11,7 +11,7 @@ class _ResultLimitAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         current = getattr(namespace, self.dest, None)
         if current is not None and current != values:
-            parser.error("--limit 和 --top 不能同时指定不同的值")
+            parser.error("--limit and --top cannot be set to different values at the same time")
         setattr(namespace, self.dest, values)
 
 
@@ -24,7 +24,7 @@ def _add_result_limit_arg(parser: argparse.ArgumentParser, help_text: str) -> No
         type=int,
         default=None,
         action=_ResultLimitAction,
-        help=f"{help_text}（兼容旧写法 --top）",
+        help=f"{help_text} (legacy alias: --top)",
     )
 
 
@@ -43,12 +43,12 @@ def _resolve_top(args: argparse.Namespace, default: int) -> int:
 
 
 def _add_filter_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--year", type=str, default=None, help="年份过滤：2023 / 2020-2024 / 2020-")
-    parser.add_argument("--journal", type=str, default=None, help="期刊名过滤（模糊匹配）")
+    parser.add_argument("--year", type=str, default=None, help="Year filter: 2023 / 2020-2024 / 2020-")
+    parser.add_argument("--journal", type=str, default=None, help="Journal name filter (fuzzy match)")
     parser.add_argument(
         "--type",
         type=str,
         default=None,
         dest="paper_type",
-        help="论文类型过滤：review / journal-article 等（模糊匹配）",
+        help="Paper type filter: review / journal-article / etc. (fuzzy match)",
     )

@@ -429,7 +429,7 @@ def call_llm(
         resolved_key = api_key or config.resolved_api_key()
 
     if not resolved_key:
-        raise RuntimeError("未配置 LLM API key。")
+        raise RuntimeError("No LLM API key is configured.")
 
     backend = llm_cfg.backend
     _timeout = timeout or llm_cfg.timeout
