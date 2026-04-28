@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from importlib.machinery import PathFinder
 from pathlib import Path
 
@@ -47,6 +48,7 @@ REMOVED_LEGACY_IMPORTS = (
 
 
 def _local_package_spec(module_name: str):
+    importlib.import_module("scholaraio")
     repo_root = Path(__file__).resolve().parents[1]
     package_root = repo_root / "scholaraio"
     relative_parts = module_name.split(".")[1:]
