@@ -219,7 +219,7 @@ scholaraio ws export <name> -o workspace/<name>/references.bib
    - 检查所有 `\includegraphics{}` 路径是否都存在
    - 检查所有 `\label{}` 是否至少被 `\ref{}` 引用一次
    - 检查所有 `\ref{}` 是否都有对应的 `\label{}`
-   - **不要删除**工作目录中的图片文件，仅记录哪些图片未被引用；后续若进入独立归档/发布流程，再按交付需要过滤
+   - **不要删除**工作目录中的图片文件，仅记录哪些图片未被引用；后续若用户确认进入 `/publish` 归档/发布流程，再按交付需要过滤
 7. **引用闭合检查**：
    - 对比 `\cite{}` 与 `\bibitem{}`，确保无孤儿文献、无缺失引用
    - 对于在致谢/背景中提及的核心文献，若未直接 `\cite{}`，使用 `\nocite{}` 保留其 bibitem
@@ -231,7 +231,7 @@ scholaraio ws export <name> -o workspace/<name>/references.bib
     - 页码/目录/引用编号正确
     - 参考文献格式统一
     - 摘要与结论覆盖了全部章节，无遗漏
-11. **若该综述后续进入带 `metadata.json` 的独立归档目录，同步更新该元数据文件**：修正页数、关键词和 note，使其与实际 PDF 一致
+11. **若该综述后续进入 `published/` 归档目录，同步更新 `metadata.json`**：修正页数、关键词和 note，使其与实际 PDF 一致
 
 ## 学术态度
 
